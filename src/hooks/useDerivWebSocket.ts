@@ -168,8 +168,14 @@ export function useDerivWebSocket(apiToken?: string) {
           setActiveLoginId(auth.loginid);
         }
 
-        // Now subscribe to balance (continuous) and ticks
-        subscribeBalance(ws);
+        // Subscribe to all accounts specifically by loginid to bypass any 'all' stream omissions
+        if (ws.readyState === WebSocket.OPEN) {
+           ws.send(JSON.stringify({ balance: 1, account: "all", subscribe: 1 }));
+           for (const acc of accountList) {
+             ws.send(JSON.stringify({ balance: 1, account: acc.loginid }));
+           }
+        }
+        
         subscribeTicks(ws);
       }
 
