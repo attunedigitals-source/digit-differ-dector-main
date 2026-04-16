@@ -149,18 +149,22 @@ export default function UserManagement() {
         const expiry = new Date();
         expiry.setMonth(expiry.getMonth() + months);
 
-        await supabase.from('profiles').update({
+        const { error: profileError } = await supabase.from('profiles').update({
           subscription_status: 'active',
           subscription_expiry: expiry.toISOString()
         }).eq('id', userId);
+        
+        if (profileError) throw profileError;
 
-        await supabase.from('subscriptions').insert({
+        const { error: subError } = await supabase.from('subscriptions').insert({
           user_id: userId,
           plan_type: planType,
           amount: planType === '1_month' ? 45 : planType === '6_months' ? 240 : 400,
           expiry_date: expiry.toISOString(),
           status: 'active'
         });
+
+        if (subError) throw subError;
 
         if (sendMail && email) {
           await supabase.functions.invoke('send-lifecycle-email', {
@@ -169,16 +173,20 @@ export default function UserManagement() {
         }
       } else {
         // Downgrade
-        await supabase.from('profiles').update({
+        const { error: profileError } = await supabase.from('profiles').update({
           subscription_status: 'free',
           subscription_expiry: null
         }).eq('id', userId);
 
+        if (profileError) throw profileError;
+
         // Update active subscriptions to expired
-        await supabase.from('subscriptions')
+        const { error: subError } = await supabase.from('subscriptions')
           .update({ status: 'expired' })
           .eq('user_id', userId)
           .eq('status', 'active');
+        
+        if (subError) throw subError;
 
         if (sendMail && email) {
           await supabase.functions.invoke('send-lifecycle-email', {
