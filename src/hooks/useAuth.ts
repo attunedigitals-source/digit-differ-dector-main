@@ -20,8 +20,10 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   const fetchProfile = async (userId: string) => {
+    setProfileLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -40,14 +42,7 @@ export function useAuth() {
         localStorage.setItem('bt_device_id', deviceId);
       }
 
-      // Check if current device is in the 'device_id' (which we'll use as a JSON field or comma separated string)
-      // For simplicity in this SQL schema, I'll just check if it matches the current device_id
-      // In a real production app, we would store an array of allowed device IDs
-      
       if (userProfile.device_id && userProfile.device_id !== deviceId) {
-        // This is a simple 1-device lock. 
-        // To support 2 devices, we'd need to update the migration to handle an array.
-        // For now, I'll update the entry to the latest device.
         await supabase.from('profiles').update({
           device_id: deviceId,
           last_login_ip: 'Active Session'
@@ -60,7 +55,10 @@ export function useAuth() {
 
     } catch (err) {
       console.error("Error fetching profile:", err);
+      // If profile doesn't exist, we might need to wait or handle it
       setProfile(null);
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -68,25 +66,23 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+      setLoading(false); // Session is now known
       
       if (currentUser) {
-        await fetchProfile(currentUser.id);
+        fetchProfile(currentUser.id); // Load profile in background
       } else {
         setProfile(null);
       }
-      
-      setLoading(false);
     });
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+      setLoading(false); // Session is now known
       
       if (currentUser) {
-        await fetchProfile(currentUser.id);
+        fetchProfile(currentUser.id); // Load profile in background
       }
-      
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
