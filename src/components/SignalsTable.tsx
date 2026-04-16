@@ -10,9 +10,17 @@ interface SignalsTableProps {
   confidenceFilter: number;
   selectedSymbols?: string[];
   avoidDigits?: Record<string, number>;
+  useRandomDigits?: boolean;
 }
 
-export function SignalsTable({ signals, symbolFilter, confidenceFilter, selectedSymbols, avoidDigits }: SignalsTableProps) {
+export function SignalsTable({ 
+  signals, 
+  symbolFilter, 
+  confidenceFilter, 
+  selectedSymbols, 
+  avoidDigits,
+  useRandomDigits 
+}: SignalsTableProps) {
   // Build a stable row per symbol, showing the latest signal for each
   const rows = useMemo(() => {
     const symbolOrder = DERIV_SYMBOLS.map((s) => s.symbol);
@@ -53,7 +61,9 @@ export function SignalsTable({ signals, symbolFilter, confidenceFilter, selected
           <thead>
             <tr className="border-b border-border bg-muted/50">
               <th className="text-left p-3 font-medium text-muted-foreground">Symbol</th>
-              <th className="text-center p-3 font-medium text-muted-foreground">Avoid Digit</th>
+              <th className="text-center p-3 font-medium text-muted-foreground">
+                {useRandomDigits ? "Random Avoid" : "Signal Avoid"}
+              </th>
               <th className="text-center p-3 font-medium text-muted-foreground">Confidence</th>
               <th className="text-center p-3 font-medium text-muted-foreground">Status</th>
               <th className="text-right p-3 font-medium text-muted-foreground">Time</th>
@@ -62,6 +72,14 @@ export function SignalsTable({ signals, symbolFilter, confidenceFilter, selected
           <tbody>
             {rows.map((signal) => {
               const isActive = signal.status === "active";
+              const randomDigit = avoidDigits?.[signal.symbol];
+              
+              // If random mode is ON, we show the random digit (or fallback to '...' if initializing)
+              // If random mode is OFF, we show the engine's dangerDigit.
+              const displayDigit = useRandomDigits 
+                ? (randomDigit !== undefined ? randomDigit : "...") 
+                : signal.dangerDigit;
+
               return (
                 <tr key={signal.symbol} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                   <td className="p-3">
@@ -80,7 +98,7 @@ export function SignalsTable({ signals, symbolFilter, confidenceFilter, selected
                       ) : (
                         <AlertTriangle className="w-3.5 h-3.5" />
                       )}
-                      {avoidDigits?.[signal.symbol] ?? signal.dangerDigit}
+                      {displayDigit}
                     </span>
                   </td>
                   <td className="p-3 text-center">

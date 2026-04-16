@@ -123,6 +123,18 @@ export function useAutoTrader(wsRef: React.RefObject<WebSocket | null>) {
     ws.send(JSON.stringify(proposalReq));
   }, [config, wsRef, ensureRandomDigits]);
 
+  // Effect to keep avoidDigits in sync with selection and random mode
+  useEffect(() => {
+    if (config.useRandomDigits) {
+      ensureRandomDigits();
+    } else {
+      // Clear random digits if we switch back to signal mode
+      setAvoidDigits({});
+      randomDigitMap.current.clear();
+      lastDangerDigit.current.clear();
+    }
+  }, [config.useRandomDigits, config.selectedSymbols, ensureRandomDigits]);
+
   const handleTradeMessage = useCallback((data: any) => {
     // Handle proposal response
     if (data.msg_type === "proposal" && data.proposal) {

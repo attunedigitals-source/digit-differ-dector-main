@@ -124,6 +124,7 @@ export default function Dashboard() {
             confidenceFilter={confidenceFilter}
             selectedSymbols={config.selectedSymbols}
             avoidDigits={avoidDigits}
+            useRandomDigits={config.useRandomDigits}
           />
         </div>
       </main>
