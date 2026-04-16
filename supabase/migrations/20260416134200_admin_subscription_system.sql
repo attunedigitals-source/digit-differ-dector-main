@@ -75,39 +75,61 @@ CREATE TABLE public.email_logs (
 
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 
+-- Helper Function for Admin Check (Prevents Recursion)
+CREATE OR REPLACE FUNCTION public.check_is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+    AND role IN ('admin', 'sub-admin')
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- RLS POLICIES
 
 -- Profiles
 CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT TO authenticated USING (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'sub-admin')
+  public.check_is_admin()
 );
 CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT TO authenticated USING (auth.uid() = id);
 CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
 
 -- Subscriptions
 CREATE POLICY "Admins can manage all subscriptions" ON public.subscriptions FOR ALL TO authenticated USING (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'sub-admin')
+  public.check_is_admin()
 );
 CREATE POLICY "Users can view their own subscriptions" ON public.subscriptions FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
 -- Payments
 CREATE POLICY "Admins can manage all payments" ON public.payments FOR ALL TO authenticated USING (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'sub-admin')
+  public.check_is_admin()
 );
 CREATE POLICY "Users can manage their own payments" ON public.payments FOR ALL TO authenticated USING (auth.uid() = user_id);
 
 -- Trades
 CREATE POLICY "Admins can view all trades" ON public.trades FOR SELECT TO authenticated USING (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'sub-admin')
+  public.check_is_admin()
 );
 CREATE POLICY "Users can own trades" ON public.trades FOR ALL TO authenticated USING (auth.uid() = user_id);
 
 -- Email Logs
 CREATE POLICY "Admins can view all email logs" ON public.email_logs FOR SELECT TO authenticated USING (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'sub-admin')
+  public.check_is_admin()
 );
 
+
 -- FUNCTIONS & TRIGGERS
+
+-- Updated at helper
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
 
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()

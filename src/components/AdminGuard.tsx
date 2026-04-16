@@ -34,9 +34,36 @@ export const AdminGuard = ({ children }: AdminGuardProps) => {
     );
   }
 
-  if (!user || (!isAdmin && !profileLoading)) {
+  if (!user) {
     return null;
+  }
+
+  if (!isAdmin && !profileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="flex flex-col items-center gap-6 max-w-md text-center">
+          <div className="bg-destructive/10 p-4 rounded-full">
+            <ShieldCheck className="w-12 h-12 text-destructive" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Access Denied</h2>
+            <p className="text-muted-foreground">
+              Your account does not have the required administrative privileges to access this area. 
+              If you believe this is an error, please contact the system administrator.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => navigate("/")}>Return Home</Button>
+            <Button variant="destructive" onClick={() => useAuth().signOut().then(() => navigate("/admin/login"))}>Log Out</Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
 };
+
+import { ShieldCheck } from "lucide-react";
+import { Button } from "./ui/button";
+

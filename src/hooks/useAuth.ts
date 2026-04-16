@@ -122,6 +122,7 @@ export function useAuth() {
     user, 
     profile, 
     loading, 
+    profileLoading,
     isAdmin, 
     isPaid,
     signIn, 
