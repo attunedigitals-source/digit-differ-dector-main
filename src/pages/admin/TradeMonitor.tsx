@@ -37,8 +37,6 @@ interface AccountSummary {
   net_profit: number;
   today_trades: number;
   today_profit: number;
-  last_symbol: string;
-  last_result: string;
   last_trade_at: string;
   win_rate: number;
   profiles?: { 
@@ -210,7 +208,6 @@ export default function TradeMonitor() {
           <TableRow className="hover:bg-transparent border-border">
             <TableHead className="text-xs pl-6">User / Account ID</TableHead>
             <TableHead className="text-xs text-center border-x border-border/10">Today (P/L)</TableHead>
-            <TableHead className="text-xs text-center">Live Pulse</TableHead>
             <TableHead className="text-xs text-center border-x border-border/10">Trades Today</TableHead>
             <TableHead className="text-xs text-center">Lifetime Profit</TableHead>
             <TableHead className="text-xs text-right pr-6">Last Active</TableHead>
@@ -258,22 +255,7 @@ export default function TradeMonitor() {
               <TableCell className={`text-center font-mono text-sm font-black border-x border-border/5 ${(a.today_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
                 { (a.today_profit || 0) >= 0 ? '+' : ''}${(Number(a.today_profit) || 0).toFixed(2)}
               </TableCell>
-              <TableCell className="text-center">
-                {a.last_symbol ? (
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground">{getSymbolName(a.last_symbol)}</span>
-                    <Badge className={`text-[9px] font-bold h-4 px-1 ${
-                      a.last_result === 'won' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 
-                      'bg-destructive/10 text-destructive border-destructive/30'
-                    }`}>
-                      {a.last_result?.toUpperCase()}
-                    </Badge>
-                  </div>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground italic">Idle</span>
-                )}
-              </TableCell>
-              <TableCell className="text-center font-mono text-xs font-bold border-x border-border/5">
+              <TableCell className="text-center font-mono text-xs font-bold border-r border-border/5">
                 {a.today_trades || 0}
               </TableCell>
               <TableCell className={`text-center font-mono text-xs font-bold opacity-70 ${(a.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
