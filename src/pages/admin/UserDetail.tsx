@@ -20,7 +20,6 @@ import {
   Activity, 
   Calendar,
   Clock,
-  ExternalLink,
   User as UserIcon,
   CreditCard
 } from "lucide-react";
@@ -55,7 +54,7 @@ export default function UserDetail() {
     refetchInterval: 5000 
   });
 
-  // 1b. Fetch User Performance (Separate query for better stability)
+  // 1b. Fetch User Performance
   const { data: performanceList, isLoading: perfLoading } = useQuery({
     queryKey: ["admin-user-performance", userId],
     queryFn: async () => {
@@ -69,14 +68,14 @@ export default function UserDetail() {
     refetchInterval: 5000
   });
 
-  // Auto-select first account if none selected
+  // Auto-select first account
   useEffect(() => {
     if (performanceList && performanceList.length > 0 && !selectedAccountId) {
       setSelectedAccountId(performanceList[0].deriv_loginid);
     }
   }, [performanceList, selectedAccountId]);
 
-  // 2. Fetch User Trades
+  // 2. Fetch User Trades (Optimized for sidebar)
   const { data: trades, isLoading: tradesLoading } = useQuery({
     queryKey: ["admin-user-trades", userId],
     queryFn: async () => {
@@ -84,14 +83,29 @@ export default function UserDetail() {
         .from('trades')
         .select('*')
         .eq('user_id', userId)
-        .order('timestamp', { ascending: false });
+        .order('timestamp', { ascending: false })
+        .limit(50); 
       if (error) throw error;
-      return data as Trade[];
+      return (data || []) as Trade[];
     },
-    refetchInterval: 5000 // Refresh every 5 seconds for live monitor effect
+    refetchInterval: 5000
   });
 
-  if (profileLoading || tradesLoading || perfLoading) {
+  // 3. Fetch Daily Summary (Server-side aggregated, handles >1000 rows)
+  const { data: dailyHistory, isLoading: historyLoading } = useQuery({
+    queryKey: ["admin-user-daily-history", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_user_daily_summary')
+        .select('*')
+        .eq('user_id', userId);
+      if (error) throw error;
+      return data || [];
+    },
+    refetchInterval: 5000
+  });
+
+  if (profileLoading || tradesLoading || perfLoading || historyLoading) {
     return (
       <AdminLayout title="User Details">
         <div className="flex items-center justify-center h-[50vh]">
@@ -106,51 +120,22 @@ export default function UserDetail() {
       <AdminLayout title="User Not Found">
         <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
           <p className="text-muted-foreground">The requested user does not exist or has been removed.</p>
-          <Button asChild>
-            <Link to="/admin/users">Back to User Management</Link>
-          </Button>
+          <Button asChild><Link to="/admin/users">Back to Users</Link></Button>
         </div>
       </AdminLayout>
     );
   }
 
-  // Filter trades by selected account
-  const filteredTrades = trades?.filter(t => !selectedAccountId || t.deriv_loginid === selectedAccountId);
-
-  // Calculate Daily Stats for filtered trades
-  const dailyStats = filteredTrades?.reduce((acc: any, trade) => {
-    const date = new Date(trade.timestamp).toLocaleDateString();
-    if (!acc[date]) {
-      acc[date] = {
-        date,
-        totalTrades: 0,
-        wins: 0,
-        profit: 0,
-        trades: []
-      };
-    }
-    acc[date].totalTrades += 1;
-    if (trade.result === 'won') acc[date].wins += 1;
-    acc[date].profit += Number(trade.profit_loss) || 0;
-    acc[date].trades.push(trade);
-    return acc;
-  }, {});
-
-  const dailyArray = dailyStats ? Object.values(dailyStats).sort((a: any, b: any) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  ) : [];
-
+  const filteredDailyHistory = dailyHistory?.filter((h: any) => !selectedAccountId || h.deriv_loginid === selectedAccountId) || [];
+  const filteredRecentTrades = trades?.filter(t => !selectedAccountId || t.deriv_loginid === selectedAccountId) || [];
   const performance = performanceList?.find((p: any) => p.deriv_loginid === selectedAccountId) || performanceList?.[0];
 
   return (
     <AdminLayout title="User Performance Dashboard">
       <div className="space-y-6">
-        {/* Header / Back Link */}
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" asChild className="gap-2 text-muted-foreground hover:text-foreground">
-            <Link to="/admin/trades">
-              <ArrowLeft className="w-4 h-4" /> Back to Monitor
-            </Link>
+            <Link to="/admin/users"><ArrowLeft className="w-4 h-4" /> Back to Users</Link>
           </Button>
           <div className="flex items-center gap-3">
             {performanceList && performanceList.length > 1 && (
@@ -168,116 +153,51 @@ export default function UserDetail() {
                 ))}
               </div>
             )}
-            <Badge variant="outline" className={`uppercase font-bold ${
-              profile?.subscription_status === 'active' ? "bg-green-500/10 text-green-500 border-green-500/30" : "bg-muted text-muted-foreground"
-            }`}>
+            <Badge variant="outline" className={`uppercase font-bold ${profile?.subscription_status === 'active' ? "bg-green-500/10 text-green-500 border-green-500/30" : "bg-muted text-muted-foreground"}`}>
               {profile?.subscription_status || 'free'} Plan
             </Badge>
           </div>
         </div>
 
-        {/* User Summary Card */}
         <div className="grid gap-6 md:grid-cols-4">
-          <SummaryCard 
-            title="User Identity" 
-            value={profile?.email} 
-            subtitle={profile?.created_at ? `Joined ${new Date(profile.created_at).toLocaleDateString()}` : 'Joined Date Unknown'}
-            icon={<UserIcon className="w-5 h-5 text-primary" />}
-          />
-          <SummaryCard 
-            title="Total Volume" 
-            value={`${performance?.total_trades || 0}`} 
-            subtitle="Trades Taken"
-            icon={<Activity className="w-5 h-5 text-blue-500" />}
-          />
-          <SummaryCard 
-            title="Net Performance" 
-            value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} 
-            subtitle={`${(Number(performance?.win_rate) || 0).toFixed(1)}% Win Rate`}
-            icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />}
-            isPositive={(Number(performance?.net_profit) || 0) >= 0}
-          />
-          <SummaryCard 
-            title="Account Status" 
-            value={profile?.role?.toUpperCase() || 'USER'} 
-            subtitle={profile?.subscription_expiry ? `Expires ${new Date(profile.subscription_expiry).toLocaleDateString()}` : "Lifetime Status"}
-            icon={<CreditCard className="w-5 h-5 text-purple-500" />}
-          />
+          <SummaryCard title="User Identity" value={profile?.email} subtitle={`Joined ${profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}`} icon={<UserIcon className="w-5 h-5 text-primary" />} />
+          <SummaryCard title="Total Volume" value={`${performance?.total_trades || 0}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-blue-500" />} />
+          <SummaryCard title="Net Performance" value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} subtitle={`${(Number(performance?.win_rate) || 0).toFixed(1)}% Win Rate`} icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} isPositive={(Number(performance?.net_profit) || 0) >= 0} />
+          <SummaryCard title="Account Status" value={profile?.role?.toUpperCase() || 'USER'} subtitle={profile?.subscription_expiry ? `Expires ${new Date(profile.subscription_expiry).toLocaleDateString()}` : "Lifetime Status"} icon={<CreditCard className="w-5 h-5 text-purple-500" />} />
         </div>
 
-        {/* Performance Breakdown */}
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Daily Table */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> Daily Breakdown
-              </h3>
-            </div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2 px-1"><Calendar className="w-4 h-4" /> Daily Breakdown</h3>
             <Card className="border-border bg-card/40 overflow-hidden">
               <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-border bg-muted/20">
-                    <TableHead className="text-xs">Date</TableHead>
-                    <TableHead className="text-xs text-center">Trades</TableHead>
-                    <TableHead className="text-xs text-center">Wins/Loss</TableHead>
-                    <TableHead className="text-xs text-center">Win Rate</TableHead>
-                    <TableHead className="text-xs text-right">Day's Profit</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableHeader><TableRow className="bg-muted/20 border-border"><TableHead className="text-xs">Date</TableHead><TableHead className="text-xs text-center">Trades</TableHead><TableHead className="text-xs text-center">Wins/Loss</TableHead><TableHead className="text-xs text-center">Win Rate</TableHead><TableHead className="text-xs text-right">Profit</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {dailyArray.map((day: any) => (
-                    <TableRow key={day.date} className="border-border/50 hover:bg-muted/10 transition-colors">
-                      <TableCell className="text-sm font-medium">{day.date}</TableCell>
-                      <TableCell className="text-center font-mono text-xs">{day.totalTrades}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <span className="text-green-500 font-bold text-xs">{day.wins}W</span>
-                          <span className="text-muted-foreground text-[10px]">/</span>
-                          <span className="text-destructive font-bold text-xs">{day.totalTrades - day.wins}L</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="text-[10px] font-mono">
-                          {((day.wins / day.totalTrades) * 100).toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className={`text-right font-mono text-sm font-bold ${(Number(day.profit) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                        {(Number(day.profit) || 0) >= 0 ? '+' : ''}{(Number(day.profit) || 0).toFixed(2)}
-                      </TableCell>
+                  {filteredDailyHistory.map((day: any) => (
+                    <TableRow key={day.trade_date} className="border-border/50 hover:bg-muted/10 transition-colors">
+                      <TableCell className="text-sm font-medium">{new Date(day.trade_date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-center font-mono text-xs">{day.total_trades}</TableCell>
+                      <TableCell className="text-center"><div className="flex items-center justify-center gap-1.5"><span className="text-green-500 font-bold text-xs">{day.wins}W</span><span className="text-muted-foreground text-[10px]">/</span><span className="text-destructive font-bold text-xs">{day.total_trades - day.wins}L</span></div></TableCell>
+                      <TableCell className="text-center"><Badge variant="outline" className="text-[10px] font-mono">{((day.wins / day.total_trades) * 100).toFixed(1)}%</Badge></TableCell>
+                      <TableCell className={`text-right font-mono text-sm font-bold ${(Number(day.daily_profit) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>{(Number(day.daily_profit) || 0) >= 0 ? '+' : ''}{(Number(day.daily_profit) || 0).toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
+                  {filteredDailyHistory.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-xs italic">No trade history found</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </Card>
           </div>
 
-          {/* Recent Trades Sidebar */}
           <div className="space-y-4">
-               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                 <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> Recent Trades</div>
-                 <span className="text-[10px] opacity-70 font-mono italic">Account: {selectedAccountId}</span>
-               </h3>
-               <div className="space-y-3">
-                {filteredTrades?.slice(0, 15).map((t) => (
-                  <div key={t.id} className="p-3 rounded-lg border border-border bg-card/60 flex items-center justify-between group hover:border-primary/50 transition-colors">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground">{getSymbolName(t.symbol)}</span>
-                      <span className="text-xs font-mono">{new Date(t.timestamp).toLocaleTimeString()}</span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <Badge className={`text-[9px] font-bold uppercase mb-1 ${
-                        t.result === 'won' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-destructive/10 text-destructive border-destructive/30'
-                      }`}>
-                        {t.result}
-                      </Badge>
-                      <span className={`text-xs font-bold font-mono ${(Number(t.profit_loss) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                        {(Number(t.profit_loss) || 0) >= 0 ? '+' : ''}${(Number(t.profit_loss) || 0).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between px-1"><span><Clock className="w-4 h-4 mr-2 inline" />Recent</span></h3>
+            <div className="space-y-3">
+              {filteredRecentTrades.map((t) => (
+                <div key={t.id} className="p-3 rounded-lg border border-border bg-card/60 flex items-center justify-between group hover:border-primary/50 transition-colors">
+                  <div className="flex flex-col"><span className="text-[10px] uppercase font-bold text-muted-foreground">{getSymbolName(t.symbol)}</span><span className="text-xs font-mono">{new Date(t.timestamp).toLocaleTimeString()}</span></div>
+                  <div className="flex flex-col items-end"><Badge className={`text-[9px] font-bold uppercase mb-1 ${t.result === 'won' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>{t.result}</Badge><span className={`text-xs font-bold font-mono ${(Number(t.profit_loss) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>{(Number(t.profit_loss) || 0) >= 0 ? '+' : ''}${(Number(t.profit_loss) || 0).toFixed(2)}</span></div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -290,17 +210,11 @@ function SummaryCard({ title, value, subtitle, icon, isPositive }: any) {
     <Card className="border-border bg-card/40 p-4">
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{title}</p>
-          <div className="flex items-center gap-2">
-            <h4 className={`text-lg font-bold truncate max-w-[180px] ${isPositive !== undefined ? (isPositive ? 'text-green-500' : 'text-destructive') : ''}`}>
-              {value}
-            </h4>
-          </div>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase">{title}</p>
+          <h4 className={`text-lg font-bold truncate ${isPositive !== undefined ? (isPositive ? 'text-green-500' : 'text-destructive') : ''}`}>{value}</h4>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
-        <div className="bg-background/50 p-2 rounded-lg border border-border">
-          {icon}
-        </div>
+        <div className="p-2 rounded-lg bg-background/50 border border-border">{icon}</div>
       </div>
     </Card>
   );
