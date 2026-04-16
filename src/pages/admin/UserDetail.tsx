@@ -37,6 +37,7 @@ interface Trade {
 
 export default function UserDetail() {
   const { userId } = useParams();
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   // 1. Fetch User Profile
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -48,9 +49,14 @@ export default function UserDetail() {
         .eq('id', userId)
         .single();
       if (error) throw error;
+      
+      // Auto-select first account if none selected
+      if (data.performance?.length > 0 && !selectedAccountId) {
+        setSelectedAccountId(data.performance[0].deriv_loginid);
+      }
       return data;
     },
-    refetchInterval: 5000 // Refresh every 5 seconds for live monitor effect
+    refetchInterval: 5000 
   });
 
   // 2. Fetch User Trades
@@ -78,8 +84,11 @@ export default function UserDetail() {
     );
   }
 
-  // Calculate Daily Stats
-  const dailyStats = trades?.reduce((acc: any, trade) => {
+  // Filter trades by selected account
+  const filteredTrades = trades?.filter(t => !selectedAccountId || t.deriv_loginid === selectedAccountId);
+
+  // Calculate Daily Stats for filtered trades
+  const dailyStats = filteredTrades?.reduce((acc: any, trade) => {
     const date = new Date(trade.timestamp).toLocaleDateString();
     if (!acc[date]) {
       acc[date] = {
@@ -92,7 +101,7 @@ export default function UserDetail() {
     }
     acc[date].totalTrades += 1;
     if (trade.result === 'won') acc[date].wins += 1;
-    acc[date].profit += trade.profit_loss || 0;
+    acc[date].profit += Number(trade.profit_loss) || 0;
     acc[date].trades.push(trade);
     return acc;
   }, {});
@@ -101,7 +110,7 @@ export default function UserDetail() {
     new Date(b.date).getTime() - new Date(a.date).getTime()
   ) : [];
 
-  const performance = profile?.performance?.[0];
+  const performance = profile?.performance?.find((p: any) => p.deriv_loginid === selectedAccountId) || profile?.performance?.[0];
 
   return (
     <AdminLayout title="User Performance Dashboard">
@@ -109,11 +118,26 @@ export default function UserDetail() {
         {/* Header / Back Link */}
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" asChild className="gap-2 text-muted-foreground hover:text-foreground">
-            <Link to="/admin/users">
-              <ArrowLeft className="w-4 h-4" /> Back to Users
+            <Link to="/admin/trades">
+              <ArrowLeft className="w-4 h-4" /> Back to Monitor
             </Link>
           </Button>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            {profile?.performance && profile.performance.length > 1 && (
+              <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border border-border">
+                {profile.performance.map((p: any) => (
+                  <Button
+                    key={p.deriv_loginid}
+                    variant={selectedAccountId === p.deriv_loginid ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 text-[10px] font-bold uppercase py-0"
+                    onClick={() => setSelectedAccountId(p.deriv_loginid)}
+                  >
+                    {p.deriv_loginid}
+                  </Button>
+                ))}
+              </div>
+            )}
             <Badge variant="outline" className={`uppercase font-bold ${
               profile?.subscription_status === 'active' ? "bg-green-500/10 text-green-500 border-green-500/30" : "bg-muted text-muted-foreground"
             }`}>
@@ -200,11 +224,12 @@ export default function UserDetail() {
 
           {/* Recent Trades Sidebar */}
           <div className="space-y-4">
-             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Clock className="w-4 h-4" /> Recent Trades
-              </h3>
-              <div className="space-y-3">
-                {trades?.slice(0, 15).map((t) => (
+               <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                 <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> Recent Trades</div>
+                 <span className="text-[10px] opacity-70 font-mono italic">Account: {selectedAccountId}</span>
+               </h3>
+               <div className="space-y-3">
+                {filteredTrades?.slice(0, 15).map((t) => (
                   <div key={t.id} className="p-3 rounded-lg border border-border bg-card/60 flex items-center justify-between group hover:border-primary/50 transition-colors">
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase font-bold text-muted-foreground">{getSymbolName(t.symbol)}</span>

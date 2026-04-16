@@ -35,6 +35,11 @@ interface AccountSummary {
   total_trades: number;
   wins: number;
   net_profit: number;
+  today_trades: number;
+  today_profit: number;
+  last_symbol: string;
+  last_result: string;
+  last_trade_at: string;
   win_rate: number;
   profiles?: { 
     email: string;
@@ -89,45 +94,63 @@ export default function TradeMonitor() {
     (a.profiles?.email || a.deriv_loginid).toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalProfitToday = accounts.reduce((acc, curr) => acc + (Number(curr.today_profit) || 0), 0);
+  const activeBotsToday = accounts.filter(a => (a.today_trades || 0) > 0).length;
+
   const averageWinRate = accounts.length > 0 
     ? (accounts.reduce((acc, curr) => acc + (Number(curr.win_rate) || 0), 0) / accounts.length).toFixed(1)
     : "0";
+
+  // Helper for relative time
+  const getRelativeTime = (timestamp: string) => {
+    if (!timestamp) return "Never";
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffInSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
+    
+    if (diffInSeconds < 5) return "Just now";
+    if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    return then.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <AdminLayout title="Trade Monitoring">
       <div className="space-y-6">
         {/* Quick Performance Indicators */}
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-border bg-card/40">
+          <Card className={`border-border ${totalProfitToday >= 0 ? 'bg-green-500/5' : 'bg-destructive/5'}`}>
             <CardContent className="p-4 flex items-center gap-4">
-              <div className="bg-primary/10 p-2.5 rounded-full">
-                <TrendingUp className="w-5 h-5 text-primary" />
+              <div className={`${totalProfitToday >= 0 ? 'bg-green-500/10' : 'bg-destructive/10'} p-2.5 rounded-full`}>
+                <TrendingUp className={`w-5 h-5 ${totalProfitToday >= 0 ? 'text-green-500' : 'text-destructive'}`} />
               </div>
               <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Active Win Rate</p>
-                <h4 className="text-xl font-bold">{averageWinRate}%</h4>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Total Profit Today</p>
+                <h4 className={`text-xl font-black ${totalProfitToday >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                  {totalProfitToday >= 0 ? '+' : ''}${totalProfitToday.toFixed(2)}
+                </h4>
               </div>
             </CardContent>
           </Card>
           <Card className="border-border bg-card/40">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-blue-500/10 p-2.5 rounded-full">
-                <Clock className="w-5 h-5 text-blue-500" />
+                <Activity className="w-5 h-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Active Accounts</p>
-                <h4 className="text-xl font-bold">{accounts.length}</h4>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Active Bots Today</p>
+                <h4 className="text-xl font-bold">{activeBotsToday} <span className="text-xs text-muted-foreground font-normal">/ {accounts.length}</span></h4>
               </div>
             </CardContent>
           </Card>
           <Card className="border-border bg-card/40">
             <CardContent className="p-4 flex items-center gap-4">
-              <div className="bg-green-500/10 p-2.5 rounded-full">
-                <Activity className="w-5 h-5 text-green-500" />
+              <div className="bg-primary/10 p-2.5 rounded-full">
+                <TrendingDown className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">System Status</p>
-                <h4 className="text-xl font-bold text-green-500">Live Streaming</h4>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">System Win Rate</p>
+                <h4 className="text-xl font-bold">{averageWinRate}%</h4>
               </div>
             </CardContent>
           </Card>
@@ -186,11 +209,11 @@ export default function TradeMonitor() {
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border">
             <TableHead className="text-xs pl-6">User / Account ID</TableHead>
-            <TableHead className="text-xs text-center border-x border-border/10">Trades</TableHead>
-            <TableHead className="text-xs text-center">Wins</TableHead>
-            <TableHead className="text-xs text-center">Losses</TableHead>
-            <TableHead className="text-xs text-center">Win Rate</TableHead>
-            <TableHead className="text-xs text-right pr-6">Net Profit</TableHead>
+            <TableHead className="text-xs text-center border-x border-border/10">Today (P/L)</TableHead>
+            <TableHead className="text-xs text-center">Live Pulse</TableHead>
+            <TableHead className="text-xs text-center border-x border-border/10">Trades Today</TableHead>
+            <TableHead className="text-xs text-center">Lifetime Profit</TableHead>
+            <TableHead className="text-xs text-right pr-6">Last Active</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -232,24 +255,36 @@ export default function TradeMonitor() {
                   </div>
                 </div>
               </TableCell>
-              <TableCell className="text-center font-mono text-xs font-bold border-x border-border/5">
-                {a.total_trades || 0}
-              </TableCell>
-              <TableCell className="text-center font-mono text-xs text-green-500 font-bold">
-                {a.wins || 0}
-              </TableCell>
-              <TableCell className="text-center font-mono text-xs text-destructive font-bold">
-                {(a.total_trades || 0) - (a.wins || 0)}
+              <TableCell className={`text-center font-mono text-sm font-black border-x border-border/5 ${(a.today_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                { (a.today_profit || 0) >= 0 ? '+' : ''}${(Number(a.today_profit) || 0).toFixed(2)}
               </TableCell>
               <TableCell className="text-center">
-                <Badge variant="secondary" className="text-[10px] font-bold px-2">
-                  {(Number(a.win_rate) || 0).toFixed(1)}%
-                </Badge>
+                {a.last_symbol ? (
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-[9px] font-bold uppercase text-muted-foreground">{getSymbolName(a.last_symbol)}</span>
+                    <Badge className={`text-[9px] font-bold h-4 px-1 ${
+                      a.last_result === 'won' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 
+                      'bg-destructive/10 text-destructive border-destructive/30'
+                    }`}>
+                      {a.last_result?.toUpperCase()}
+                    </Badge>
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground italic">Idle</span>
+                )}
               </TableCell>
-              <TableCell className={`text-right font-mono text-sm font-black pr-6 ${(a.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                <div className="flex items-center justify-end gap-2">
-                  {(a.net_profit || 0) >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                  {(a.net_profit || 0) >= 0 ? '+' : ''}${(Number(a.net_profit) || 0).toFixed(2)}
+              <TableCell className="text-center font-mono text-xs font-bold border-x border-border/5">
+                {a.today_trades || 0}
+              </TableCell>
+              <TableCell className={`text-center font-mono text-xs font-bold opacity-70 ${(a.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                ${(Number(a.net_profit) || 0).toFixed(2)}
+              </TableCell>
+              <TableCell className="text-right pr-6">
+                <div className="flex flex-col items-end">
+                  <span className="text-xs font-medium">{getRelativeTime(a.last_trade_at)}</span>
+                  <span className="text-[9px] text-muted-foreground opacity-50 font-mono">
+                    {a.last_trade_at ? new Date(a.last_trade_at).toLocaleTimeString([], { hour12: false }) : '-'}
+                  </span>
                 </div>
               </TableCell>
             </TableRow>
