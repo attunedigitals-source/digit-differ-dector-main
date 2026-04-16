@@ -180,8 +180,6 @@ export default function TradeMonitor() {
     </AdminLayout>
   );
 
-  );
-
   function renderAccountTable(accountList: AccountSummary[]) {
     return (
       <Table>
@@ -259,6 +257,5 @@ export default function TradeMonitor() {
         </TableBody>
       </Table>
     );
-  }
-}
+    }
 }
