@@ -10,3 +10,6 @@ SELECT
 FROM public.trades
 GROUP BY user_id, deriv_loginid, date(timestamp)
 ORDER BY trade_date DESC;
+
+-- Ensure authenticated users (admins) can view this scale-optimized view
+GRANT SELECT ON public.admin_user_daily_summary TO authenticated;
