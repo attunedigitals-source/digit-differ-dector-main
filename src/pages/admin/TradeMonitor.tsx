@@ -15,10 +15,12 @@ import {
   Activity, 
   Search, 
   Filter, 
-  TrendingUp, 
+  TrendingUp,
+  TrendingDown,
   History,
   Clock,
-  ExternalLink
+  ExternalLink,
+  ArrowUpRight
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -41,6 +43,11 @@ interface TradeLog {
     email: string;
     subscription_status: string;
   };
+  performance?: {
+    total_trades: number;
+    net_profit: number;
+    win_rate: number;
+  }[];
 }
 
 export default function TradeMonitor() {
@@ -53,7 +60,7 @@ export default function TradeMonitor() {
     const fetchTrades = async () => {
       const { data, error } = await supabase
         .from('trades')
-        .select('*, profiles(email, subscription_status)')
+        .select('*, profiles(email, subscription_status), performance:admin_user_performance(*)')
         .order('timestamp', { ascending: false })
         .limit(100);
       
@@ -189,6 +196,7 @@ export default function TradeMonitor() {
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border">
             <TableHead className="text-xs pl-6">User / Account</TableHead>
+            <TableHead className="text-xs">Lifetime Perf</TableHead>
             <TableHead className="text-xs text-center">Symbol</TableHead>
             <TableHead className="text-xs text-center">Stake</TableHead>
             <TableHead className="text-xs text-center">Result</TableHead>
@@ -217,7 +225,7 @@ export default function TradeMonitor() {
                 <div className="flex flex-col">
                   <Link 
                     to={`/admin/users/${t.user_id}`}
-                    className="flex items-center gap-1.5 font-medium text-sm hover:text-primary transition-colors decoration-primary underline-offset-4 hover:underline"
+                    className="flex items-center gap-1.5 font-medium text-sm hover:text-primary transition-colors decoration-primary underline-offset-4 hover:underline group"
                   >
                     {t.profiles?.subscription_status === 'active' ? (
                       <UserCheck className="w-3.5 h-3.5 text-green-500" />
@@ -225,9 +233,31 @@ export default function TradeMonitor() {
                       <User className="w-3.5 h-3.5 text-muted-foreground" />
                     )}
                     {t.profiles?.email || 'System User'}
+                    <ArrowUpRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                   <div className="flex items-center gap-2 ml-5">
                     <span className="text-[10px] text-muted-foreground font-mono">{t.deriv_loginid}</span>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <Activity className="w-3 h-3 text-muted-foreground" />
+                    <span className="font-medium whitespace-nowrap">{t.performance?.[0]?.total_trades || 0} Trd</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    { (t.performance?.[0]?.net_profit || 0) >= 0 ? (
+                      <TrendingUp className="w-3 h-3 text-green-500" />
+                    ) : (
+                      <TrendingDown className="w-3 h-3 text-destructive" />
+                    )}
+                    <span className={`font-bold ${(t.performance?.[0]?.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                      ${(t.performance?.[0]?.net_profit || 0).toFixed(2)}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground opacity-70">
+                      ({(t.performance?.[0]?.win_rate || 0).toFixed(0)}%)
+                    </span>
                   </div>
                 </div>
               </TableCell>
