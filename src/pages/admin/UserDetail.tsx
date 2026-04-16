@@ -192,10 +192,10 @@ export default function UserDetail() {
           />
           <SummaryCard 
             title="Net Performance" 
-            value={`$${(performance?.net_profit || 0).toFixed(2)}`} 
-            subtitle={`${(performance?.win_rate || 0).toFixed(1)}% Win Rate`}
-            icon={(performance?.net_profit || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />}
-            isPositive={(performance?.net_profit || 0) >= 0}
+            value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} 
+            subtitle={`${(Number(performance?.win_rate) || 0).toFixed(1)}% Win Rate`}
+            icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />}
+            isPositive={(Number(performance?.net_profit) || 0) >= 0}
           />
           <SummaryCard 
             title="Account Status" 
@@ -242,8 +242,8 @@ export default function UserDetail() {
                           {((day.wins / day.totalTrades) * 100).toFixed(1)}%
                         </Badge>
                       </TableCell>
-                      <TableCell className={`text-right font-mono text-sm font-bold ${day.profit >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                        {day.profit >= 0 ? '+' : ''}${day.profit.toFixed(2)}
+                      <TableCell className={`text-right font-mono text-sm font-bold ${(Number(day.profit) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                        {(Number(day.profit) || 0) >= 0 ? '+' : ''}{(Number(day.profit) || 0).toFixed(2)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -271,8 +271,8 @@ export default function UserDetail() {
                       }`}>
                         {t.result}
                       </Badge>
-                      <span className={`text-xs font-bold font-mono ${t.profit_loss >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                        {t.profit_loss >= 0 ? '+' : ''}${t.profit_loss.toFixed(2)}
+                      <span className={`text-xs font-bold font-mono ${(Number(t.profit_loss) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                        {(Number(t.profit_loss) || 0) >= 0 ? '+' : ''}${(Number(t.profit_loss) || 0).toFixed(2)}
                       </span>
                     </div>
                   </div>
