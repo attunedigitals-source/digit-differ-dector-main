@@ -17,6 +17,7 @@ export interface DerivAccount {
   currency: string;
   is_virtual: boolean;
   balance: number;
+  token?: string; // Deriv sometimes includes target tokens in the authorize response
 }
 
 export interface SignalWithStatus extends Signal {
@@ -90,10 +91,17 @@ export function useDerivWebSocket(apiToken?: string) {
 
   const switchAccount = useCallback((loginid: string) => {
     setActiveLoginId(loginid);
-    // Removed redundant Re-authorize call. 
-    // Deriv API does not require or allow switching token scope context internally.
-    // The active socket connection continues to properly stream "account: all" balances.
-  }, []);
+    const ws = wsRef.current;
+    
+    // Look up the account to see if Deriv provided its specific API token in the payload
+    const targetAccount = accounts.find(a => a.loginid === loginid);
+    const tokenToUse = targetAccount?.token || apiToken;
+    
+    if (ws?.readyState === WebSocket.OPEN && tokenToUse) {
+      authorizedRef.current = false;
+      ws.send(JSON.stringify({ authorize: tokenToUse }));
+    }
+  }, [accounts, apiToken]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -152,6 +160,7 @@ export function useDerivWebSocket(apiToken?: string) {
             currency: acc.currency || "USD",
             is_virtual: Boolean(acc.is_virtual),
             balance: 0,
+            token: acc.token,
           })
         );
         const currentIdx = accountList.findIndex((a) => a.loginid === auth.loginid);
