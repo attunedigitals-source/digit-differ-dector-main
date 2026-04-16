@@ -71,8 +71,43 @@ export default function TradeMonitor() {
         'postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'trades' }, 
         (payload) => {
-          toast.info(`New activity on account ${payload.new.deriv_loginid}`, { duration: 2000 });
-          queryClient.invalidateQueries({ queryKey: ['admin-accounts'] });
+          const newTrade = payload.new;
+          const profit = Number(newTrade.profit_loss) || 0;
+          const isToday = new Date(newTrade.timestamp).toDateString() === new Date().toDateString();
+
+          toast.info(`New trade on ${newTrade.deriv_loginid}: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`, { duration: 2000 });
+
+          // Update local cache incrementally for instant feel
+          queryClient.setQueryData(['admin-accounts'], (oldAccounts: AccountSummary[] | undefined) => {
+            if (!oldAccounts) return oldAccounts;
+
+            const accountExists = oldAccounts.some(a => a.deriv_loginid === newTrade.deriv_loginid);
+            
+            // If it's a completely new account we haven't seen, just refresh everything
+            if (!accountExists) {
+              queryClient.invalidateQueries({ queryKey: ['admin-accounts'] });
+              return oldAccounts;
+            }
+
+            return oldAccounts.map(a => {
+              if (a.deriv_loginid === newTrade.deriv_loginid) {
+                return {
+                  ...a,
+                  total_trades: (a.total_trades || 0) + 1,
+                  net_profit: (Number(a.net_profit) || 0) + profit,
+                  today_trades: isToday ? (a.today_trades || 0) + 1 : a.today_trades,
+                  today_profit: isToday ? (Number(a.today_profit) || 0) + profit : a.today_profit,
+                  last_trade_at: newTrade.timestamp,
+                  // Simple win/loss update for win_rate if result is known
+                  wins: newTrade.result === 'won' ? (a.wins || 0) + 1 : a.wins,
+                  win_rate: a.total_trades > 0 
+                    ? (((newTrade.result === 'won' ? (a.wins || 0) + 1 : a.wins) / ((a.total_trades || 0) + 1)) * 100)
+                    : a.win_rate
+                };
+              }
+              return a;
+            });
+          });
         }
       )
       .subscribe();
