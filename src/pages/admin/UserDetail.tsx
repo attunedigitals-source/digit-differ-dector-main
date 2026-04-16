@@ -21,7 +21,8 @@ import {
   Calendar,
   Clock,
   User as UserIcon,
-  CreditCard
+  CreditCard,
+  AlertCircle
 } from "lucide-react";
 import { getSymbolName } from "@/lib/deriv-symbols";
 
@@ -39,7 +40,7 @@ export default function UserDetail() {
   const { userId } = useParams();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
-  // 1. Fetch User Profile (Static - No polling needed to prevent UI jitter)
+  // 1. Fetch User Profile
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["admin-user-profile", userId],
     queryFn: async () => {
@@ -53,7 +54,7 @@ export default function UserDetail() {
     }
   });
 
-  // 1b. Fetch User Performance (Polling 30s)
+  // 1b. Fetch User Performance
   const { data: performanceList } = useQuery({
     queryKey: ["admin-user-performance", userId],
     queryFn: async () => {
@@ -74,7 +75,7 @@ export default function UserDetail() {
     }
   }, [performanceList, selectedAccountId]);
 
-  // 2. Fetch User Trades (Polling 15s)
+  // 2. Fetch User Trades (Sidebar)
   const { data: trades } = useQuery({
     queryKey: ["admin-user-trades", userId],
     queryFn: async () => {
@@ -90,22 +91,24 @@ export default function UserDetail() {
     refetchInterval: 15000
   });
 
-  // 3. Fetch Daily Summary (Polling 30s)
-  const { data: dailyHistory } = useQuery({
+  // 3. Fetch Daily Summary (USING RPC FUNCTION FOR TYPE RELIABILITY)
+  const { data: dailyHistory, error: historyError } = useQuery({
     queryKey: ["admin-user-daily-history", userId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('admin_user_daily_summary')
-        .select('*')
-        .eq('user_id', userId);
-      if (error) throw error;
+      // Use RPC instead of direct view query to solve UUID casting issues
+      const { data, error } = await supabase.rpc('get_admin_user_daily_summary', { 
+        p_user_id: userId 
+      });
+      if (error) {
+        console.error("Aggregation Error:", error);
+        throw error;
+      }
       return data || [];
     },
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    retry: 1
   });
 
-  // CRITICAL: Only show global pulse if the profile is missing on initial load
-  // If we already have a profile, we don't block the UI for background updates
   if (profileLoading && !profile) {
     return (
       <AdminLayout title="User Details">
@@ -170,23 +173,32 @@ export default function UserDetail() {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2 px-1"><Calendar className="w-4 h-4" /> Daily Breakdown</h3>
-            <Card className="border-border bg-card/40 overflow-hidden">
-              <Table>
-                <TableHeader><TableRow className="bg-muted/20 border-border"><TableHead className="text-xs">Date</TableHead><TableHead className="text-xs text-center">Trades</TableHead><TableHead className="text-xs text-center">Wins/Loss</TableHead><TableHead className="text-xs text-center">Win Rate</TableHead><TableHead className="text-xs text-right">Profit</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {filteredDailyHistory.map((day: any) => (
-                    <TableRow key={day.trade_date} className="border-border/50 hover:bg-muted/10 transition-colors">
-                      <TableCell className="text-sm font-medium">{new Date(day.trade_date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-center font-mono text-xs">{day.total_trades}</TableCell>
-                      <TableCell className="text-center"><div className="flex items-center justify-center gap-1.5"><span className="text-green-500 font-bold text-xs">{day.wins}W</span><span className="text-muted-foreground text-[10px]">/</span><span className="text-destructive font-bold text-xs">{day.total_trades - day.wins}L</span></div></TableCell>
-                      <TableCell className="text-center"><Badge variant="outline" className="text-[10px] font-mono">{((day.wins / day.total_trades) * 100).toFixed(1)}%</Badge></TableCell>
-                      <TableCell className={`text-right font-mono text-sm font-bold ${(Number(day.daily_profit) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>{(Number(day.daily_profit) || 0) >= 0 ? '+' : ''}{(Number(day.daily_profit) || 0).toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredDailyHistory.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-xs italic">No trade history found</TableCell></TableRow>}
-                </TableBody>
-              </Table>
-            </Card>
+            
+            {historyError ? (
+               <div className="p-8 border border-destructive/20 bg-destructive/5 rounded-xl flex flex-col items-center justify-center gap-2 text-destructive">
+                 <AlertCircle className="w-6 h-6" />
+                 <p className="text-sm font-bold">Error loading history</p>
+                 <p className="text-[10px] opacity-70">Please ensure the latest SQL migrations have been applied.</p>
+               </div>
+            ) : (
+              <Card className="border-border bg-card/40 overflow-hidden">
+                <Table>
+                  <TableHeader><TableRow className="bg-muted/20 border-border"><TableHead className="text-xs">Date</TableHead><TableHead className="text-xs text-center">Trades</TableHead><TableHead className="text-xs text-center">Wins/Loss</TableHead><TableHead className="text-xs text-center">Win Rate</TableHead><TableHead className="text-xs text-right">Profit</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {filteredDailyHistory.map((day: any) => (
+                      <TableRow key={day.trade_date} className="border-border/50 hover:bg-muted/10 transition-colors">
+                        <TableCell className="text-sm font-medium">{new Date(day.trade_date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-center font-mono text-xs">{day.total_trades}</TableCell>
+                        <TableCell className="text-center"><div className="flex items-center justify-center gap-1.5"><span className="text-green-500 font-bold text-xs">{day.wins}W</span><span className="text-muted-foreground text-[10px]">/</span><span className="text-destructive font-bold text-xs">{day.total_trades - day.wins}L</span></div></TableCell>
+                        <TableCell className="text-center"><Badge variant="outline" className="text-[10px] font-mono">{((Number(day.wins) / Number(day.total_trades)) * 100).toFixed(1)}%</Badge></TableCell>
+                        <TableCell className={`text-right font-mono text-sm font-bold ${(Number(day.daily_profit) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>{(Number(day.daily_profit) || 0) >= 0 ? '+' : ''}{(Number(day.daily_profit) || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredDailyHistory.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-xs italic">No trade history found</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
           </div>
 
           <div className="space-y-4">
