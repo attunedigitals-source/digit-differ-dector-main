@@ -38,7 +38,7 @@ export function useAutoTrader(
     minConfidence: 0.80,
     useRandomDigits: false,
   });
-  const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number }>>(new Map());
+  const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number }>>(new Map());
   const activeTradeSymbols = useRef<Map<string, number>>(new Map()); // symbol -> timestamp when locked
   const settledContracts = useRef<Set<string>>(new Set());
@@ -47,7 +47,7 @@ export function useAutoTrader(
   const symbolStakes = useRef<Map<string, number>>(new Map());
   const cooldownUntil = useRef<number>(0);
   // Track pending buy requests to map buy responses back to symbols
-  const pendingBuys = useRef<Map<string, string>>(new Map()); // buyReqId -> symbol
+  const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map()); // buyReqId -> {symbol, supabaseId}
 
   // Initialize random digits for all selected symbols that don't have one yet
   const ensureRandomDigits = useCallback(() => {
@@ -119,9 +119,9 @@ export function useAutoTrader(
     // Log the trade intent precisely as requested
     const logTrade = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) return null;
       
-      await supabase.from("trades").insert({
+      const { data, error } = await supabase.from("trades").insert({
         user_id: user.id,
         deriv_loginid: accountInfo?.loginid || "unknown",
         symbol: signal.symbol,
@@ -129,33 +129,45 @@ export function useAutoTrader(
         barrier: dangerDigit,
         result: "pending",
         timestamp: new Date().toISOString()
+      }).select("id").single();
+
+      if (error) {
+        console.error("Error logging trade to Supabase:", error);
+        return null;
+      }
+      return data.id;
+    };
+
+    const runTradingFlow = async () => {
+      const supabaseId = await logTrade();
+      
+      const reqId = Date.now() + Math.floor(Math.random() * 10000);
+      const proposalReq = {
+        proposal: 1,
+        amount: tradeStake,
+        basis: "stake",
+        contract_type: "DIGITDIFF",
+        currency: "USD",
+        duration: 1,
+        duration_unit: "t",
+        symbol: signal.symbol,
+        barrier: String(dangerDigit),
+        req_id: reqId,
+      };
+
+      pendingProposals.current.set(String(reqId), {
+        symbol: signal.symbol,
+        dangerDigit,
+        stake: tradeStake,
+        timestamp: Date.now(),
+        supabaseId: supabaseId || undefined
       });
-    };
-    logTrade();
 
-    const reqId = Date.now() + Math.floor(Math.random() * 10000);
-    const proposalReq = {
-      proposal: 1,
-      amount: tradeStake,
-      basis: "stake",
-      contract_type: "DIGITDIFF",
-      currency: "USD",
-      duration: 1,
-      duration_unit: "t",
-      symbol: signal.symbol,
-      barrier: String(dangerDigit),
-      req_id: reqId,
+      ws.send(JSON.stringify(proposalReq));
     };
 
-    pendingProposals.current.set(String(reqId), {
-      symbol: signal.symbol,
-      dangerDigit,
-      stake: tradeStake,
-      timestamp: Date.now(),
-    });
-
-    ws.send(JSON.stringify(proposalReq));
-  }, [config, wsRef, ensureRandomDigits]);
+    runTradingFlow();
+  }, [config, wsRef, ensureRandomDigits, accountInfo, isAdmin, isPaid]);
 
   // Effect to keep avoidDigits in sync with selection and random mode
   useEffect(() => {
@@ -184,7 +196,10 @@ export function useAutoTrader(
       }
 
       const buyReqId = Date.now() + Math.floor(Math.random() * 10000);
-      pendingBuys.current.set(String(buyReqId), pending.symbol);
+      pendingBuys.current.set(String(buyReqId), { 
+        symbol: pending.symbol, 
+        supabaseId: pending.supabaseId || "" 
+      });
       ws.send(JSON.stringify({
         buy: data.proposal.id,
         price: pending.stake + 10,
@@ -205,10 +220,21 @@ export function useAutoTrader(
     if (data.msg_type === "buy" && data.buy) {
       const contractId = String(data.buy.contract_id);
       const buyReqId = String(data.req_id);
-      const trackedSymbol = pendingBuys.current.get(buyReqId) || "";
+      const buyData = pendingBuys.current.get(buyReqId);
       pendingBuys.current.delete(buyReqId);
-      const symbol = trackedSymbol || data.buy.shortcode?.split?.("_")?.[1] || "";
+      
+      const symbol = buyData?.symbol || data.buy.shortcode?.split?.("_")?.[1] || "";
       const buyPrice = data.buy.buy_price ?? config.stake;
+
+      // Update Supabase trade record with contract_id
+      if (buyData?.supabaseId) {
+        supabase.from("trades")
+          .update({ contract_id: contractId })
+          .eq("id", buyData.supabaseId)
+          .then(({ error }) => {
+            if (error) console.error("Error linking contract_id to trade:", error);
+          });
+      }
 
       openContracts.current.set(contractId, { symbol, stake: buyPrice, timestamp: Date.now() });
 
@@ -287,8 +313,20 @@ export function useAutoTrader(
 
         const isWin = (poc.profit ?? 0) > 0;
         const symbol = poc.underlying || "";
+        const profit = Number(poc.profit) || 0;
 
         activeTradeSymbols.current.delete(symbol);
+
+        // Update Supabase with final result
+        supabase.from("trades")
+          .update({
+            result: isWin ? "won" : "lost",
+            profit_loss: profit
+          })
+          .eq("contract_id", contractId)
+          .then(({ error }) => {
+            if (error) console.error("Error settling trade in Supabase:", error);
+          });
 
         setTradeLog((prev) =>
           prev.map((t) =>
