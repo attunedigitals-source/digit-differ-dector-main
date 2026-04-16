@@ -90,7 +90,7 @@ export default function TradeMonitor() {
   );
 
   const averageWinRate = accounts.length > 0 
-    ? (accounts.reduce((acc, curr) => acc + curr.win_rate, 0) / accounts.length).toFixed(1)
+    ? (accounts.reduce((acc, curr) => acc + (Number(curr.win_rate) || 0), 0) / accounts.length).toFixed(1)
     : "0";
 
   return (
@@ -233,23 +233,23 @@ export default function TradeMonitor() {
                 </div>
               </TableCell>
               <TableCell className="text-center font-mono text-xs font-bold border-x border-border/5">
-                {a.total_trades}
+                {a.total_trades || 0}
               </TableCell>
               <TableCell className="text-center font-mono text-xs text-green-500 font-bold">
-                {a.wins}
+                {a.wins || 0}
               </TableCell>
               <TableCell className="text-center font-mono text-xs text-destructive font-bold">
-                {a.total_trades - a.wins}
+                {(a.total_trades || 0) - (a.wins || 0)}
               </TableCell>
               <TableCell className="text-center">
                 <Badge variant="secondary" className="text-[10px] font-bold px-2">
-                  {a.win_rate.toFixed(1)}%
+                  {(Number(a.win_rate) || 0).toFixed(1)}%
                 </Badge>
               </TableCell>
-              <TableCell className={`text-right font-mono text-sm font-black pr-6 ${a.net_profit >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+              <TableCell className={`text-right font-mono text-sm font-black pr-6 ${(a.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
                 <div className="flex items-center justify-end gap-2">
-                  {a.net_profit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                  {a.net_profit >= 0 ? '+' : ''}${a.net_profit.toFixed(2)}
+                  {(a.net_profit || 0) >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                  {(a.net_profit || 0) >= 0 ? '+' : ''}${(Number(a.net_profit) || 0).toFixed(2)}
                 </div>
               </TableCell>
             </TableRow>
