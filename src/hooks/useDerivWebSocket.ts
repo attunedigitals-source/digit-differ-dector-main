@@ -150,10 +150,10 @@ export function useDerivWebSocket(apiToken?: string) {
         authorizedRef.current = true;
         const auth = data.authorize;
         const accountList: DerivAccount[] = (auth.account_list || []).map(
-          (acc: { loginid: string; currency: string; is_virtual: number }) => ({
+          (acc: any) => ({
             loginid: acc.loginid,
             currency: acc.currency || "USD",
-            is_virtual: acc.is_virtual === 1,
+            is_virtual: Boolean(acc.is_virtual),
             balance: 0,
           })
         );
