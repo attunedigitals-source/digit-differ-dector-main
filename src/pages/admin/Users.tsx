@@ -22,8 +22,13 @@ import {
   Calendar,
   ShieldAlert,
   CheckCircle2,
-  XCircle
+  XCircle,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  ArrowUpRight
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -67,12 +72,13 @@ export default function UserManagement() {
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: profiles, error: perfError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, performance:admin_user_performance(*)')
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+      
+      if (perfError) throw perfError;
+      return profiles;
     }
   });
 
@@ -243,6 +249,7 @@ export default function UserManagement() {
                   <TableRow className="hover:bg-transparent border-border">
                     <TableHead className="text-xs">User</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Lifetime Perf</TableHead>
                     <TableHead className="text-xs">Plan Expiry</TableHead>
                     <TableHead className="text-xs">Role</TableHead>
                     <TableHead className="text-xs text-right">Actions</TableHead>
@@ -250,10 +257,16 @@ export default function UserManagement() {
                 </TableHeader>
                 <TableBody>
                   {filteredUsers.map((u) => (
-                    <TableRow key={u.id} className="border-border/50">
+                    <TableRow key={u.id} className="border-border/50 group hover:bg-muted/20 transition-colors">
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium text-sm">{u.email}</span>
+                          <Link 
+                            to={`/admin/users/${u.id}`}
+                            className="font-medium text-sm flex items-center gap-1.5 hover:text-primary transition-colors decoration-primary underline-offset-4 hover:underline"
+                          >
+                             {u.email}
+                             <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </Link>
                           <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[150px]">{u.id}</span>
                         </div>
                       </TableCell>
@@ -265,6 +278,27 @@ export default function UserManagement() {
                         }`}>
                           {u.subscription_status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <Activity className="w-3 h-3 text-muted-foreground" />
+                            <span className="font-medium">{u.performance?.[0]?.total_trades || 0} Trades</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px]">
+                            { (u.performance?.[0]?.net_profit || 0) >= 0 ? (
+                              <TrendingUp className="w-3 h-3 text-green-500" />
+                            ) : (
+                              <TrendingDown className="w-3 h-3 text-destructive" />
+                            )}
+                            <span className={`font-bold ${(u.performance?.[0]?.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                              ${(u.performance?.[0]?.net_profit || 0).toFixed(2)}
+                            </span>
+                            <span className="text-muted-foreground ml-1">
+                              ({(u.performance?.[0]?.win_rate || 0).toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">

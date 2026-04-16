@@ -23,6 +23,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { getSymbolName } from "@/lib/deriv-symbols";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Link } from "react-router-dom";
+import { User, UserCheck } from "lucide-react";
 
 interface TradeLog {
   id: string;
@@ -34,7 +37,10 @@ interface TradeLog {
   result: string;
   profit_loss: number | null;
   timestamp: string;
-  profiles?: { email: string };
+  profiles?: { 
+    email: string;
+    subscription_status: string;
+  };
 }
 
 export default function TradeMonitor() {
@@ -47,7 +53,7 @@ export default function TradeMonitor() {
     const fetchTrades = async () => {
       const { data, error } = await supabase
         .from('trades')
-        .select('*, profiles(email)')
+        .select('*, profiles(email, subscription_status)')
         .order('timestamp', { ascending: false })
         .limit(100);
       
@@ -132,7 +138,7 @@ export default function TradeMonitor() {
 
         {/* Live Feed Table */}
         <Card className="border-border bg-card/40">
-          <CardHeader className="flex flex-row items-center justify-between py-4">
+          <CardHeader className="flex flex-row items-center justify-between py-4 pb-1">
             <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <History className="w-4 h-4" /> Live Executions
             </CardTitle>
@@ -146,63 +152,109 @@ export default function TradeMonitor() {
               />
             </div>
           </CardHeader>
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-border">
-                <TableHead className="text-xs">User / Account</TableHead>
-                <TableHead className="text-xs text-center">Symbol</TableHead>
-                <TableHead className="text-xs text-center">Stake</TableHead>
-                <TableHead className="text-xs text-center">Result</TableHead>
-                <TableHead className="text-xs text-right">Timestamp</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-20">
-                    <div className="flex flex-col items-center gap-2">
-                      <Activity className="w-8 h-8 text-primary animate-pulse" />
-                      <span className="text-xs text-muted-foreground">Initializing live stream...</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : filteredTrades.map((t) => (
-                <TableRow key={t.id} className="border-border/50 group hover:bg-muted/30 transition-colors">
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-sm">{t.profiles?.email || 'System User'}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-mono">{t.deriv_loginid}</span>
-                        <ExternalLink className="w-2.5 h-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-pointer hover:text-primary" />
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-tight px-2">
-                      {getSymbolName(t.symbol)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center font-mono text-xs font-bold">
-                    ${t.stake.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge className={`text-[10px] font-bold uppercase transition-all ${
-                      t.result === 'won' ? "bg-green-500/10 text-green-500 border-green-500/30 ring-1 ring-green-500/20" :
-                      t.result === 'lost' ? "bg-destructive/10 text-destructive border-destructive/30" :
-                      "bg-muted text-muted-foreground"
-                    }`}>
-                      {t.result}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">
-                    {new Date(t.timestamp).toLocaleTimeString()}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          
+          <Tabs defaultValue="paid" className="w-full">
+            <div className="px-6 border-b border-border">
+              <TabsList className="bg-transparent h-10 p-0 gap-6">
+                <TabsTrigger 
+                  value="paid" 
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-10 text-xs font-bold uppercase tracking-wider"
+                >
+                  Paid Users ({filteredTrades.filter(t => t.profiles?.subscription_status === 'active').length})
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="free" 
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-10 text-xs font-bold uppercase tracking-wider"
+                >
+                  Free Users ({filteredTrades.filter(t => t.profiles?.subscription_status !== 'active').length})
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="paid" className="m-0">
+              {renderTradeTable(filteredTrades.filter(t => t.profiles?.subscription_status === 'active'))}
+            </TabsContent>
+            <TabsContent value="free" className="m-0">
+              {renderTradeTable(filteredTrades.filter(t => t.profiles?.subscription_status !== 'active'))}
+            </TabsContent>
+          </Tabs>
         </Card>
       </div>
     </AdminLayout>
   );
+
+  function renderTradeTable(tradeList: TradeLog[]) {
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent border-border">
+            <TableHead className="text-xs pl-6">User / Account</TableHead>
+            <TableHead className="text-xs text-center">Symbol</TableHead>
+            <TableHead className="text-xs text-center">Stake</TableHead>
+            <TableHead className="text-xs text-center">Result</TableHead>
+            <TableHead className="text-xs text-right pr-6">Timestamp</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center py-20">
+                <div className="flex flex-col items-center gap-2">
+                  <Activity className="w-8 h-8 text-primary animate-pulse" />
+                  <span className="text-xs text-muted-foreground">Initializing live stream...</span>
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : tradeList.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-xs italic">
+                No active trades found in this section
+              </TableCell>
+            </TableRow>
+          ) : tradeList.map((t) => (
+            <TableRow key={t.id} className="border-border/50 group hover:bg-muted/30 transition-colors">
+              <TableCell className="pl-6">
+                <div className="flex flex-col">
+                  <Link 
+                    to={`/admin/users/${t.user_id}`}
+                    className="flex items-center gap-1.5 font-medium text-sm hover:text-primary transition-colors decoration-primary underline-offset-4 hover:underline"
+                  >
+                    {t.profiles?.subscription_status === 'active' ? (
+                      <UserCheck className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <User className="w-3.5 h-3.5 text-muted-foreground" />
+                    )}
+                    {t.profiles?.email || 'System User'}
+                  </Link>
+                  <div className="flex items-center gap-2 ml-5">
+                    <span className="text-[10px] text-muted-foreground font-mono">{t.deriv_loginid}</span>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className="text-center">
+                <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-tight px-2">
+                  {getSymbolName(t.symbol)}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-center font-mono text-xs font-bold">
+                ${t.stake.toFixed(2)}
+              </TableCell>
+              <TableCell className="text-center">
+                <Badge className={`text-[10px] font-bold uppercase transition-all ${
+                  t.result === 'won' ? "bg-green-500/10 text-green-500 border-green-500/30 ring-1 ring-green-500/20" :
+                  t.result === 'lost' ? "bg-destructive/10 text-destructive border-destructive/30" :
+                  "bg-muted text-muted-foreground"
+                }`}>
+                  {t.result}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right text-xs text-muted-foreground pr-6">
+                {new Date(t.timestamp).toLocaleTimeString()}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
 }
