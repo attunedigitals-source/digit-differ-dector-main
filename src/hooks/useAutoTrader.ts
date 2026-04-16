@@ -262,21 +262,25 @@ export function useAutoTrader(wsRef: React.RefObject<WebSocket | null>) {
           const lastStake = symbolStakes.current.get(symbol) || config.stake;
           const nextStake = lastStake * MARTINGALE_FACTOR;
           symbolStakes.current.set(symbol, nextStake);
-
-          // In random mode: also regenerate digit for losing symbol
-          if (config.useRandomDigits) {
-            const newDigit = Math.floor(Math.random() * 10);
-            randomDigitMap.current.set(symbol, newDigit);
-            setAvoidDigits((prev) => ({ ...prev, [symbol]: newDigit }));
-            toast.warning(`Lost on ${symbol} — new avoid digit: ${newDigit}, next stake: $${nextStake.toFixed(2)}`, { duration: 5000 });
-          } else {
-            toast.error(`Lost on ${symbol}`, { duration: 4000 });
-          }
+          toast.error(`Lost on ${symbol}`, { duration: 4000 });
 
           // Cooldown on every loss: random 2-8 seconds
           const pauseMs = Math.floor(Math.random() * 6001) + 2000;
           cooldownUntil.current = Date.now() + pauseMs;
           toast.warning(`Loss detected — pausing trades for ${(pauseMs / 1000).toFixed(1)}s`, { duration: 4000 });
+        }
+
+        // In random mode: ALWAYS regenerate digit for symbol after any trade (win or loss)
+        if (config.useRandomDigits) {
+          const newDigit = Math.floor(Math.random() * 10);
+          randomDigitMap.current.set(symbol, newDigit);
+          setAvoidDigits((prev) => ({ ...prev, [symbol]: newDigit }));
+          if (isWin) {
+            toast.info(`Rotated avoid digit for ${symbol}: ${newDigit}`, { duration: 2000 });
+          } else {
+            const nextStake = symbolStakes.current.get(symbol) || config.stake;
+            toast.warning(`Regenerated avoid digit for ${symbol}: ${newDigit}, next stake: $${nextStake.toFixed(2)}`, { duration: 5000 });
+          }
         }
       }
     }
