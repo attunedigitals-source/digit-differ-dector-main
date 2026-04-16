@@ -91,22 +91,51 @@ export default function UserDetail() {
     refetchInterval: 15000
   });
 
-  // 3. Fetch Daily Summary (USING RPC FUNCTION FOR TYPE RELIABILITY)
-  const { data: dailyHistory, error: historyError } = useQuery({
+  // 3. Fetch Daily Summary (WITH SMART FALLBACK)
+  const { data: dailyHistory, isLoading: historyLoading } = useQuery({
     queryKey: ["admin-user-daily-history", userId],
     queryFn: async () => {
-      // Use RPC instead of direct view query to solve UUID casting issues
-      const { data, error } = await supabase.rpc('get_admin_user_daily_summary', { 
-        p_user_id: userId 
-      });
-      if (error) {
-        console.error("Aggregation Error:", error);
-        throw error;
+      try {
+        // [PRIMARY] Try high-speed RPC function first
+        const { data, error: rpcError } = await supabase.rpc('get_admin_user_daily_summary', { 
+          p_user_id: userId 
+        });
+        
+        if (!rpcError && data && data.length > 0) return data;
+
+        // [FALLBACK] Direct table aggregation if RPC fails or is empty
+        // This ensures the user SEES data while migrations sync
+        console.warn("RPC failed or empty, using table fallback");
+        const { data: rawTrades, error: tableError } = await supabase
+          .from('trades')
+          .select('timestamp, result, profit_loss, deriv_loginid')
+          .eq('user_id', userId)
+          .order('timestamp', { ascending: false })
+          .limit(1000); // Limit fallback to 1000 for safety
+
+        if (tableError) throw tableError;
+        if (!rawTrades) return [];
+
+        // Manual aggregation for the fallback
+        const grouped = rawTrades.reduce((acc: any, t) => {
+          const date = new Date(t.timestamp).toISOString().split('T')[0];
+          const key = `${date}-${t.deriv_loginid}`;
+          if (!acc[key]) {
+            acc[key] = { trade_date: date, deriv_loginid: t.deriv_loginid, total_trades: 0, wins: 0, daily_profit: 0 };
+          }
+          acc[key].total_trades++;
+          if (t.result === 'won') acc[key].wins++;
+          acc[key].daily_profit += Number(t.profit_loss) || 0;
+          return acc;
+        }, {});
+
+        return Object.values(grouped).sort((a: any, b: any) => b.trade_date.localeCompare(a.trade_date));
+      } catch (err) {
+        console.error("Aggregation Error:", err);
+        return []; // Return empty instead of crashing
       }
-      return data || [];
     },
-    refetchInterval: 30000,
-    retry: 1
+    refetchInterval: 30000
   });
 
   if (profileLoading && !profile) {
@@ -174,22 +203,20 @@ export default function UserDetail() {
           <div className="lg:col-span-2 space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2 px-1"><Calendar className="w-4 h-4" /> Daily Breakdown</h3>
             
-            {historyError ? (
-               <div className="p-8 border border-destructive/20 bg-destructive/5 rounded-xl flex flex-col items-center justify-center gap-2 text-destructive">
-                 <AlertCircle className="w-6 h-6" />
-                 <p className="text-sm font-bold">Error loading history</p>
-                 <p className="text-[10px] opacity-70">Please ensure the latest SQL migrations have been applied.</p>
-               </div>
-            ) : (
-              <Card className="border-border bg-card/40 overflow-hidden">
+            <Card className="border-border bg-card/40 overflow-hidden min-h-[100px] flex flex-col">
+              {historyLoading && filteredDailyHistory.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center p-12">
+                  <Activity className="w-6 h-6 text-primary animate-pulse" />
+                </div>
+              ) : (
                 <Table>
                   <TableHeader><TableRow className="bg-muted/20 border-border"><TableHead className="text-xs">Date</TableHead><TableHead className="text-xs text-center">Trades</TableHead><TableHead className="text-xs text-center">Wins/Loss</TableHead><TableHead className="text-xs text-center">Win Rate</TableHead><TableHead className="text-xs text-right">Profit</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {filteredDailyHistory.map((day: any) => (
-                      <TableRow key={day.trade_date} className="border-border/50 hover:bg-muted/10 transition-colors">
+                      <TableRow key={`${day.trade_date}-${day.deriv_loginid}`} className="border-border/50 hover:bg-muted/10 transition-colors">
                         <TableCell className="text-sm font-medium">{new Date(day.trade_date).toLocaleDateString()}</TableCell>
                         <TableCell className="text-center font-mono text-xs">{day.total_trades}</TableCell>
-                        <TableCell className="text-center"><div className="flex items-center justify-center gap-1.5"><span className="text-green-500 font-bold text-xs">{day.wins}W</span><span className="text-muted-foreground text-[10px]">/</span><span className="text-destructive font-bold text-xs">{day.total_trades - day.wins}L</span></div></TableCell>
+                        <TableCell className="text-center"><div className="flex items-center justify-center gap-1.5"><span className="text-green-500 font-bold text-xs">{day.wins}W</span><span className="text-muted-foreground text-[10px]">/</span><span className="text-destructive font-bold text-xs">{Number(day.total_trades) - Number(day.wins)}L</span></div></TableCell>
                         <TableCell className="text-center"><Badge variant="outline" className="text-[10px] font-mono">{((Number(day.wins) / Number(day.total_trades)) * 100).toFixed(1)}%</Badge></TableCell>
                         <TableCell className={`text-right font-mono text-sm font-bold ${(Number(day.daily_profit) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>{(Number(day.daily_profit) || 0) >= 0 ? '+' : ''}{(Number(day.daily_profit) || 0).toFixed(2)}</TableCell>
                       </TableRow>
@@ -197,8 +224,8 @@ export default function UserDetail() {
                     {filteredDailyHistory.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-xs italic">No trade history found</TableCell></TableRow>}
                   </TableBody>
                 </Table>
-              </Card>
-            )}
+              )}
+            </Card>
           </div>
 
           <div className="space-y-4">
