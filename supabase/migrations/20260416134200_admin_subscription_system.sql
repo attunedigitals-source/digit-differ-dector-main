@@ -202,10 +202,11 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 END $$;
 
--- PERFORMANCE SUMMARY VIEW
+-- PERFORMANCE SUMMARY VIEW (Per Account)
 CREATE OR REPLACE VIEW public.admin_user_performance AS
 SELECT 
     user_id,
+    deriv_loginid,
     COUNT(*) as total_trades,
     COUNT(*) FILTER (WHERE result = 'won') as wins,
     SUM(profit_loss) as net_profit,
@@ -214,7 +215,7 @@ SELECT
         ELSE 0 
     END as win_rate
 FROM public.trades
-GROUP BY user_id;
+GROUP BY user_id, deriv_loginid;
 
 -- Ensure admins can view this view
 GRANT SELECT ON public.admin_user_performance TO authenticated;

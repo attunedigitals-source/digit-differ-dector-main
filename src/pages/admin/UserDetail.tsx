@@ -49,7 +49,8 @@ export default function UserDetail() {
         .single();
       if (error) throw error;
       return data;
-    }
+    },
+    refetchInterval: 5000 // Refresh every 5 seconds for live monitor effect
   });
 
   // 2. Fetch User Trades
@@ -63,7 +64,8 @@ export default function UserDetail() {
         .order('timestamp', { ascending: false });
       if (error) throw error;
       return data as Trade[];
-    }
+    },
+    refetchInterval: 5000 // Refresh every 5 seconds for live monitor effect
   });
 
   if (profileLoading || tradesLoading) {
