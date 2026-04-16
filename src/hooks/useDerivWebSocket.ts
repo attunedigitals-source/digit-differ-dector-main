@@ -9,6 +9,7 @@ import {
   generateSignal,
 } from "@/lib/signal-engine";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
@@ -78,7 +79,7 @@ export function useDerivWebSocket(apiToken?: string) {
   // Helper to subscribe to balance after authorization
   const subscribeBalance = useCallback((ws: WebSocket) => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ balance: 1, account: "all", subscribe: 1 }));
+      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
     }
   }, []);
 
@@ -90,18 +91,30 @@ export function useDerivWebSocket(apiToken?: string) {
   }, []);
 
   const switchAccount = useCallback((loginid: string) => {
-    setActiveLoginId(loginid);
+    if (loginid === activeLoginId) return;
+    
     const ws = wsRef.current;
-    
-    // Look up the account to see if Deriv provided its specific API token in the payload
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
     const targetAccount = accounts.find(a => a.loginid === loginid);
-    const tokenToUse = targetAccount?.token || apiToken;
     
-    if (ws?.readyState === WebSocket.OPEN && tokenToUse) {
+    if (!targetAccount?.token && apiToken) {
+      const currentAccount = accounts.find(a => a.loginid === activeLoginId);
+      if (currentAccount && currentAccount.is_virtual !== targetAccount?.is_virtual) {
+        toast.warning(
+          `Trading on ${targetAccount?.is_virtual ? 'Demo' : 'Real'} requires its specific API Token. Please update your token in Settings.`,
+          { duration: 6000 }
+        );
+        return;
+      }
+    }
+
+    const tokenToUse = targetAccount?.token || apiToken;
+    if (tokenToUse) {
       authorizedRef.current = false;
       ws.send(JSON.stringify({ authorize: tokenToUse }));
     }
-  }, [accounts, apiToken]);
+  }, [accounts, activeLoginId, apiToken]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -119,7 +132,7 @@ export function useDerivWebSocket(apiToken?: string) {
     ws.onopen = () => {
       setConnected(true);
 
-      // Start keepalive ping every 30s
+      // 1. Keepalive: Send ping every 30 seconds
       if (pingTimer.current) clearInterval(pingTimer.current);
       pingTimer.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
@@ -127,19 +140,19 @@ export function useDerivWebSocket(apiToken?: string) {
         }
       }, 30000);
 
-      // Start balance fallback poll every 10s
+      // 2. Fallback: Request balance every 10 seconds
       if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
       balanceFallbackTimer.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN && authorizedRef.current) {
-          ws.send(JSON.stringify({ balance: 1, account: "all" }));
+          ws.send(JSON.stringify({ balance: 1 }));
         }
       }, 10000);
 
+      // 3. Authorization: Send authorize first if token available
       if (apiToken) {
-        // Send authorize first; wait for response before subscribing
         ws.send(JSON.stringify({ authorize: apiToken }));
       } else {
-        // No token — just subscribe to ticks
+        // Fallback for unauthorized viewing (ticks only)
         subscribeTicks(ws);
       }
     };
@@ -147,13 +160,13 @@ export function useDerivWebSocket(apiToken?: string) {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
-      // Forward all messages to external handler (auto-trader)
       onMessageRef.current?.(data);
 
-      // Handle authorize response
+      // Handle authorize response: SUCCESS triggers everything else
       if (data.msg_type === "authorize" && data.authorize) {
         authorizedRef.current = true;
         const auth = data.authorize;
+        
         const accountList: DerivAccount[] = (auth.account_list || []).map(
           (acc: any) => ({
             loginid: acc.loginid,
@@ -163,54 +176,32 @@ export function useDerivWebSocket(apiToken?: string) {
             token: acc.token,
           })
         );
+        
+        // Populate the authorized account balance immediately
         const currentIdx = accountList.findIndex((a) => a.loginid === auth.loginid);
         if (currentIdx >= 0) {
           accountList[currentIdx].balance = Number(auth.balance) || 0;
           accountList[currentIdx].currency = auth.currency || accountList[currentIdx].currency;
         }
-        setAccounts(accountList);
-        if (!activeLoginId) {
-          setActiveLoginId(auth.loginid);
-        }
-
-        // Subscribe to all accounts specifically by loginid to bypass any 'all' stream omissions
-        if (ws.readyState === WebSocket.OPEN) {
-           ws.send(JSON.stringify({ balance: 1, account: "all", subscribe: 1 }));
-           for (const acc of accountList) {
-             ws.send(JSON.stringify({ balance: 1, account: acc.loginid }));
-           }
-        }
         
+        setAccounts(accountList);
+        setActiveLoginId(auth.loginid);
+        
+        // NOW subscribe to continuous balance and ticks
+        subscribeBalance(ws);
         subscribeTicks(ws);
       }
 
-      // Handle balance updates (continuous subscription + fallback polls)
+      // Handle balance updates: Listen for msg_type === "balance"
       if (data.msg_type === "balance" && data.balance) {
         const bal = data.balance;
+        const balanceNum = Number(bal.balance);
         
-        if (bal.accounts) {
-          // If response has accounts object (from account="all")
-          setAccounts((prev) =>
-            prev.map((acc) => {
-              const accountData = bal.accounts[acc.loginid];
-              if (accountData) {
-                const balNum = Number(accountData.balance);
-                return {
-                  ...acc,
-                  balance: isNaN(balNum) ? acc.balance : balNum,
-                  currency: accountData.currency || acc.currency
-                };
-              }
-              return acc;
-            })
-          );
-        } else if (bal.loginid) {
-          // Fallback parsing for individual account stream
-          const balanceNum = Number(bal.balance);
+        if (!isNaN(balanceNum)) {
           setAccounts((prev) =>
             prev.map((acc) =>
               acc.loginid === bal.loginid
-                ? { ...acc, balance: isNaN(balanceNum) ? acc.balance : balanceNum, currency: bal.currency || acc.currency }
+                ? { ...acc, balance: balanceNum, currency: bal.currency || acc.currency }
                 : acc
             )
           );
