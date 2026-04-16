@@ -39,7 +39,8 @@ export function TokenSettings({ userId, onTokenSaved }: TokenSettingsProps) {
     );
     setSaving(false);
     if (error) {
-      toast.error("Failed to save token");
+      console.error("Token save error:", error);
+      toast.error(`Failed to save token: ${error.message}`);
     } else {
       toast.success("API token saved");
       setHasToken(true);
