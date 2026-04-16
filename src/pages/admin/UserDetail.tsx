@@ -46,7 +46,7 @@ export default function UserDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*, performance:admin_user_performance(*)')
+        .select('*')
         .eq('id', userId)
         .single();
       if (error) throw error;
@@ -55,12 +55,26 @@ export default function UserDetail() {
     refetchInterval: 5000 
   });
 
+  // 1b. Fetch User Performance (Separate query for better stability)
+  const { data: performanceList, isLoading: perfLoading } = useQuery({
+    queryKey: ["admin-user-performance", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_user_performance')
+        .select('*')
+        .eq('user_id', userId);
+      if (error) throw error;
+      return data || [];
+    },
+    refetchInterval: 5000
+  });
+
   // Auto-select first account if none selected
   useEffect(() => {
-    if (profile?.performance && profile.performance.length > 0 && !selectedAccountId) {
-      setSelectedAccountId(profile.performance[0].deriv_loginid);
+    if (performanceList && performanceList.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(performanceList[0].deriv_loginid);
     }
-  }, [profile, selectedAccountId]);
+  }, [performanceList, selectedAccountId]);
 
   // 2. Fetch User Trades
   const { data: trades, isLoading: tradesLoading } = useQuery({
@@ -77,11 +91,24 @@ export default function UserDetail() {
     refetchInterval: 5000 // Refresh every 5 seconds for live monitor effect
   });
 
-  if (profileLoading || tradesLoading) {
+  if (profileLoading || tradesLoading || perfLoading) {
     return (
       <AdminLayout title="User Details">
         <div className="flex items-center justify-center h-[50vh]">
           <Activity className="w-8 h-8 text-primary animate-pulse" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <AdminLayout title="User Not Found">
+        <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
+          <p className="text-muted-foreground">The requested user does not exist or has been removed.</p>
+          <Button asChild>
+            <Link to="/admin/users">Back to User Management</Link>
+          </Button>
         </div>
       </AdminLayout>
     );
@@ -113,7 +140,7 @@ export default function UserDetail() {
     new Date(b.date).getTime() - new Date(a.date).getTime()
   ) : [];
 
-  const performance = profile?.performance?.find((p: any) => p.deriv_loginid === selectedAccountId) || profile?.performance?.[0];
+  const performance = performanceList?.find((p: any) => p.deriv_loginid === selectedAccountId) || performanceList?.[0];
 
   return (
     <AdminLayout title="User Performance Dashboard">
@@ -126,9 +153,9 @@ export default function UserDetail() {
             </Link>
           </Button>
           <div className="flex items-center gap-3">
-            {profile?.performance && profile.performance.length > 1 && (
+            {performanceList && performanceList.length > 1 && (
               <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border border-border">
-                {profile.performance.map((p: any) => (
+                {performanceList.map((p: any) => (
                   <Button
                     key={p.deriv_loginid}
                     variant={selectedAccountId === p.deriv_loginid ? "secondary" : "ghost"}
@@ -144,7 +171,7 @@ export default function UserDetail() {
             <Badge variant="outline" className={`uppercase font-bold ${
               profile?.subscription_status === 'active' ? "bg-green-500/10 text-green-500 border-green-500/30" : "bg-muted text-muted-foreground"
             }`}>
-              {profile?.subscription_status} Plan
+              {profile?.subscription_status || 'free'} Plan
             </Badge>
           </div>
         </div>
