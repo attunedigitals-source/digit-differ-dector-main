@@ -299,6 +299,7 @@ export default function TradeMonitor() {
                   </span>
                 </div>
               </TableCell>
+            </TableRow>
             ))
           )}
         </TableBody>
