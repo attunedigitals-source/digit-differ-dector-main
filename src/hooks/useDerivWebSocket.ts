@@ -77,7 +77,7 @@ export function useDerivWebSocket(apiToken?: string) {
   // Helper to subscribe to balance after authorization
   const subscribeBalance = useCallback((ws: WebSocket) => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+      ws.send(JSON.stringify({ balance: 1, account: "all", subscribe: 1 }));
     }
   }, []);
 
@@ -90,7 +90,8 @@ export function useDerivWebSocket(apiToken?: string) {
 
   const switchAccount = useCallback((loginid: string) => {
     setActiveLoginId(loginid);
-    // Re-authorize to switch account context on the WS
+    // Since we fetch balances for all accounts now, we might not strictly need to re-authorize
+    // unless we actually want to place trades. But we'll leave re-auth for trading context.
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN && apiToken) {
       authorizedRef.current = false;
@@ -126,7 +127,7 @@ export function useDerivWebSocket(apiToken?: string) {
       if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
       balanceFallbackTimer.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN && authorizedRef.current) {
-          ws.send(JSON.stringify({ balance: 1 }));
+          ws.send(JSON.stringify({ balance: 1, account: "all" }));
         }
       }, 10000);
 
@@ -175,14 +176,34 @@ export function useDerivWebSocket(apiToken?: string) {
       // Handle balance updates (continuous subscription + fallback polls)
       if (data.msg_type === "balance" && data.balance) {
         const bal = data.balance;
-        const balanceNum = Number(bal.balance);
-        setAccounts((prev) =>
-          prev.map((acc) =>
-            acc.loginid === bal.loginid
-              ? { ...acc, balance: isNaN(balanceNum) ? acc.balance : balanceNum, currency: bal.currency || acc.currency }
-              : acc
-          )
-        );
+        
+        if (bal.accounts) {
+          // If response has accounts object (from account="all")
+          setAccounts((prev) =>
+            prev.map((acc) => {
+              const accountData = bal.accounts[acc.loginid];
+              if (accountData) {
+                const balNum = Number(accountData.balance);
+                return {
+                  ...acc,
+                  balance: isNaN(balNum) ? acc.balance : balNum,
+                  currency: accountData.currency || acc.currency
+                };
+              }
+              return acc;
+            })
+          );
+        } else if (bal.loginid) {
+          // Fallback parsing for individual account stream
+          const balanceNum = Number(bal.balance);
+          setAccounts((prev) =>
+            prev.map((acc) =>
+              acc.loginid === bal.loginid
+                ? { ...acc, balance: isNaN(balanceNum) ? acc.balance : balanceNum, currency: bal.currency || acc.currency }
+                : acc
+            )
+          );
+        }
       }
 
       if (data.msg_type === "tick") {
