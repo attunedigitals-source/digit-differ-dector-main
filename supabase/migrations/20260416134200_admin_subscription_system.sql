@@ -1,10 +1,19 @@
--- ENUMS
-CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'sub-admin');
-CREATE TYPE public.subscription_status AS ENUM ('free', 'pending', 'active', 'expired', 'suspended');
-CREATE TYPE public.plan_type AS ENUM ('1_month', '6_months', '12_months');
+-- ENUMS (Idempotent check)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'sub-admin');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscription_status') THEN
+        CREATE TYPE public.subscription_status AS ENUM ('free', 'pending', 'active', 'expired', 'suspended');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'plan_type') THEN
+        CREATE TYPE public.plan_type AS ENUM ('1_month', '6_months', '12_months');
+    END IF;
+END$$;
 
 -- PROFILES TABLE
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   role public.user_role NOT NULL DEFAULT 'user',
@@ -20,7 +29,7 @@ CREATE TABLE public.profiles (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- SUBSCRIPTIONS TABLE
-CREATE TABLE public.subscriptions (
+CREATE TABLE IF NOT EXISTS public.subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   plan_type public.plan_type NOT NULL,
@@ -34,7 +43,7 @@ CREATE TABLE public.subscriptions (
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- PAYMENTS TABLE
-CREATE TABLE public.payments (
+CREATE TABLE IF NOT EXISTS public.payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   amount DECIMAL(10, 2) NOT NULL,
@@ -49,7 +58,7 @@ CREATE TABLE public.payments (
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 
 -- TRADES TABLE (LOGGING)
-CREATE TABLE public.trades (
+CREATE TABLE IF NOT EXISTS public.trades (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   deriv_loginid TEXT NOT NULL,
@@ -64,7 +73,7 @@ CREATE TABLE public.trades (
 ALTER TABLE public.trades ENABLE ROW LEVEL SECURITY;
 
 -- EMAIL LOGS
-CREATE TABLE public.email_logs (
+CREATE TABLE IF NOT EXISTS public.email_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   email TEXT NOT NULL,
@@ -87,37 +96,54 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- RLS POLICIES
+-- RLS POLICIES (Idempotent)
 
 -- Profiles
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT TO authenticated USING (
   public.check_is_admin()
 );
+
+DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
 CREATE POLICY "Admins can update all profiles" ON public.profiles FOR UPDATE TO authenticated USING (
   public.check_is_admin()
 );
+
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT TO authenticated USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
 
 -- Subscriptions
+DROP POLICY IF EXISTS "Admins can manage all subscriptions" ON public.subscriptions;
 CREATE POLICY "Admins can manage all subscriptions" ON public.subscriptions FOR ALL TO authenticated USING (
   public.check_is_admin()
 );
+
+DROP POLICY IF EXISTS "Users can view their own subscriptions" ON public.subscriptions;
 CREATE POLICY "Users can view their own subscriptions" ON public.subscriptions FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
 -- Payments
+DROP POLICY IF EXISTS "Admins can manage all payments" ON public.payments;
 CREATE POLICY "Admins can manage all payments" ON public.payments FOR ALL TO authenticated USING (
   public.check_is_admin()
 );
+
+DROP POLICY IF EXISTS "Users can manage their own payments" ON public.payments;
 CREATE POLICY "Users can manage their own payments" ON public.payments FOR ALL TO authenticated USING (auth.uid() = user_id);
 
 -- Trades
+DROP POLICY IF EXISTS "Admins can view all trades" ON public.trades;
 CREATE POLICY "Admins can view all trades" ON public.trades FOR SELECT TO authenticated USING (
   public.check_is_admin()
 );
+
+DROP POLICY IF EXISTS "Users can own trades" ON public.trades;
 CREATE POLICY "Users can own trades" ON public.trades FOR ALL TO authenticated USING (auth.uid() = user_id);
 
 -- Email Logs
+DROP POLICY IF EXISTS "Admins can view all email logs" ON public.email_logs;
 CREATE POLICY "Admins can view all email logs" ON public.email_logs FOR SELECT TO authenticated USING (
   public.check_is_admin()
 );
@@ -151,13 +177,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_payments_updated_at ON public.payments;
+CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- Trigger for updated_at
-CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Populate existing users if any
 DO $$
