@@ -58,17 +58,43 @@ export default function TradeMonitor() {
   useEffect(() => {
     // 1. Initial Load
     const fetchTrades = async () => {
-      const { data, error } = await supabase
+      setLoading(true);
+      // 1. Fetch trades with profiles (FK exists)
+      const { data: tradeData, error: tradeError } = await supabase
         .from('trades')
-        .select('*, profiles(email, subscription_status), performance:admin_user_performance(*)')
+        .select('*, profiles(email, subscription_status)')
         .order('timestamp', { ascending: false })
         .limit(100);
       
-      if (error) {
+      if (tradeError) {
+        console.error("Trade fetch error:", tradeError);
         toast.error("Failed to load trade history");
-      } else {
-        setTrades(data as any[]);
+        setLoading(false);
+        return;
       }
+
+      // 2. Fetch performance for these specific users
+      if (tradeData && tradeData.length > 0) {
+        const userIds = [...new Set(tradeData.map(t => t.user_id))];
+        const { data: perfData, error: perfError } = await supabase
+          .from('admin_user_performance')
+          .select('*')
+          .in('user_id', userIds);
+
+        if (!perfError && perfData) {
+          // Merge performance into trade data
+          const merged = tradeData.map(t => ({
+            ...t,
+            performance: perfData.filter(p => p.user_id === t.user_id)
+          }));
+          setTrades(merged as any[]);
+        } else {
+          setTrades(tradeData as any[]);
+        }
+      } else {
+        setTrades([]);
+      }
+      
       setLoading(false);
     };
 
