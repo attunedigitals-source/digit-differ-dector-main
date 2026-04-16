@@ -33,9 +33,34 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue 
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+
+type PlanType = "1_month" | "6_months" | "12_months";
 
 export default function UserManagement() {
   const [search, setSearch] = useState("");
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const [isDowngradeOpen, setIsDowngradeOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>("1_month");
+  const [sendEmail, setSendEmail] = useState(true);
+  
   const queryClient = useQueryClient();
 
   // Fetch Users
@@ -111,6 +136,65 @@ export default function UserManagement() {
       toast.success("Payment approved and subscription activated");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+    }
+  });
+
+  // Manual Subscription Mutation
+  const manualUpdate = useMutation({
+    mutationFn: async ({ userId, type, planType, sendMail }: any) => {
+      const email = selectedUser?.email;
+      
+      if (type === 'upgrade') {
+        const months = planType === '1_month' ? 1 : planType === '6_months' ? 6 : 12;
+        const expiry = new Date();
+        expiry.setMonth(expiry.getMonth() + months);
+
+        await supabase.from('profiles').update({
+          subscription_status: 'active',
+          subscription_expiry: expiry.toISOString()
+        }).eq('id', userId);
+
+        await supabase.from('subscriptions').insert({
+          user_id: userId,
+          plan_type: planType,
+          amount: planType === '1_month' ? 45 : planType === '6_months' ? 240 : 400,
+          expiry_date: expiry.toISOString(),
+          status: 'active'
+        });
+
+        if (sendMail && email) {
+          await supabase.functions.invoke('send-lifecycle-email', {
+            body: { email, type: 'activated', data: { plan: planType.replace('_', ' ') } }
+          });
+        }
+      } else {
+        // Downgrade
+        await supabase.from('profiles').update({
+          subscription_status: 'free',
+          subscription_expiry: null
+        }).eq('id', userId);
+
+        // Update active subscriptions to expired
+        await supabase.from('subscriptions')
+          .update({ status: 'expired' })
+          .eq('user_id', userId)
+          .eq('status', 'active');
+
+        if (sendMail && email) {
+          await supabase.functions.invoke('send-lifecycle-email', {
+            body: { email, type: 'deactivated' }
+          });
+        }
+      }
+    },
+    onSuccess: (_, variables) => {
+      toast.success(`User successfully ${variables.type === 'upgrade' ? 'upgraded' : 'downgraded'}`);
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setIsUpgradeOpen(false);
+      setIsDowngradeOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Action failed");
     }
   });
 
@@ -190,12 +274,30 @@ export default function UserManagement() {
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 bg-card border-border">
+                          <DropdownMenuContent align="end" className="w-56 bg-card border-border">
                             <DropdownMenuLabel>User Controls</DropdownMenuLabel>
-                            <DropdownMenuItem className="text-xs gap-2">
-                              <CreditCard className="w-3.5 h-3.5" /> Extend Subscription
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-xs gap-2 text-destructive">
+                            {u.subscription_status !== 'active' ? (
+                              <DropdownMenuItem 
+                                className="text-xs gap-2 cursor-pointer"
+                                onClick={() => {
+                                  setSelectedUser(u);
+                                  setIsUpgradeOpen(true);
+                                }}
+                              >
+                                <UserCheck className="w-3.5 h-3.5 text-green-500" /> Upgrade to Paid
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem 
+                                className="text-xs gap-2 cursor-pointer"
+                                onClick={() => {
+                                  setSelectedUser(u);
+                                  setIsDowngradeOpen(true);
+                                }}
+                              >
+                                <UserX className="w-3.5 h-3.5 text-destructive" /> Downgrade to Free
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem className="text-xs gap-2 cursor-not-allowed opacity-50">
                               <ShieldAlert className="w-3.5 h-3.5" /> {u.is_suspended ? 'Reactivate' : 'Suspend Account'}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -261,6 +363,89 @@ export default function UserManagement() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Manual Upgrade Dialog */}
+      <Dialog open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Manual Upgrade</DialogTitle>
+            <DialogDescription>
+              Granting paid access to <span className="text-primary font-semibold">{selectedUser?.email}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Subscription Plan</Label>
+              <Select value={selectedPlan} onValueChange={(v: any) => setSelectedPlan(v)}>
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue placeholder="Select a plan" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="1_month">1 Month - $45</SelectItem>
+                  <SelectItem value="6_months">6 Months - $240</SelectItem>
+                  <SelectItem value="12_months">12 Months (1 Year) - $400</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="send-upgrade-mail" 
+                checked={sendEmail} 
+                onCheckedChange={(v: any) => setSendEmail(v)}
+                className="border-border data-[state=checked]:bg-primary shadow-lg"
+              />
+              <Label htmlFor="send-upgrade-mail" className="text-xs cursor-pointer">
+                Send activation email notification to user
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUpgradeOpen(false)}>Cancel</Button>
+            <Button 
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => manualUpdate.mutate({ userId: selectedUser.id, type: 'upgrade', planType: selectedPlan, sendMail: sendEmail })}
+              disabled={manualUpdate.isPending}
+            >
+              {manualUpdate.isPending ? "Upgrading..." : "Confirm Upgrade"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Downgrade Dialog */}
+      <Dialog open={isDowngradeOpen} onOpenChange={setIsDowngradeOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Confirm Downgrade</DialogTitle>
+            <DialogDescription>
+              This will immediately revoke paid access for <span className="font-semibold text-foreground">{selectedUser?.email}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="send-downgrade-mail" 
+                checked={sendEmail} 
+                onCheckedChange={(v: any) => setSendEmail(v)}
+                className="border-border data-[state=checked]:bg-destructive"
+              />
+              <Label htmlFor="send-downgrade-mail" className="text-xs cursor-pointer">
+                Send deactivation email notification to user
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDowngradeOpen(false)}>Cancel</Button>
+            <Button 
+              variant="destructive"
+              onClick={() => manualUpdate.mutate({ userId: selectedUser.id, type: 'downgrade', sendMail: sendEmail })}
+              disabled={manualUpdate.isPending}
+            >
+              {manualUpdate.isPending ? "Processing..." : "Downgrade User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
