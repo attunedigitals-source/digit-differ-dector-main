@@ -203,6 +203,7 @@ BEGIN
 END $$;
 
 -- PERFORMANCE SUMMARY VIEW (Per Account)
+DROP VIEW IF EXISTS public.admin_user_performance;
 CREATE OR REPLACE VIEW public.admin_user_performance AS
 SELECT 
     user_id,
