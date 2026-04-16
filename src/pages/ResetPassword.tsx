@@ -11,16 +11,28 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
+  const [checkFinished, setCheckFinished] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    if (hashParams.get("type") === "recovery") {
-      setIsRecovery(true);
-    }
+    const checkRecovery = () => {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const queryParams = new URLSearchParams(window.location.search);
+      
+      const type = hashParams.get("type") || queryParams.get("type");
+      const accessToken = hashParams.get("access_token") || queryParams.get("access_token");
+
+      if (type === "recovery" || accessToken) {
+        setIsRecovery(true);
+      }
+      setCheckFinished(true);
+    };
+
+    checkRecovery();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+      console.log("Auth event in ResetPassword:", event);
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setIsRecovery(true);
       }
     });
@@ -39,15 +51,26 @@ const ResetPassword = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
       toast.success("Password updated successfully!");
       navigate("/");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoading(true); // Keep loading to prevent double submit during nav
+      setTimeout(() => setLoading(false), 2000);
     }
   };
+
+  if (!checkFinished) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   if (!isRecovery) {
     return (

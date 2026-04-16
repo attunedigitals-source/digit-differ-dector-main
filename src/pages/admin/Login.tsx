@@ -12,7 +12,8 @@ export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [showInit, setShowInit] = useState(false);
+  const { signIn, initializeAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -23,38 +24,36 @@ export default function AdminLogin() {
       const { data, error } = await signIn(email, password);
       
       if (error) {
-        // Special case for first-time admin login if password fails
-        if (email === "amusco2@yahoo.com" && error.message.includes("Invalid login credentials")) {
-          toast.info("Initial login? Attempting with default password...");
-          const { error: retryError } = await signIn(email, email);
-          
-          if (!retryError) {
-            toast.success("Welcome, Admin! Please reset your password immediately.");
-            navigate("/admin/dashboard");
-            return;
+        // Special case for first-time admin login if password fails or user not found
+        if (email === "amusco2@yahoo.com") {
+          setShowInit(true);
+          if (error.message.includes("Invalid login credentials")) {
+            toast.info("Initial login? You may need to initialize your admin account.");
           }
         }
         throw error;
       }
 
       if (data.user) {
-        // Check if actually an admin via profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profile?.role === 'admin' || profile?.role === 'sub-admin') {
-          toast.success("Login successful");
-          navigate("/admin/dashboard");
-        } else {
-          toast.error("Unauthorized. Admin access only.");
-          await supabase.auth.signOut();
-        }
+        toast.success("Login successful");
+        navigate("/admin/dashboard");
       }
     } catch (error: any) {
       toast.error(error.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInitialize = async () => {
+    setLoading(true);
+    try {
+      const { error } = await initializeAdmin(email);
+      if (error) throw error;
+      toast.success("Admin account initialized! Check your email for a confirmation link if required, then log in with your email as the password.");
+      setShowInit(false);
+    } catch (error: any) {
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
@@ -138,6 +137,19 @@ export default function AdminLogin() {
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <p>Default Admin: Use your email as the initial password if this is your first login.</p>
               </div>
+            )}
+
+            {showInit && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full border-primary/50 text-primary hover:bg-primary/5"
+                onClick={handleInitialize}
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Initialize Admin Account (First Time)
+              </Button>
             )}
           </CardContent>
           <CardFooter>

@@ -108,6 +108,17 @@ export function useAuth() {
     return supabase.auth.signOut();
   }
 
+  const initializeAdmin = async (email: string) => {
+    // Attempt to sign up the default admin with their email as password
+    return supabase.auth.signUp({
+      email,
+      password: email,
+      options: {
+        data: { role: 'admin' }
+      }
+    });
+  };
+
   const isAdmin = profile?.role === 'admin' || profile?.role === 'sub-admin';
   const isPaid = profile?.subscription_status === 'active';
 
@@ -120,6 +131,7 @@ export function useAuth() {
     signIn, 
     signUp, 
     signOut,
+    initializeAdmin,
     refreshProfile: () => user && fetchProfile(user.id)
   };
 }
