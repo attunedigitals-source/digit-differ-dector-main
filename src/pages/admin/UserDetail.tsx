@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,15 +50,17 @@ export default function UserDetail() {
         .eq('id', userId)
         .single();
       if (error) throw error;
-      
-      // Auto-select first account if none selected
-      if (data.performance?.length > 0 && !selectedAccountId) {
-        setSelectedAccountId(data.performance[0].deriv_loginid);
-      }
       return data;
     },
     refetchInterval: 5000 
   });
+
+  // Auto-select first account if none selected
+  useEffect(() => {
+    if (profile?.performance && profile.performance.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(profile.performance[0].deriv_loginid);
+    }
+  }, [profile, selectedAccountId]);
 
   // 2. Fetch User Trades
   const { data: trades, isLoading: tradesLoading } = useQuery({
@@ -151,7 +154,7 @@ export default function UserDetail() {
           <SummaryCard 
             title="User Identity" 
             value={profile?.email} 
-            subtitle={`Joined ${new Date(profile?.created_at).toLocaleDateString()}`}
+            subtitle={profile?.created_at ? `Joined ${new Date(profile.created_at).toLocaleDateString()}` : 'Joined Date Unknown'}
             icon={<UserIcon className="w-5 h-5 text-primary" />}
           />
           <SummaryCard 
@@ -169,7 +172,7 @@ export default function UserDetail() {
           />
           <SummaryCard 
             title="Account Status" 
-            value={profile?.role.toUpperCase()} 
+            value={profile?.role?.toUpperCase() || 'USER'} 
             subtitle={profile?.subscription_expiry ? `Expires ${new Date(profile.subscription_expiry).toLocaleDateString()}` : "Lifetime Status"}
             icon={<CreditCard className="w-5 h-5 text-purple-500" />}
           />
