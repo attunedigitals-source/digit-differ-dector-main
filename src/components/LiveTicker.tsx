@@ -24,9 +24,6 @@ export function LiveTicker({ tickCounts, lastDigits, selectedSymbols, avoidDigit
           <div key={s.symbol} className="flex items-center justify-between bg-muted/50 rounded px-3 py-2">
             <div>
               <div className="font-semibold text-xs text-foreground">{getSymbolName(s.symbol)}</div>
-              {avoidDigits && avoidDigits[s.symbol] !== undefined && (
-                <div className="text-[10px] text-destructive font-mono">Avoid: {avoidDigits[s.symbol]}</div>
-              )}
             </div>
             <div className="text-right">
               <div className="font-mono text-lg font-bold text-accent">{lastDigits[s.symbol] ?? "-"}</div>

@@ -122,6 +122,7 @@ export default function Dashboard() {
             signals={signals}
             symbolFilter={symbolFilter === "all" ? "" : symbolFilter}
             confidenceFilter={confidenceFilter}
+            selectedSymbols={config.selectedSymbols}
           />
         </div>
       </main>

@@ -8,9 +8,10 @@ interface SignalsTableProps {
   signals: SignalWithStatus[];
   symbolFilter: string;
   confidenceFilter: number;
+  selectedSymbols?: string[];
 }
 
-export function SignalsTable({ signals, symbolFilter, confidenceFilter }: SignalsTableProps) {
+export function SignalsTable({ signals, symbolFilter, confidenceFilter, selectedSymbols }: SignalsTableProps) {
   // Build a stable row per symbol, showing the latest signal for each
   const rows = useMemo(() => {
     const symbolOrder = DERIV_SYMBOLS.map((s) => s.symbol);
@@ -20,6 +21,8 @@ export function SignalsTable({ signals, symbolFilter, confidenceFilter }: Signal
     for (const sig of signals) {
       if (sig.confidence * 100 < confidenceFilter) continue;
       if (symbolFilter && sig.symbol !== symbolFilter) continue;
+      if (selectedSymbols && selectedSymbols.length > 0 && !selectedSymbols.includes(sig.symbol)) continue;
+      
       const existing = latestBySymbol.get(sig.symbol);
       if (!existing || sig.timestamp > existing.timestamp) {
         latestBySymbol.set(sig.symbol, sig);
@@ -30,7 +33,7 @@ export function SignalsTable({ signals, symbolFilter, confidenceFilter }: Signal
     return symbolOrder
       .filter((sym) => latestBySymbol.has(sym))
       .map((sym) => latestBySymbol.get(sym)!);
-  }, [signals, symbolFilter, confidenceFilter]);
+  }, [signals, symbolFilter, confidenceFilter, selectedSymbols]);
 
   if (rows.length === 0) {
     return (
