@@ -150,19 +150,15 @@ export function useDerivWebSocket(apiToken?: string) {
       if (data.msg_type === "authorize" && data.authorize) {
         authorizedRef.current = true;
         const auth = data.authorize;
-        const accountList: DerivAccount[] = (auth.account_list || []).map(
-          (acc: any) => ({
+        const accountList: DerivAccount[] = (auth.account_list || [])
+          .filter((acc: any) => acc.loginid === auth.loginid)
+          .map((acc: any) => ({
             loginid: acc.loginid,
             currency: acc.currency || "USD",
             is_virtual: Boolean(acc.is_virtual),
-            balance: 0,
-          })
-        );
-        const currentIdx = accountList.findIndex((a) => a.loginid === auth.loginid);
-        if (currentIdx >= 0) {
-          accountList[currentIdx].balance = Number(auth.balance) || 0;
-          accountList[currentIdx].currency = auth.currency || accountList[currentIdx].currency;
-        }
+            balance: Number(auth.balance) || 0,
+          }));
+
         setAccounts(accountList);
         if (!activeLoginId) {
           setActiveLoginId(auth.loginid);
