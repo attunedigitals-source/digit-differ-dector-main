@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SignalWithStatus } from "@/hooks/useDerivWebSocket";
+import { supabase } from "@/integrations/supabase/client";
+import type { SignalWithStatus, DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
+import { useAuth } from "./useAuth";
 
 export interface TradeRecord {
   symbol: string;
@@ -22,7 +24,11 @@ export interface AutoTraderConfig {
 
 const MARTINGALE_FACTOR = 11;
 
-export function useAutoTrader(wsRef: React.RefObject<WebSocket | null>) {
+export function useAutoTrader(
+  wsRef: React.RefObject<WebSocket | null>,
+  accountInfo: DerivAccount | null
+) {
+  const { isPaid, isAdmin } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>([]);
   const [avoidDigits, setAvoidDigits] = useState<Record<string, number>>({});
   const [config, setConfig] = useState<AutoTraderConfig>({
@@ -74,6 +80,17 @@ export function useAutoTrader(wsRef: React.RefObject<WebSocket | null>) {
     const now = Date.now();
     if (now < cooldownUntil.current) return;
 
+    // Subscription validation: Prevent real account trading for non-paid users
+    if (accountInfo && !accountInfo.is_virtual) {
+      if (!isPaid && !isAdmin) {
+        toast.error("Real account trading requires an active subscription.", {
+          description: "Please upgrade your plan to continue.",
+          duration: 5000
+        });
+        return;
+      }
+    }
+
     let dangerDigit: number;
     let tradeStake = config.stake;
 
@@ -98,6 +115,23 @@ export function useAutoTrader(wsRef: React.RefObject<WebSocket | null>) {
     lastDangerDigit.current.set(signal.symbol, dangerDigit);
     setAvoidDigits((prev) => ({ ...prev, [signal.symbol]: dangerDigit }));
     activeTradeSymbols.current.set(signal.symbol, Date.now());
+
+    // Log the trade intent precisely as requested
+    const logTrade = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      await supabase.from("trades").insert({
+        user_id: user.id,
+        deriv_loginid: accountInfo?.loginid || "unknown",
+        symbol: signal.symbol,
+        stake: tradeStake,
+        barrier: dangerDigit,
+        result: "pending",
+        timestamp: new Date().toISOString()
+      });
+    };
+    logTrade();
 
     const reqId = Date.now() + Math.floor(Math.random() * 10000);
     const proposalReq = {

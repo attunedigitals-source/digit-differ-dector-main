@@ -22,7 +22,9 @@ export default function Dashboard() {
     wsRef, onSignalRef, onMessageRef,
   } = useDerivWebSocket(apiToken);
 
-  const { config, setConfig, tradeLog, setTradeLog, avoidDigits, placeTradeForSignal, handleTradeMessage } = useAutoTrader(wsRef);
+  const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? null;
+
+  const { config, setConfig, tradeLog, setTradeLog, avoidDigits, placeTradeForSignal, handleTradeMessage } = useAutoTrader(wsRef, activeAccount);
 
   const [symbolFilter, setSymbolFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState(75);
