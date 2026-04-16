@@ -123,6 +123,7 @@ export default function Dashboard() {
             symbolFilter={symbolFilter === "all" ? "" : symbolFilter}
             confidenceFilter={confidenceFilter}
             selectedSymbols={config.selectedSymbols}
+            avoidDigits={avoidDigits}
           />
         </div>
       </main>

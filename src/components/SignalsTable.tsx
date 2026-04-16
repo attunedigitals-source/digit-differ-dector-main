@@ -9,9 +9,10 @@ interface SignalsTableProps {
   symbolFilter: string;
   confidenceFilter: number;
   selectedSymbols?: string[];
+  avoidDigits?: Record<string, number>;
 }
 
-export function SignalsTable({ signals, symbolFilter, confidenceFilter, selectedSymbols }: SignalsTableProps) {
+export function SignalsTable({ signals, symbolFilter, confidenceFilter, selectedSymbols, avoidDigits }: SignalsTableProps) {
   // Build a stable row per symbol, showing the latest signal for each
   const rows = useMemo(() => {
     const symbolOrder = DERIV_SYMBOLS.map((s) => s.symbol);
@@ -79,7 +80,7 @@ export function SignalsTable({ signals, symbolFilter, confidenceFilter, selected
                       ) : (
                         <AlertTriangle className="w-3.5 h-3.5" />
                       )}
-                      {signal.dangerDigit}
+                      {avoidDigits?.[signal.symbol] ?? signal.dangerDigit}
                     </span>
                   </td>
                   <td className="p-3 text-center">
