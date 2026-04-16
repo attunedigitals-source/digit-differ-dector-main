@@ -39,7 +39,7 @@ export default function UserDetail() {
   const { userId } = useParams();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
-  // 1. Fetch User Profile
+  // 1. Fetch User Profile (Static - No polling needed to prevent UI jitter)
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["admin-user-profile", userId],
     queryFn: async () => {
@@ -50,12 +50,11 @@ export default function UserDetail() {
         .single();
       if (error) throw error;
       return data;
-    },
-    refetchInterval: 5000 
+    }
   });
 
-  // 1b. Fetch User Performance
-  const { data: performanceList, isLoading: perfLoading } = useQuery({
+  // 1b. Fetch User Performance (Polling 30s)
+  const { data: performanceList } = useQuery({
     queryKey: ["admin-user-performance", userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -65,7 +64,7 @@ export default function UserDetail() {
       if (error) throw error;
       return data || [];
     },
-    refetchInterval: 5000
+    refetchInterval: 30000
   });
 
   // Auto-select first account
@@ -75,8 +74,8 @@ export default function UserDetail() {
     }
   }, [performanceList, selectedAccountId]);
 
-  // 2. Fetch User Trades (Optimized for sidebar)
-  const { data: trades, isLoading: tradesLoading } = useQuery({
+  // 2. Fetch User Trades (Polling 15s)
+  const { data: trades } = useQuery({
     queryKey: ["admin-user-trades", userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -88,11 +87,11 @@ export default function UserDetail() {
       if (error) throw error;
       return (data || []) as Trade[];
     },
-    refetchInterval: 5000
+    refetchInterval: 15000
   });
 
-  // 3. Fetch Daily Summary (Server-side aggregated, handles >1000 rows)
-  const { data: dailyHistory, isLoading: historyLoading } = useQuery({
+  // 3. Fetch Daily Summary (Polling 30s)
+  const { data: dailyHistory } = useQuery({
     queryKey: ["admin-user-daily-history", userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -102,10 +101,12 @@ export default function UserDetail() {
       if (error) throw error;
       return data || [];
     },
-    refetchInterval: 5000
+    refetchInterval: 30000
   });
 
-  if (profileLoading || tradesLoading || perfLoading || historyLoading) {
+  // CRITICAL: Only show global pulse if the profile is missing on initial load
+  // If we already have a profile, we don't block the UI for background updates
+  if (profileLoading && !profile) {
     return (
       <AdminLayout title="User Details">
         <div className="flex items-center justify-center h-[50vh]">
@@ -119,7 +120,7 @@ export default function UserDetail() {
     return (
       <AdminLayout title="User Not Found">
         <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
-          <p className="text-muted-foreground">The requested user does not exist or has been removed.</p>
+          <p className="text-muted-foreground">The requested user does not exist.</p>
           <Button asChild><Link to="/admin/users">Back to Users</Link></Button>
         </div>
       </AdminLayout>
@@ -159,7 +160,7 @@ export default function UserDetail() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-4">
           <SummaryCard title="User Identity" value={profile?.email} subtitle={`Joined ${profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}`} icon={<UserIcon className="w-5 h-5 text-primary" />} />
           <SummaryCard title="Total Volume" value={`${performance?.total_trades || 0}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-blue-500" />} />
           <SummaryCard title="Net Performance" value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} subtitle={`${(Number(performance?.win_rate) || 0).toFixed(1)}% Win Rate`} icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} isPositive={(Number(performance?.net_profit) || 0) >= 0} />
