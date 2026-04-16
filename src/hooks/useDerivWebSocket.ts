@@ -90,14 +90,10 @@ export function useDerivWebSocket(apiToken?: string) {
 
   const switchAccount = useCallback((loginid: string) => {
     setActiveLoginId(loginid);
-    // Since we fetch balances for all accounts now, we might not strictly need to re-authorize
-    // unless we actually want to place trades. But we'll leave re-auth for trading context.
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN && apiToken) {
-      authorizedRef.current = false;
-      ws.send(JSON.stringify({ authorize: apiToken }));
-    }
-  }, [apiToken]);
+    // Removed redundant Re-authorize call. 
+    // Deriv API does not require or allow switching token scope context internally.
+    // The active socket connection continues to properly stream "account: all" balances.
+  }, []);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
