@@ -205,34 +205,26 @@ END $$;
 -- PERFORMANCE SUMMARY VIEW (Per Account with Today's Live Stats)
 DROP VIEW IF EXISTS public.admin_user_performance;
 CREATE OR REPLACE VIEW public.admin_user_performance AS
-WITH latest_trades AS (
-    SELECT DISTINCT ON (user_id, deriv_loginid)
+WITH base_stats AS (
+    SELECT 
         user_id,
         deriv_loginid,
-        symbol as last_symbol,
-        result as last_result,
-        timestamp as last_trade_at
+        COUNT(*) as total_trades,
+        COUNT(*) FILTER (WHERE result = 'won') as wins,
+        SUM(profit_loss) as net_profit,
+        COUNT(*) FILTER (WHERE timestamp >= CURRENT_DATE) as today_trades,
+        COALESCE(SUM(profit_loss) FILTER (WHERE timestamp >= CURRENT_DATE), 0) as today_profit,
+        MAX(timestamp) as last_trade_at
     FROM public.trades
-    ORDER BY user_id, deriv_loginid, timestamp DESC
+    GROUP BY user_id, deriv_loginid
 )
 SELECT 
-    t.user_id,
-    t.deriv_loginid,
-    COUNT(*) as total_trades,
-    COUNT(*) FILTER (WHERE t.result = 'won') as wins,
-    SUM(t.profit_loss) as net_profit,
-    COUNT(*) FILTER (WHERE t.timestamp >= CURRENT_DATE) as today_trades,
-    COALESCE(SUM(t.profit_loss) FILTER (WHERE t.timestamp >= CURRENT_DATE), 0) as today_profit,
-    lt.last_symbol,
-    lt.last_result,
-    lt.last_trade_at,
+    bs.*,
     CASE 
-        WHEN COUNT(*) > 0 THEN (COUNT(*) FILTER (WHERE t.result = 'won')::FLOAT / COUNT(*)) * 100 
+        WHEN bs.total_trades > 0 THEN (bs.wins::FLOAT / bs.total_trades) * 100 
         ELSE 0 
     END as win_rate
-FROM public.trades t
-LEFT JOIN latest_trades lt ON t.user_id = lt.user_id AND t.deriv_loginid = lt.deriv_loginid
-GROUP BY t.user_id, t.deriv_loginid, lt.last_symbol, lt.last_result, lt.last_trade_at;
+FROM base_stats bs;
 
 -- Ensure admins can view this view
 GRANT SELECT ON public.admin_user_performance TO authenticated;

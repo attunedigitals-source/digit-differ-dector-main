@@ -28,6 +28,7 @@ import { getSymbolName } from "@/lib/deriv-symbols";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import { User, UserCheck } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface AccountSummary {
   user_id: string;
@@ -46,30 +47,24 @@ interface AccountSummary {
 }
 
 export default function TradeMonitor() {
-  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchAccounts = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('admin_user_performance')
-      .select('*, profiles(email, subscription_status)')
-      .order('net_profit', { ascending: false });
-    
-    if (error) {
-      console.error("Fetch accounts error:", error);
-      toast.error("Failed to load account summaries");
-    } else {
-      setAccounts(data as any[]);
-    }
-    setLoading(false);
-  };
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ['admin-accounts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_user_performance')
+        .select('*, profiles(email, subscription_status)')
+        .order('net_profit', { ascending: false });
+      
+      if (error) throw error;
+      return data as AccountSummary[];
+    },
+    refetchInterval: 5000 // Poll every 5s as backup to subscription
+  });
 
   useEffect(() => {
-    fetchAccounts();
-
-    // Still listen for new trades to show notifications and trigger refresh
     const channel = supabase
       .channel('admin-trade-alerts')
       .on(
@@ -77,8 +72,7 @@ export default function TradeMonitor() {
         { event: 'INSERT', schema: 'public', table: 'trades' }, 
         (payload) => {
           toast.info(`New activity on account ${payload.new.deriv_loginid}`, { duration: 2000 });
-          // Optional: Refresh the account list to update totals
-          fetchAccounts();
+          queryClient.invalidateQueries({ queryKey: ['admin-accounts'] });
         }
       )
       .subscribe();
@@ -214,9 +208,9 @@ export default function TradeMonitor() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {loading ? (
+          {isLoading ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-20">
+              <TableCell colSpan={5} className="text-center py-20">
                 <div className="flex flex-col items-center gap-2">
                   <Activity className="w-8 h-8 text-primary animate-pulse" />
                   <span className="text-xs text-muted-foreground">Refreshing accounts...</span>
@@ -225,12 +219,13 @@ export default function TradeMonitor() {
             </TableRow>
           ) : accountList.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs italic">
+              <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-xs italic">
                 No active accounts found in this section
               </TableCell>
             </TableRow>
-          ) : accountList.map((a) => (
-            <TableRow key={`${a.user_id}-${a.deriv_loginid}`} className="border-border/50 group hover:bg-muted/30 transition-colors">
+          ) : (
+            accountList.map((a) => (
+              <TableRow key={`${a.user_id}-${a.deriv_loginid}`} className="border-border/50 group hover:bg-muted/30 transition-colors">
               <TableCell className="pl-6 py-4">
                 <div className="flex flex-col">
                   <Link 
