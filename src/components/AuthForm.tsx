@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { LogIn, UserPlus, Zap, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { LogIn, UserPlus, Zap, ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export function AuthForm() {
@@ -143,11 +143,11 @@ export function AuthForm() {
                     minLength={6}
                     className="bg-muted border-border pr-10"
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {confirmPassword && (
                       password === confirmPassword ? 
-                      <Zap className="w-4 h-4 text-green-500 fill-green-500 animate-in zoom-in duration-200" /> : 
-                      <Zap className="w-4 h-4 text-red-500 fill-red-500 animate-in shake duration-200" />
+                      <Check className="w-4 h-4 text-green-500 animate-in zoom-in duration-200" /> : 
+                      <X className="w-4 h-4 text-red-500 animate-in shake duration-200" />
                     )}
                   </div>
                 </div>
