@@ -138,8 +138,9 @@ export default function UserDetail() {
           .from('trades')
           .select('timestamp, result, profit_loss, deriv_loginid')
           .eq('user_id', userId)
+          .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()) // Last 30 days
           .order('timestamp', { ascending: false })
-          .limit(1000);
+          .limit(10000); // Increased limit for history
 
         if (tableError) throw tableError;
         if (!rawTrades) return [];
@@ -169,51 +170,29 @@ export default function UserDetail() {
   const { data: dualPL } = useQuery({
     queryKey: ["admin-user-dual-pl", userId, profile?.timezone, selectedAccountId],
     queryFn: async () => {
-      if (!userId) return null;
-
-      // START OF DAY WAT (Africa/Lagos)
-      const now = new Date();
-      const watStr = now.toLocaleString("en-US", { timeZone: "Africa/Lagos" });
-      const watDate = new Date(watStr);
-      watDate.setHours(0, 0, 0, 0);
-      
-      // Calculate UTC offset for WAT string to get actual midnight
-      // But standard way: Get the date string 'YYYY-MM-DD' in that timezone
-      const watYMD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-      const watStart = new Date(`${watYMD}T00:00:00+01:00`).toISOString(); // WAT is UTC+1
-
-      // START OF DAY LOCAL
+      // Fetch using RPCs for accuracy and speed
       const localTZ = profile?.timezone || "UTC";
-      const localYMD = new Intl.DateTimeFormat('en-CA', { timeZone: localTZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-      
-      // For local, we need to know the offset at that time. Easier to just query and filter in JS if trades are limited
-      // Or use the dynamic offset detection
-      const { data: recentTrades, error } = await supabase
-        .from('trades')
-        .select('timestamp, profit_loss, deriv_loginid')
-        .eq('user_id', userId)
-        .gte('timestamp', new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString()); // Last 48h to be safe
+      const { data: watPL, error: watError } = await supabase.rpc('get_user_account_daily_pl', {
+        p_user_id: userId,
+        p_account_id: selectedAccountId,
+        p_timezone: "Africa/Lagos"
+      });
 
-      if (error) throw error;
+      const { data: localPL, error: localError } = await supabase.rpc('get_user_account_daily_pl', {
+        p_user_id: userId,
+        p_account_id: selectedAccountId,
+        p_timezone: localTZ
+      });
 
-      const filterByTZ = (trades: any[], tz: string) => {
-        const targetDay = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-        return trades
-          .filter(t => {
-            if (selectedAccountId && t.deriv_loginid !== selectedAccountId) return false;
-            const tradeDay = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t.timestamp));
-            return tradeDay === targetDay;
-          })
-          .reduce((sum, t) => sum + (Number(t.profit_loss) || 0), 0);
-      };
+      if (watError || localError) throw (watError || localError);
 
       return {
-        wat: filterByTZ(recentTrades || [], "Africa/Lagos"),
-        local: filterByTZ(recentTrades || [], localTZ)
+        wat: Number(watPL || 0),
+        local: Number(localPL || 0)
       };
     },
-    enabled: !!profile,
-    refetchInterval: 5000 // Faster dual P/L cards update
+    enabled: !!profile && !!selectedAccountId,
+    refetchInterval: 5000 
   });
 
   if (profileLoading && !profile) {

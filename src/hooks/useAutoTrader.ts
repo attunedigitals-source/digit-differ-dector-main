@@ -71,27 +71,37 @@ export function useAutoTrader(
   }, [config.selectedSymbols]);
 
   const fetchDailyPL = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      // 1. Get current user session
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Calculate midnight in the client's local timezone
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      // 2. Fetch the user's timezone directly from profile to avoid hook dependency
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('timezone')
+        .eq('id', user.id)
+        .single();
+      
+      const tz = profileData?.timezone || "UTC";
 
-    const { data, error } = await supabase
-      .from("trades")
-      .select("profit_loss")
-      .eq("user_id", user.id)
-      .gte("timestamp", startOfToday.toISOString())
-      .not("profit_loss", "is", null);
+      // 3. Call the server-side aggregation RPC
+      const { data, error } = await supabase.rpc('get_user_daily_pl', {
+        p_user_id: user.id,
+        p_timezone: tz
+      });
 
-    if (error) {
-      console.error("Error fetching daily P/L:", error);
-      return;
+      if (error) {
+        console.error("Error fetching daily P/L:", error);
+        return;
+      }
+
+      if (data !== null) {
+        setDailyPL(Number(data));
+      }
+    } catch (err) {
+      console.error("Unexpected error in fetchDailyPL:", err);
     }
-
-    const total = data.reduce((sum, trade) => sum + (Number(trade.profit_loss) || 0), 0);
-    setDailyPL(total);
   }, []);
 
   // Initial fetch and periodic sync
