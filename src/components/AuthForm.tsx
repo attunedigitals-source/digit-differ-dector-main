@@ -143,11 +143,11 @@ export function AuthForm() {
                     minLength={6}
                     className="bg-muted border-border pr-10"
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hidden sm:block">
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                     {confirmPassword && (
                       password === confirmPassword ? 
-                      <zap className="w-3 h-3 text-green-500 fill-green-500" /> : 
-                      <zap className="w-3 h-3 text-destructive" />
+                      <Zap className="w-4 h-4 text-green-500 fill-green-500 animate-in zoom-in duration-200" /> : 
+                      <Zap className="w-4 h-4 text-red-500 fill-red-500 animate-in shake duration-200" />
                     )}
                   </div>
                 </div>
