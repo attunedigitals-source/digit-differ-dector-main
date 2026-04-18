@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/AdminLayout";
@@ -67,6 +67,34 @@ export default function UserManagement() {
   const [sendEmail, setSendEmail] = useState(true);
   
   const queryClient = useQueryClient();
+
+  // Real-time Subscriptions for Admin Sync
+  useEffect(() => {
+    // Listen for ALL changes (INSERT, UPDATE, DELETE) on profiles and payments
+    const channel = supabase
+      .channel('admin-dashboard-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => {
+          console.log("Real-time profile change detected. Refreshing user list...");
+          queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
+        () => {
+          console.log("Real-time payment change detected. Refreshing payments...");
+          queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Fetch Users
   const { data: users, isLoading: usersLoading } = useQuery({
