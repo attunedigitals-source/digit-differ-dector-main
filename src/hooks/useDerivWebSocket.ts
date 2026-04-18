@@ -48,6 +48,8 @@ export function useDerivWebSocket(apiToken?: string) {
   const activeSignalsRef = useRef<SignalWithStatus[]>([]);
   const pingTimer = useRef<ReturnType<typeof setInterval>>();
   const balanceFallbackTimer = useRef<ReturnType<typeof setInterval>>();
+  const watchdogTimer = useRef<ReturnType<typeof setInterval>>();
+  const lastMessageAt = useRef<number>(Date.now());
   const authorizedRef = useRef(false);
 
   // Callback refs for external message handlers (auto-trader)
@@ -140,6 +142,16 @@ export function useDerivWebSocket(apiToken?: string) {
         }
       }, 30000);
 
+      // watchdog: close if no messages for 25s
+      lastMessageAt.current = Date.now();
+      if (watchdogTimer.current) clearInterval(watchdogTimer.current);
+      watchdogTimer.current = setInterval(() => {
+        if (Date.now() - lastMessageAt.current > 25000) {
+          console.warn("WebSocket watchdog triggered: No messages for 25s. Reconnecting...");
+          ws.close();
+        }
+      }, 5000);
+
       // 2. Fallback: Request balance every 10 seconds
       if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
       balanceFallbackTimer.current = setInterval(() => {
@@ -158,6 +170,7 @@ export function useDerivWebSocket(apiToken?: string) {
     };
 
     ws.onmessage = (event) => {
+      lastMessageAt.current = Date.now();
       const data = JSON.parse(event.data);
 
       onMessageRef.current?.(data);
@@ -284,6 +297,7 @@ export function useDerivWebSocket(apiToken?: string) {
       authorizedRef.current = false;
       if (pingTimer.current) clearInterval(pingTimer.current);
       if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
+      if (watchdogTimer.current) clearInterval(watchdogTimer.current);
       reconnectTimer.current = setTimeout(connect, 3000);
     };
 
@@ -296,6 +310,7 @@ export function useDerivWebSocket(apiToken?: string) {
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     if (pingTimer.current) clearInterval(pingTimer.current);
     if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
+    if (watchdogTimer.current) clearInterval(watchdogTimer.current);
     authorizedRef.current = false;
     wsRef.current?.close();
     wsRef.current = null;

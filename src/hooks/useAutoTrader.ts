@@ -45,7 +45,7 @@ export function useAutoTrader(
   const lastDangerDigit = useRef<Map<string, number>>(new Map());
   const randomDigitMap = useRef<Map<string, number>>(new Map());
   const symbolStakes = useRef<Map<string, number>>(new Map());
-  const cooldownUntil = useRef<number>(0);
+  const symbolCooldowns = useRef<Map<string, number>>(new Map()); // symbol -> timestamp until cooldown expires
   // Track pending buy requests to map buy responses back to symbols
   const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map()); // buyReqId -> {symbol, supabaseId}
 
@@ -78,7 +78,8 @@ export function useAutoTrader(
     if (signal.status !== "active") return;
     if (activeTradeSymbols.current.has(signal.symbol)) return;
     const now = Date.now();
-    if (now < cooldownUntil.current) return;
+    const symbolCooldown = symbolCooldowns.current.get(signal.symbol) || 0;
+    if (now < symbolCooldown) return;
 
     // Subscription validation: Prevent real account trading for non-paid users
     if (accountInfo && !accountInfo.is_virtual) {
@@ -350,8 +351,8 @@ export function useAutoTrader(
 
           // Cooldown on every loss: random 2-8 seconds
           const pauseMs = Math.floor(Math.random() * 6001) + 2000;
-          cooldownUntil.current = Date.now() + pauseMs;
-          toast.warning(`Loss detected — pausing trades for ${(pauseMs / 1000).toFixed(1)}s`, { duration: 4000 });
+          symbolCooldowns.current.set(symbol, Date.now() + pauseMs);
+          toast.warning(`${symbol} loss detected — pausing this index for ${(pauseMs / 1000).toFixed(1)}s`, { duration: 4000 });
         }
 
         // In random mode: ALWAYS regenerate digit for symbol after any trade (win or loss)
