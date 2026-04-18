@@ -68,30 +68,40 @@ export default function UserManagement() {
   
   const queryClient = useQueryClient();
 
-  // Real-time Subscriptions for Admin Sync
+  // Real-time Subscriptions for Admin Sync (with enhanced debugging)
   useEffect(() => {
+    console.log("[Realtime] Initializing admin dashboard sync...");
+    
     // Listen for ALL changes (INSERT, UPDATE, DELETE) on profiles and payments
     const channel = supabase
       .channel('admin-dashboard-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
-        () => {
-          console.log("Real-time profile change detected. Refreshing user list...");
+        (payload) => {
+          console.log("[Realtime] Profile change detected:", payload.eventType, payload.new);
           queryClient.invalidateQueries({ queryKey: ["admin-users"] });
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payments' },
-        () => {
-          console.log("Real-time payment change detected. Refreshing payments...");
+        (payload) => {
+          console.log("[Realtime] Payment change detected:", payload.eventType, payload.new);
           queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`[Realtime] Subscription status: ${status}`);
+        if (err) console.error("[Realtime] Subscription error:", err);
+        
+        if (status === 'CHANNEL_ERROR') {
+          console.error("[Realtime] Channel error occurred. Check RLS policies or replication settings.");
+        }
+      });
 
     return () => {
+      console.log("[Realtime] Unsubscribing from admin dashboard sync...");
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
