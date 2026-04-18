@@ -55,6 +55,9 @@ export default function Dashboard() {
               <Zap className="w-4 h-4 text-primary" />
               <span className="font-mono font-semibold text-sm text-primary">DIGIT DIFFERS</span>
             </div>
+            <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
+              <span className="text-[10px] font-bold text-blue-500 whitespace-nowrap">🔄 SYSTEM RESTORED</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <ConnectionStatus
