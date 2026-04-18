@@ -28,7 +28,7 @@ export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null
 ) {
-  const { isPaid, isAdmin } = useAuth();
+  const { isPaid, isAdmin, user } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>([]);
   const [dailyPL, setDailyPL] = useState<number>(0);
   const [avoidDigits, setAvoidDigits] = useState<Record<string, number>>({});
