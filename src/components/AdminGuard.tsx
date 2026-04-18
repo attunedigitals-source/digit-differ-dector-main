@@ -23,12 +23,12 @@ export const AdminGuard = ({ children }: AdminGuardProps) => {
     }
   }, [user, isAdmin, loading, profileLoading, profile, navigate]);
 
-  if (loading || (user && !profile && profileLoading)) {
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
-          <p className="text-sm text-muted-foreground animate-pulse">Verifying credentials...</p>
+          <p className="text-sm text-muted-foreground animate-pulse">Verifying administrative access...</p>
         </div>
       </div>
     );
@@ -38,7 +38,7 @@ export const AdminGuard = ({ children }: AdminGuardProps) => {
     return null;
   }
 
-  if (!isAdmin && !profileLoading) {
+  if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="flex flex-col items-center gap-6 max-w-md text-center">
@@ -48,13 +48,13 @@ export const AdminGuard = ({ children }: AdminGuardProps) => {
           <div className="space-y-2">
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Access Denied</h2>
             <p className="text-muted-foreground">
-              Your account does not have the required administrative privileges to access this area. 
-              If you believe this is an error, please contact the system administrator.
+              Your account ({user.email}) does not have the required administrative privileges to access this area. 
+              If you believe this is an error, please ensure you are logged in with the correct admin account.
             </p>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => navigate("/")}>Return Home</Button>
-            <Button variant="destructive" onClick={() => useAuth().signOut().then(() => navigate("/admin/login"))}>Log Out</Button>
+            <Button variant="destructive" onClick={() => signOut().then(() => navigate("/admin/login"))}>Log Out</Button>
           </div>
         </div>
       </div>

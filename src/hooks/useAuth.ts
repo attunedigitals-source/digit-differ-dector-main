@@ -66,23 +66,31 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      setLoading(false); // Session is now known
       
       if (currentUser) {
-        fetchProfile(currentUser.id); // Load profile in background
+        setProfileLoading(true);
+        fetchProfile(currentUser.id);
       } else {
         setProfile(null);
+        setProfileLoading(false);
       }
+      
+      setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Session fetch error:", error);
+      }
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      setLoading(false); // Session is now known
       
       if (currentUser) {
-        fetchProfile(currentUser.id); // Load profile in background
+        setProfileLoading(true);
+        fetchProfile(currentUser.id);
       }
+      
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
