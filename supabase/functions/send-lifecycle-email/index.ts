@@ -39,6 +39,15 @@ serve(async (req) => {
         throw new Error("Invalid email type")
     }
 
+    // RESILIENCY: If API key is missing, log and exit gracefully so app doesn't break
+    if (!RESEND_API_KEY) {
+      console.warn("RESEND_API_KEY not found. Skipping email send.");
+      return new Response(JSON.stringify({ message: "Email skipped - no provider key" }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      })
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -46,7 +55,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'Digit Differs <notifications@yourdomain.com>',
+        from: 'Digit Differs <notifications@resend.dev>', // Using verified resend.dev for testing safety
         to: [email],
         subject: subject,
         html: html,
@@ -54,6 +63,15 @@ serve(async (req) => {
     })
 
     const result = await res.json()
+
+    // If email failed, we still return 200 so we don't block the caller
+    if (!res.ok) {
+      console.error("Email Provider Error:", result);
+      return new Response(JSON.stringify({ error: "Email provider error, but action succeeded", detail: result }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      })
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
