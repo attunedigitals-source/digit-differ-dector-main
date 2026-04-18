@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/AdminLayout";
 import { 
@@ -39,6 +39,36 @@ interface Trade {
 export default function UserDetail() {
   const { userId } = useParams();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Real-time synchronization: Invalidate all queries when a new trade is posted for this user
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`admin-user-sync-${userId}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'trades',
+          filter: `user_id=eq.${userId}` 
+        },
+        () => {
+          // Invalidate performance and profit queries for instant update
+          queryClient.invalidateQueries({ queryKey: ["admin-user-performance", userId] });
+          queryClient.invalidateQueries({ queryKey: ["admin-user-trades", userId] });
+          queryClient.invalidateQueries({ queryKey: ["admin-user-daily-history", userId] });
+          queryClient.invalidateQueries({ queryKey: ["admin-user-dual-pl", userId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, queryClient]);
 
   // 1. Fetch User Profile
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -65,7 +95,7 @@ export default function UserDetail() {
       if (error) throw error;
       return data || [];
     },
-    refetchInterval: 30000
+    refetchInterval: 5000 // Faster polling for P/L cards
   });
 
   // Auto-select first account
@@ -88,7 +118,7 @@ export default function UserDetail() {
       if (error) throw error;
       return (data || []) as Trade[];
     },
-    refetchInterval: 15000
+    refetchInterval: 5000 // Faster trade feed
   });
 
   // 3. Fetch Daily Summary (WITH SMART FALLBACK)
@@ -132,7 +162,7 @@ export default function UserDetail() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: 10000 // Faster daily history update
   });
 
   // 4. Calculate Dual-Timezone Daily P/L
@@ -183,7 +213,7 @@ export default function UserDetail() {
       };
     },
     enabled: !!profile,
-    refetchInterval: 30000
+    refetchInterval: 5000 // Faster dual P/L cards update
   });
 
   if (profileLoading && !profile) {
