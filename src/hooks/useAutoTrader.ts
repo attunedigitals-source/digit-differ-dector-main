@@ -29,15 +29,36 @@ export function useAutoTrader(
   accountInfo: DerivAccount | null
 ) {
   const { isPaid, isAdmin, user } = useAuth();
-  const [tradeLog, setTradeLog] = useState<TradeRecord[]>([]);
+  const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
+    const saved = localStorage.getItem('tradeLog');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.map((t: any) => ({ ...t, timestamp: new Date(t.timestamp) }));
+      } catch (e) {
+        console.error("Error loading tradeLog from localStorage", e);
+      }
+    }
+    return [];
+  });
   const [dailyPL, setDailyPL] = useState<number>(0);
   const [avoidDigits, setAvoidDigits] = useState<Record<string, number>>({});
-  const [config, setConfig] = useState<AutoTraderConfig>({
-    enabled: false,
-    stake: 0.35,
-    selectedSymbols: [],
-    minConfidence: 0.80,
-    useRandomDigits: false,
+  const [config, setConfig] = useState<AutoTraderConfig>(() => {
+    const saved = localStorage.getItem('autoTraderConfig');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error loading config from localStorage", e);
+      }
+    }
+    return {
+      enabled: false,
+      stake: 0.35,
+      selectedSymbols: [],
+      minConfidence: 0.80,
+      useRandomDigits: false,
+    };
   });
   const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number }>>(new Map());
@@ -104,13 +125,68 @@ export function useAutoTrader(
     }
   }, []);
 
-  // Initial fetch and periodic sync
+  // 1. Initial P/L fetch and periodic sync
   useEffect(() => {
     fetchDailyPL();
-    // Refresh daily P/L every minute to catch resets at midnight
     const interval = setInterval(fetchDailyPL, 60000);
     return () => clearInterval(interval);
   }, [fetchDailyPL, user?.id]);
+
+  // 2. Local Backup: Persistence to localStorage
+  useEffect(() => {
+    localStorage.setItem('autoTraderConfig', JSON.stringify(config));
+  }, [config]);
+
+  useEffect(() => {
+    // Only save the last 100 trades to localStorage to keep it lightweight
+    localStorage.setItem('tradeLog', JSON.stringify(tradeLog.slice(-100)));
+  }, [tradeLog]);
+
+  // 3. Cloud Sync: Backup and Retrieval from Supabase
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const syncConfig = async () => {
+      // First, try to fetch existing config (Retrieval)
+      const { data, error } = await supabase
+        .from('user_configs')
+        .select('config')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (data?.config) {
+        // Only load from cloud if it's different from current to avoid loops
+        const cloudConfig = data.config as AutoTraderConfig;
+        if (JSON.stringify(cloudConfig) !== JSON.stringify(config)) {
+          setConfig(prev => ({ ...prev, ...cloudConfig, enabled: prev.enabled })); // Keep local enabled state
+        }
+      } else if (!error) {
+        // If no config exists, create it (Initial Backup)
+        await supabase
+          .from('user_configs')
+          .insert({ user_id: user.id, config });
+      }
+    };
+
+    syncConfig();
+  }, [user?.id]); // Only run on login to perform initial retrieval
+
+  // 4. Background Cloud Backup: Push changes to DB
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const timer = setTimeout(async () => {
+      await supabase
+        .from('user_configs')
+        .upsert({ 
+          user_id: user.id, 
+          config,
+          updated_at: new Date().toISOString()
+        });
+    }, 2000); // 2 second debounce
+
+    return () => clearTimeout(timer);
+  }, [config, user?.id]);
 
   const placeTradeForSignal = useCallback((signal: SignalWithStatus) => {
     const ws = wsRef.current;

@@ -30,10 +30,40 @@ export function useAuth() {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      const userProfile = data as UserProfile;
+      if (error) {
+        console.error("Error fetching profile:", error);
+        throw error;
+      }
+      
+      let userProfile = data as UserProfile;
+
+      // FALLBACK: If profile is missing (trigger failed), create it manually
+      if (!data) {
+        console.warn("Profile missing for user, creating fallback profile...");
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: userId,
+              email: currentUser.email,
+              role: 'user',
+              subscription_status: 'free',
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Lagos'
+            })
+            .select()
+            .single();
+          
+          if (insertError) {
+            console.error("Failed to create fallback profile:", insertError);
+            throw insertError;
+          }
+          userProfile = newProfile as UserProfile;
+        }
+      }
+
       setProfile(userProfile);
       
       // Update timezone if changed or missing
