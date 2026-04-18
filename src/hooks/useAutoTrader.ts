@@ -110,7 +110,7 @@ export function useAutoTrader(
     // Refresh daily P/L every minute to catch resets at midnight
     const interval = setInterval(fetchDailyPL, 60000);
     return () => clearInterval(interval);
-  }, [fetchDailyPL]);
+  }, [fetchDailyPL, user?.id]);
 
   const placeTradeForSignal = useCallback((signal: SignalWithStatus) => {
     const ws = wsRef.current;
