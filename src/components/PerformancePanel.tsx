@@ -18,9 +18,10 @@ interface PerformancePanelProps {
   tradeLog: TradeRecord[];
   onReset: () => void;
   activeAccount?: DerivAccount | null;
+  dailyPL?: number;
 }
 
-export function PerformancePanel({ tradeLog, onReset, activeAccount }: PerformancePanelProps) {
+export function PerformancePanel({ tradeLog, onReset, activeAccount, dailyPL = 0 }: PerformancePanelProps) {
   const settled = tradeLog.filter((t) => t.status === "won" || t.status === "lost");
   const totalTrades = settled.length;
   const wins = settled.filter((t) => t.status === "won").length;
@@ -33,6 +34,12 @@ export function PerformancePanel({ tradeLog, onReset, activeAccount }: Performan
       value: activeAccount ? `${activeAccount.balance.toFixed(2)} ${activeAccount.currency}` : "—",
       icon: Wallet,
       color: "text-primary",
+    },
+    {
+      label: "Today (P/L)",
+      value: `${dailyPL >= 0 ? "+" : ""}${dailyPL.toFixed(2)}`,
+      icon: TrendingDown,
+      color: dailyPL >= 0 ? "text-success" : "text-danger",
     },
     {
       label: "Total Trades",
@@ -51,12 +58,6 @@ export function PerformancePanel({ tradeLog, onReset, activeAccount }: Performan
       value: wins,
       icon: Award,
       color: "text-success",
-    },
-    {
-      label: "Losses",
-      value: losses,
-      icon: TrendingDown,
-      color: "text-danger",
     },
   ];
 

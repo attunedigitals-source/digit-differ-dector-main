@@ -24,7 +24,10 @@ export default function Dashboard() {
 
   const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? null;
 
-  const { config, setConfig, tradeLog, setTradeLog, avoidDigits, placeTradeForSignal, handleTradeMessage } = useAutoTrader(wsRef, activeAccount);
+  const { 
+    config, setConfig, tradeLog, setTradeLog, 
+    dailyPL, avoidDigits, placeTradeForSignal, handleTradeMessage 
+  } = useAutoTrader(wsRef, activeAccount);
 
   const [symbolFilter, setSymbolFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState(75);
@@ -104,7 +107,12 @@ export default function Dashboard() {
         />
 
         {/* Performance */}
-        <PerformancePanel tradeLog={tradeLog} onReset={() => setTradeLog([])} activeAccount={accounts.find(a => a.loginid === activeLoginId) ?? null} />
+        <PerformancePanel 
+          tradeLog={tradeLog} 
+          onReset={() => setTradeLog([])} 
+          activeAccount={accounts.find(a => a.loginid === activeLoginId) ?? null} 
+          dailyPL={dailyPL}
+        />
 
         {/* Live Ticker */}
         <LiveTicker tickCounts={tickCounts} lastDigits={lastDigits} selectedSymbols={config.selectedSymbols} avoidDigits={avoidDigits} />

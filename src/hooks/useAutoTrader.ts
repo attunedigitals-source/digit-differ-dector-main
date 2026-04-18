@@ -30,6 +30,7 @@ export function useAutoTrader(
 ) {
   const { isPaid, isAdmin } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>([]);
+  const [dailyPL, setDailyPL] = useState<number>(0);
   const [avoidDigits, setAvoidDigits] = useState<Record<string, number>>({});
   const [config, setConfig] = useState<AutoTraderConfig>({
     enabled: false,
@@ -68,6 +69,38 @@ export function useAutoTrader(
       });
     }
   }, [config.selectedSymbols]);
+
+  const fetchDailyPL = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Calculate midnight in the client's local timezone
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    const { data, error } = await supabase
+      .from("trades")
+      .select("profit_loss")
+      .eq("user_id", user.id)
+      .gte("timestamp", startOfToday.toISOString())
+      .not("profit_loss", "is", null);
+
+    if (error) {
+      console.error("Error fetching daily P/L:", error);
+      return;
+    }
+
+    const total = data.reduce((sum, trade) => sum + (Number(trade.profit_loss) || 0), 0);
+    setDailyPL(total);
+  }, []);
+
+  // Initial fetch and periodic sync
+  useEffect(() => {
+    fetchDailyPL();
+    // Refresh daily P/L every minute to catch resets at midnight
+    const interval = setInterval(fetchDailyPL, 60000);
+    return () => clearInterval(interval);
+  }, [fetchDailyPL]);
 
   const placeTradeForSignal = useCallback((signal: SignalWithStatus) => {
     const ws = wsRef.current;
@@ -326,7 +359,12 @@ export function useAutoTrader(
           })
           .eq("contract_id", contractId)
           .then(({ error }) => {
-            if (error) console.error("Error settling trade in Supabase:", error);
+            if (error) {
+              console.error("Error settling trade in Supabase:", error);
+            } else {
+              // Update local daily P/L state
+              setDailyPL(prev => prev + profit);
+            }
           });
 
         setTradeLog((prev) =>
@@ -440,6 +478,7 @@ export function useAutoTrader(
     setConfig,
     tradeLog,
     setTradeLog,
+    dailyPL,
     resetTradeLog,
     avoidDigits,
     placeTradeForSignal,

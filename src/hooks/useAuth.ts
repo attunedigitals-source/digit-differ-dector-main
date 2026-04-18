@@ -14,6 +14,7 @@ export interface UserProfile {
   is_suspended: boolean;
   device_id: string | null;
   last_login_ip: string | null;
+  timezone: string | null;
 }
 
 export function useAuth() {
@@ -35,6 +36,17 @@ export function useAuth() {
       const userProfile = data as UserProfile;
       setProfile(userProfile);
       
+      // Update timezone if changed or missing
+      const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (userProfile.timezone !== browserTimezone) {
+        await supabase.from('profiles').update({
+          timezone: browserTimezone
+        }).eq('id', userId);
+        
+        // Update local state as well
+        setProfile(prev => prev ? { ...prev, timezone: browserTimezone } : null);
+      }
+
       // Anti-Sharing Logic: Device Fingerprinting
       let deviceId = localStorage.getItem('bt_device_id');
       if (!deviceId) {

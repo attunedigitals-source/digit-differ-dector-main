@@ -103,20 +103,17 @@ export default function UserDetail() {
         
         if (!rpcError && data && data.length > 0) return data;
 
-        // [FALLBACK] Direct table aggregation if RPC fails or is empty
-        // This ensures the user SEES data while migrations sync
-        console.warn("RPC failed or empty, using table fallback");
+        // [FALLBACK] Direct table aggregation
         const { data: rawTrades, error: tableError } = await supabase
           .from('trades')
           .select('timestamp, result, profit_loss, deriv_loginid')
           .eq('user_id', userId)
           .order('timestamp', { ascending: false })
-          .limit(1000); // Limit fallback to 1000 for safety
+          .limit(1000);
 
         if (tableError) throw tableError;
         if (!rawTrades) return [];
 
-        // Manual aggregation for the fallback
         const grouped = rawTrades.reduce((acc: any, t) => {
           const date = new Date(t.timestamp).toISOString().split('T')[0];
           const key = `${date}-${t.deriv_loginid}`;
@@ -132,9 +129,60 @@ export default function UserDetail() {
         return Object.values(grouped).sort((a: any, b: any) => b.trade_date.localeCompare(a.trade_date));
       } catch (err) {
         console.error("Aggregation Error:", err);
-        return []; // Return empty instead of crashing
+        return [];
       }
     },
+    refetchInterval: 30000
+  });
+
+  // 4. Calculate Dual-Timezone Daily P/L
+  const { data: dualPL } = useQuery({
+    queryKey: ["admin-user-dual-pl", userId, profile?.timezone, selectedAccountId],
+    queryFn: async () => {
+      if (!userId) return null;
+
+      // START OF DAY WAT (Africa/Lagos)
+      const now = new Date();
+      const watStr = now.toLocaleString("en-US", { timeZone: "Africa/Lagos" });
+      const watDate = new Date(watStr);
+      watDate.setHours(0, 0, 0, 0);
+      
+      // Calculate UTC offset for WAT string to get actual midnight
+      // But standard way: Get the date string 'YYYY-MM-DD' in that timezone
+      const watYMD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+      const watStart = new Date(`${watYMD}T00:00:00+01:00`).toISOString(); // WAT is UTC+1
+
+      // START OF DAY LOCAL
+      const localTZ = profile?.timezone || "UTC";
+      const localYMD = new Intl.DateTimeFormat('en-CA', { timeZone: localTZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+      
+      // For local, we need to know the offset at that time. Easier to just query and filter in JS if trades are limited
+      // Or use the dynamic offset detection
+      const { data: recentTrades, error } = await supabase
+        .from('trades')
+        .select('timestamp, profit_loss, deriv_loginid')
+        .eq('user_id', userId)
+        .gte('timestamp', new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString()); // Last 48h to be safe
+
+      if (error) throw error;
+
+      const filterByTZ = (trades: any[], tz: string) => {
+        const targetDay = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+        return trades
+          .filter(t => {
+            if (selectedAccountId && t.deriv_loginid !== selectedAccountId) return false;
+            const tradeDay = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t.timestamp));
+            return tradeDay === targetDay;
+          })
+          .reduce((sum, t) => sum + (Number(t.profit_loss) || 0), 0);
+      };
+
+      return {
+        wat: filterByTZ(recentTrades || [], "Africa/Lagos"),
+        local: filterByTZ(recentTrades || [], localTZ)
+      };
+    },
+    enabled: !!profile,
     refetchInterval: 30000
   });
 
@@ -192,11 +240,12 @@ export default function UserDetail() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <SummaryCard title="User Identity" value={profile?.email} subtitle={`Joined ${profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}`} icon={<UserIcon className="w-5 h-5 text-primary" />} />
-          <SummaryCard title="Total Volume" value={`${performance?.total_trades || 0}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-blue-500" />} />
-          <SummaryCard title="Net Performance" value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} subtitle={`${(Number(performance?.win_rate) || 0).toFixed(1)}% Win Rate`} icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} isPositive={(Number(performance?.net_profit) || 0) >= 0} />
-          <SummaryCard title="Account Status" value={profile?.role?.toUpperCase() || 'USER'} subtitle={profile?.subscription_expiry ? `Expires ${new Date(profile.subscription_expiry).toLocaleDateString()}` : "Lifetime Status"} icon={<CreditCard className="w-5 h-5 text-purple-500" />} />
+        <div className="grid gap-4 md:grid-cols-5">
+          <SummaryCard title="User Identity" value={profile?.email} subtitle={`TZ: ${profile?.timezone || 'UTC'}`} icon={<UserIcon className="w-5 h-5 text-primary" />} />
+          <SummaryCard title="Today (WAT)" value={`${(dualPL?.wat || 0) >= 0 ? "+" : ""}${(dualPL?.wat || 0).toFixed(2)}`} subtitle="Africa/Lagos" icon={<TrendingUp className="w-5 h-5 text-green-500" />} isPositive={(dualPL?.wat || 0) >= 0} />
+          <SummaryCard title="Today (Local)" value={`${(dualPL?.local || 0) >= 0 ? "+" : ""}${(dualPL?.local || 0).toFixed(2)}`} subtitle="Client Timeframe" icon={<TrendingUp className="w-5 h-5 text-blue-500" />} isPositive={(dualPL?.local || 0) >= 0} />
+          <SummaryCard title="Total Volume" value={`${performance?.total_trades || 0}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-slate-500" />} />
+          <SummaryCard title="Net Profit" value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} subtitle={`${(Number(performance?.win_rate) || 0).toFixed(1)}% Win Rate`} icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} isPositive={(Number(performance?.net_profit) || 0) >= 0} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
