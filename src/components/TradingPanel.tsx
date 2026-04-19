@@ -137,21 +137,15 @@ export function TradingPanel({
         </div>
       </div>
 
-      {/* Random Digits Toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Shuffle className="w-4 h-4 text-primary" />
-          <span className="text-xs">Random avoid digits</span>
+      {/* Statistical Mode Indicator */}
+      <div className="flex items-center justify-between p-2 rounded bg-primary/5 border border-primary/10">
+        <div className="flex items-center gap-2 text-sm text-primary">
+          <Shuffle className="w-4 h-4" />
+          <span className="text-[11px] font-medium uppercase tracking-wider">Statistical Logic Active</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {useRandomDigits ? "On" : "Off"}
-          </span>
-          <Switch
-            checked={useRandomDigits}
-            onCheckedChange={onRandomDigitsToggle}
-          />
-        </div>
+        <Badge variant="outline" className="text-[10px] bg-primary/10 border-primary/20 text-primary">
+          1000 TICKS
+        </Badge>
       </div>
 
       {/* Trade log */}

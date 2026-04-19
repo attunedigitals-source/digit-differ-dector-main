@@ -37,6 +37,7 @@ export interface SignalResult {
 export function useDerivWebSocket(apiToken?: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const statesRef = useRef<Map<string, SymbolState>>(new Map());
+  const pendingRequestsRef = useRef<Map<string, (data: any) => void>>(new Map());
   const [connected, setConnected] = useState(false);
   const [signals, setSignals] = useState<SignalWithStatus[]>([]);
   const [results, setResults] = useState<SignalResult[]>([]);
@@ -85,9 +86,21 @@ export function useDerivWebSocket(apiToken?: string) {
     }
   }, []);
 
-  // Helper to subscribe to ticks
+  // Helper to subscribe to ticks and fetch history
   const subscribeTicks = useCallback((ws: WebSocket) => {
     for (const { symbol } of DERIV_SYMBOLS) {
+      // 1. Fetch history first to prime the 1000-tick buffer
+      ws.send(JSON.stringify({
+        ticks_history: symbol,
+        adjust_start_time: 1,
+        count: 1000,
+        end: "latest",
+        start: 1,
+        style: "ticks",
+        req_id: `history_${symbol}`
+      }));
+
+      // 2. Subscribe to live stream
       ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
     }
   }, []);
@@ -221,6 +234,34 @@ export function useDerivWebSocket(apiToken?: string) {
         }
       }
 
+      // Handle history response
+      if (data.msg_type === "history" && data.history) {
+        const reqId = data.req_id;
+        const symbol = data.echo_req.ticks_history;
+        const prices = data.history.prices || [];
+        
+        // Resolve pending promise if it exists
+        if (reqId && pendingRequestsRef.current.has(reqId)) {
+          console.log(`[WebSocket] Resolving fresh history for ${symbol} (ID: ${reqId})`);
+          pendingRequestsRef.current.get(reqId)!(prices);
+          pendingRequestsRef.current.delete(reqId);
+        }
+
+        let state = statesRef.current.get(symbol);
+        if (state) {
+          // Process history prices into digits
+          const historicalDigits = prices.map((p: any) => extractLastDigit(p));
+          state.digits = historicalDigits.slice(-1000); // Keep only last 1000
+          state.tickCount = historicalDigits.length;
+          statesRef.current.set(symbol, state);
+          
+          setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
+          if (historicalDigits.length > 0) {
+            setLastDigits((prev) => ({ ...prev, [symbol]: historicalDigits[historicalDigits.length - 1] }));
+          }
+        }
+      }
+
       if (data.msg_type === "tick") {
         const tick = data.tick;
         const symbol = tick.symbol as string;
@@ -339,5 +380,26 @@ export function useDerivWebSocket(apiToken?: string) {
     wsRef,
     onSignalRef,
     onMessageRef,
+    getSymbolState: (symbol: string) => statesRef.current.get(symbol),
+    getAllStates: () => statesRef.current,
+    requestHistory: async (symbol: string, count: number = 1000) => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        throw new Error("WebSocket not connected");
+      }
+      
+      const reqId = `adhoc_${symbol}_${Date.now()}`;
+      return new Promise<number[]>((resolve) => {
+        pendingRequestsRef.current.set(reqId, resolve);
+        wsRef.current?.send(JSON.stringify({
+          ticks_history: symbol,
+          adjust_start_time: 1,
+          count,
+          end: "latest",
+          start: 1,
+          style: "ticks",
+          req_id: reqId
+        }));
+      });
+    },
   };
 }

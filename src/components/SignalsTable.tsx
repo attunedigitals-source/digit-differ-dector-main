@@ -62,7 +62,7 @@ export function SignalsTable({
             <tr className="border-b border-border bg-muted/50">
               <th className="text-left p-3 font-medium text-muted-foreground">Symbol</th>
               <th className="text-center p-3 font-medium text-muted-foreground">
-                {useRandomDigits ? "Random Avoid" : "Signal Avoid"}
+                Statistical Avoid
               </th>
               <th className="text-center p-3 font-medium text-muted-foreground">Confidence</th>
               <th className="text-center p-3 font-medium text-muted-foreground">Status</th>
@@ -72,13 +72,11 @@ export function SignalsTable({
           <tbody>
             {rows.map((signal) => {
               const isActive = signal.status === "active";
-              const randomDigit = avoidDigits?.[signal.symbol];
+              const selectedAvoid = avoidDigits?.[signal.symbol];
               
-              // If random mode is ON, we show the random digit (or fallback to '...' if initializing)
-              // If random mode is OFF, we show the engine's dangerDigit.
-              const displayDigit = useRandomDigits 
-                ? (randomDigit !== undefined ? randomDigit : "...") 
-                : signal.dangerDigit;
+              // Use the actively selected avoid digit if available,
+              // otherwise show the engine's dangerDigit for awareness (until a trade starts)
+              const displayDigit = selectedAvoid !== undefined ? selectedAvoid : signal.dangerDigit;
 
               return (
                 <tr key={signal.symbol} className="border-b border-border/50 hover:bg-muted/30 transition-colors">

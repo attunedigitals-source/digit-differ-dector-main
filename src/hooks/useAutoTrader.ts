@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { SignalWithStatus, DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
+import { getLeastFrequentDigits, extractLastDigit } from "@/lib/signal-engine";
 
 export interface TradeRecord {
   symbol: string;
@@ -26,7 +27,9 @@ const MARTINGALE_FACTOR = 11;
 
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
-  accountInfo: DerivAccount | null
+  accountInfo: DerivAccount | null,
+  getSymbolState: (symbol: string) => any,
+  requestHistory: (symbol: string, count: number) => Promise<number[]>
 ) {
   const { isPaid, isAdmin, user } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
@@ -214,22 +217,26 @@ export function useAutoTrader(
     let dangerDigit: number;
     let tradeStake = config.stake;
 
-    if (config.useRandomDigits) {
-      // Ensure all selected symbols have a random digit assigned
-      ensureRandomDigits();
-      // Use the persistent random digit for this symbol
-      dangerDigit = randomDigitMap.current.get(signal.symbol) ?? Math.floor(Math.random() * 10);
+    // RULE: Fetch fresh history at point of trade to ensure zero drift
+    process.env.NODE_ENV === 'development' && console.log(`[AutoTrader] Requesting fresh 1000-tick history for ${signal.symbol} before trade...`);
+    const freshPrices = await requestHistory(signal.symbol, 1000);
+    const freshDigits = freshPrices.map(p => extractLastDigit(p));
+    
+    if (freshDigits.length < 50) {
+      console.warn(`[AutoTrader] Fresh history for ${signal.symbol} was insufficient (${freshDigits.length} ticks)`);
+      return; 
+    }
 
-      // Use compounding martingale stake if symbol has a tracked stake > base
-      const currentSymbolStake = symbolStakes.current.get(signal.symbol);
-      if (currentSymbolStake && currentSymbolStake > config.stake) {
-        tradeStake = currentSymbolStake;
-      }
-    } else {
-      dangerDigit = signal.dangerDigit;
-      // Only trade if digit changed (non-random mode)
-      const prevDigit = lastDangerDigit.current.get(signal.symbol);
-      if (prevDigit !== undefined && prevDigit === dangerDigit) return;
+    const safeDigits = getLeastFrequentDigits(freshDigits, 4);
+    if (safeDigits.length === 0) return;
+    
+    // Pick one randomly from the Top 4 safest digits
+    dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
+
+    // Use compounding martingale stake if symbol has a tracked stake > base
+    const currentSymbolStake = symbolStakes.current.get(signal.symbol);
+    if (currentSymbolStake && currentSymbolStake > config.stake) {
+      tradeStake = currentSymbolStake;
     }
 
     lastDangerDigit.current.set(signal.symbol, dangerDigit);

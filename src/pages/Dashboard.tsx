@@ -19,7 +19,7 @@ export default function Dashboard() {
   const {
     connected, connect, disconnect, signals, results,
     tickCounts, lastDigits, accounts, activeLoginId, switchAccount,
-    wsRef, onSignalRef, onMessageRef,
+    wsRef, onSignalRef, onMessageRef, getSymbolState, getAllStates, requestHistory
   } = useDerivWebSocket(apiToken);
 
   const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? null;
@@ -27,7 +27,7 @@ export default function Dashboard() {
   const { 
     config, setConfig, tradeLog, setTradeLog, 
     dailyPL, avoidDigits, placeTradeForSignal, handleTradeMessage 
-  } = useAutoTrader(wsRef, activeAccount);
+  } = useAutoTrader(wsRef, activeAccount, getSymbolState, requestHistory);
 
   const [symbolFilter, setSymbolFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState(75);
@@ -115,7 +115,13 @@ export default function Dashboard() {
         />
 
         {/* Live Ticker */}
-        <LiveTicker tickCounts={tickCounts} lastDigits={lastDigits} selectedSymbols={config.selectedSymbols} avoidDigits={avoidDigits} />
+        <LiveTicker 
+          tickCounts={tickCounts} 
+          lastDigits={lastDigits} 
+          selectedSymbols={config.selectedSymbols} 
+          avoidDigits={avoidDigits}
+          allStates={getAllStates()}
+        />
 
         {/* Filters */}
         <Filters

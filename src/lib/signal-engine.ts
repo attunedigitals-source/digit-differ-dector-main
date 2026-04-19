@@ -14,18 +14,16 @@ export interface Signal {
   timestamp: Date;
 }
 
-const MAX_HISTORY = 200;
+const MAX_HISTORY = 1000;
 
 export function createSymbolState(symbol: string): SymbolState {
   return { symbol, digits: [], tickCount: 0, lastSignalTick: -10 };
 }
 
-export function extractLastDigit(quote: number): number {
-  // Use string representation to handle decimal precision correctly
+export function extractLastDigit(quote: number | string): number {
   const str = String(quote);
-  const dotIndex = str.indexOf('.');
-  if (dotIndex === -1) return 0;
-  return parseInt(str[str.length - 1], 10);
+  const lastChar = str[str.length - 1];
+  return parseInt(lastChar, 10) || 0;
 }
 
 export function addTick(state: SymbolState, digit: number): SymbolState {
@@ -34,35 +32,45 @@ export function addTick(state: SymbolState, digit: number): SymbolState {
   return { ...state, digits, tickCount: state.tickCount + 1 };
 }
 
+export function getLeastFrequentDigits(digits: number[], count: number = 4): number[] {
+  if (digits.length === 0) return [];
+
+  // Count occurrences of each digit 0-9
+  const frequencies = new Array(10).fill(0).map((_, i) => ({ digit: i, count: 0 }));
+  digits.forEach(d => {
+    if (d >= 0 && d <= 9) frequencies[d].count++;
+  });
+
+  // Sort by count (ascending)
+  frequencies.sort((a, b) => a.count - b.count);
+
+  // Return the digits of the first 'count' items
+  return frequencies.slice(0, count).map(f => f.digit);
+}
+
 function computeScores(digits: number[]): number[] {
   const scores = new Array(10).fill(0);
   const len = digits.length;
   if (len < 30) return scores;
 
-  const recent20 = digits.slice(-20);
-  const recent10 = digits.slice(-10);
+  // For the Danger Score (Live Signals), we use a smaller window of 200 for 'local' momentum
+  const analysisWindow = digits.slice(-200);
+  const recent20 = analysisWindow.slice(-20);
+  const recent10 = analysisWindow.slice(-10);
 
-  // Overall frequency for baseline
   const overallFreq = new Array(10).fill(0);
-  for (const d of digits) overallFreq[d]++;
+  for (const d of analysisWindow) overallFreq[d]++;
 
   for (let d = 0; d <= 9; d++) {
-    // Normalized gap: how long since digit last appeared
     let lastSeen = -1;
-    for (let i = len - 1; i >= 0; i--) {
-      if (digits[i] === d) { lastSeen = i; break; }
+    for (let i = analysisWindow.length - 1; i >= 0; i--) {
+      if (analysisWindow[i] === d) { lastSeen = i; break; }
     }
-    const gap = lastSeen === -1 ? len : len - 1 - lastSeen;
+    const gap = lastSeen === -1 ? analysisWindow.length : analysisWindow.length - 1 - lastSeen;
     const normalizedGap = Math.min(gap / 30, 1);
-
-    // Recent frequency in last 20 ticks
     const recentFreq = recent20.filter((x) => x === d).length / recent20.length;
-
-    // Pattern score
     const patternScore = recent10.includes(d) ? 0 : 1;
-
-    // Overall frequency weight - digits appearing less overall get lower danger score
-    const overallWeight = overallFreq[d] / len;
+    const overallWeight = overallFreq[d] / analysisWindow.length;
 
     scores[d] = 0.4 * normalizedGap + 0.3 * (1 - recentFreq) + 0.15 * patternScore + 0.15 * (1 - overallWeight);
   }
