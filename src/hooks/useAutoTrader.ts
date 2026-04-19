@@ -191,7 +191,7 @@ export function useAutoTrader(
     return () => clearTimeout(timer);
   }, [config, user?.id]);
 
-  const placeTradeForSignal = useCallback((signal: SignalWithStatus) => {
+  const placeTradeForSignal = useCallback(async (signal: SignalWithStatus) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     if (!config.enabled) return;
