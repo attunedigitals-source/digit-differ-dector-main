@@ -55,9 +55,9 @@ export function SignalsTable({
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+    <div className="bg-card border border-border rounded-lg shadow-sm">
+      <div className="overflow-x-auto custom-scrollbar">
+        <table className="w-full text-sm min-w-[600px] md:min-w-0">
           <thead>
             <tr className="border-b border-border bg-muted/50">
               <th className="text-left p-3 font-medium text-muted-foreground">Symbol</th>

@@ -103,7 +103,7 @@ export function TradingPanel({
             <button onClick={deselectAll} className="text-[10px] text-muted-foreground hover:underline">Clear</button>
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1.5 md:gap-2">
           {DERIV_SYMBOLS.map((s) => (
             <label
               key={s.symbol}

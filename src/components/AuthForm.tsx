@@ -72,12 +72,12 @@ export function AuthForm() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-            <Zap className="w-5 h-5 text-primary" />
-            <span className="text-sm font-semibold text-primary font-mono">DIGIT DIFFERS</span>
+          <div className="inline-flex items-center gap-2 px-3 md:px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+            <Zap className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+            <span className="text-xs md:text-sm font-semibold text-primary font-mono select-none">DIGIT DIFFERS</span>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Trading Signal System</h1>
-          <p className="text-muted-foreground">Real-time synthetic index analysis</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Trading Signal System</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Real-time synthetic index analysis</p>
         </div>
 
         {isForgot ? (

@@ -88,14 +88,16 @@ export function PerformancePanel({ tradeLog, onReset, activeAccount, dailyPL = 0
           </AlertDialogContent>
         </AlertDialog>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
         {stats.map((stat) => (
-          <div key={stat.label} className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <stat.icon className={`w-4 h-4 ${stat.color}`} />
-              <span className="text-xs text-muted-foreground font-medium">{stat.label}</span>
+          <div key={stat.label} className="bg-card border border-border rounded-lg p-3 md:p-4 transition-all hover:bg-muted/30">
+            <div className="flex items-center gap-2 mb-1.5 md:mb-2 text-muted-foreground">
+              <stat.icon className={`w-3.5 h-3.5 md:w-4 md:h-4 ${stat.color}`} />
+              <span className="text-[10px] md:text-xs font-medium uppercase tracking-tight">{stat.label}</span>
             </div>
-            <div className={`text-2xl font-bold font-mono ${stat.color}`}>{stat.value}</div>
+            <div className={`text-lg md:text-2xl font-bold font-mono tracking-tighter sm:tracking-normal ${stat.color}`}>
+              {stat.value}
+            </div>
           </div>
         ))}
       </div>
