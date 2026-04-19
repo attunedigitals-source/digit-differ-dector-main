@@ -235,29 +235,32 @@ export function useDerivWebSocket(apiToken?: string) {
       }
 
       // Handle history response
-      if (data.msg_type === "history" && data.history) {
+      if (data.msg_type === "history") {
         const reqId = data.req_id;
         const symbol = data.echo_req.ticks_history;
-        const prices = data.history.prices || [];
+        const history = data.history;
         
         // Resolve pending promise if it exists
         if (reqId && pendingRequestsRef.current.has(reqId)) {
-          console.log(`[WebSocket] Resolving fresh history for ${symbol} (ID: ${reqId})`);
-          pendingRequestsRef.current.get(reqId)!(prices);
+          console.log(`[WebSocket] Delivering history response for ${symbol} (ID: ${reqId})`);
+          pendingRequestsRef.current.get(reqId)!(data); // Pass full data for error checking
           pendingRequestsRef.current.delete(reqId);
         }
 
-        let state = statesRef.current.get(symbol);
-        if (state) {
-          // Process history prices into digits
-          const historicalDigits = prices.map((p: any) => extractLastDigit(p));
-          state.digits = historicalDigits.slice(-1000); // Keep only last 1000
-          state.tickCount = historicalDigits.length;
-          statesRef.current.set(symbol, state);
-          
-          setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
-          if (historicalDigits.length > 0) {
-            setLastDigits((prev) => ({ ...prev, [symbol]: historicalDigits[historicalDigits.length - 1] }));
+        if (history && history.prices) {
+          const prices = history.prices;
+          let state = statesRef.current.get(symbol);
+          if (state) {
+            // Process history prices into digits
+            const historicalDigits = prices.map((p: any) => extractLastDigit(p));
+            state.digits = historicalDigits.slice(-1000); // Keep only last 1000
+            state.tickCount = historicalDigits.length;
+            statesRef.current.set(symbol, state);
+            
+            setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
+            if (historicalDigits.length > 0) {
+              setLastDigits((prev) => ({ ...prev, [symbol]: historicalDigits[historicalDigits.length - 1] }));
+            }
           }
         }
       }
@@ -388,8 +391,25 @@ export function useDerivWebSocket(apiToken?: string) {
       }
       
       const reqId = `adhoc_${symbol}_${Date.now()}`;
-      return new Promise<number[]>((resolve) => {
-        pendingRequestsRef.current.set(reqId, resolve);
+      return new Promise<number[]>((resolve, reject) => {
+        // Set a timeout to prevent hanging
+        const timeout = setTimeout(() => {
+          if (pendingRequestsRef.current.has(reqId)) {
+            pendingRequestsRef.current.delete(reqId);
+            console.warn(`[WebSocket] requestHistory timed out for ${symbol}`);
+            reject(new Error("Request history timed out"));
+          }
+        }, 5000);
+
+        pendingRequestsRef.current.set(reqId, (data) => {
+          clearTimeout(timeout);
+          if (data.error) {
+            reject(new Error(data.error.message || "Unknown error fetching history"));
+          } else {
+            resolve(data);
+          }
+        });
+
         wsRef.current?.send(JSON.stringify({
           ticks_history: symbol,
           adjust_start_time: 1,

@@ -193,10 +193,8 @@ export function useAutoTrader(
 
   const placeTradeForSignal = useCallback(async (signal: SignalWithStatus) => {
     const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     if (!config.enabled) return;
     if (!config.selectedSymbols.includes(signal.symbol)) return;
-    if (!config.useRandomDigits && signal.confidence < config.minConfidence) return;
     if (signal.status !== "active") return;
     if (activeTradeSymbols.current.has(signal.symbol)) return;
     const now = Date.now();
@@ -219,8 +217,9 @@ export function useAutoTrader(
 
     // RULE: Fetch fresh history at point of trade to ensure zero drift
     process.env.NODE_ENV === 'development' && console.log(`[AutoTrader] Requesting fresh 1000-tick history for ${signal.symbol} before trade...`);
-    const freshPrices = await requestHistory(signal.symbol, 1000);
-    const freshDigits = freshPrices.map(p => extractLastDigit(p));
+    const historyData: any = await requestHistory(signal.symbol, 1000);
+    const prices = historyData?.history?.prices || [];
+    const freshDigits = prices.map((p: any) => extractLastDigit(p));
     
     if (freshDigits.length < 50) {
       console.warn(`[AutoTrader] Fresh history for ${signal.symbol} was insufficient (${freshDigits.length} ticks)`);
@@ -296,17 +295,18 @@ export function useAutoTrader(
     runTradingFlow();
   }, [config, wsRef, ensureRandomDigits, accountInfo, isAdmin, isPaid]);
 
-  // Effect to keep avoidDigits in sync with selection and random mode
+  // Effect to clean up expired active trade symbols
   useEffect(() => {
-    if (config.useRandomDigits) {
-      ensureRandomDigits();
-    } else {
-      // Clear random digits if we switch back to signal mode
-      setAvoidDigits({});
-      randomDigitMap.current.clear();
-      lastDangerDigit.current.clear();
-    }
-  }, [config.useRandomDigits, config.selectedSymbols, ensureRandomDigits]);
+    const interval = setInterval(() => {
+      const now = Date.now();
+      activeTradeSymbols.current.forEach((timestamp, symbol) => {
+        if (now - timestamp > 60000) { // 60s safety timeout
+          activeTradeSymbols.current.delete(symbol);
+        }
+      });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleTradeMessage = useCallback((data: any) => {
     // Handle proposal response
