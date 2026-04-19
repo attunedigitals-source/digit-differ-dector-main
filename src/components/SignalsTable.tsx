@@ -75,8 +75,8 @@ export function SignalsTable({
               const selectedAvoid = avoidDigits?.[signal.symbol];
               
               // Use the actively selected avoid digit if available,
-              // otherwise show the engine's dangerDigit for awareness (until a trade starts)
-              const displayDigit = selectedAvoid !== undefined ? selectedAvoid : signal.dangerDigit;
+              // otherwise show '--' to indicate analysis is pending for this specific signal
+              const displayDigit = selectedAvoid !== undefined ? String(selectedAvoid) : "--";
 
               return (
                 <tr key={signal.symbol} className="border-b border-border/50 hover:bg-muted/30 transition-colors">

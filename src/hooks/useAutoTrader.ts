@@ -216,21 +216,31 @@ export function useAutoTrader(
     let tradeStake = config.stake;
 
     // RULE: Fetch fresh history at point of trade to ensure zero drift
-    process.env.NODE_ENV === 'development' && console.log(`[AutoTrader] Requesting fresh 1000-tick history for ${signal.symbol} before trade...`);
-    const historyData: any = await requestHistory(signal.symbol, 1000);
-    const prices = historyData?.history?.prices || [];
-    const freshDigits = prices.map((p: any) => extractLastDigit(p));
+    toast.info(`Fetching latest 1,000 ticks for ${signal.symbol}...`, { id: `fetch_${signal.symbol}` });
     
-    if (freshDigits.length < 50) {
-      console.warn(`[AutoTrader] Fresh history for ${signal.symbol} was insufficient (${freshDigits.length} ticks)`);
-      return; 
-    }
+    try {
+      const historyData: any = await requestHistory(signal.symbol, 1000);
+      const prices = historyData?.history?.prices || [];
+      const freshDigits = prices.map((p: any) => extractLastDigit(p));
+      
+      if (freshDigits.length < 50) {
+        toast.error(`Insufficient history for ${signal.symbol}: ${freshDigits.length} ticks`);
+        return; 
+      }
 
-    const safeDigits = getLeastFrequentDigits(freshDigits, 4);
-    if (safeDigits.length === 0) return;
-    
-    // Pick one randomly from the Top 4 safest digits
-    dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
+      const safeDigits = getLeastFrequentDigits(freshDigits, 4);
+      if (safeDigits.length === 0) {
+        toast.error(`Could not calculate safe digits for ${signal.symbol}`);
+        return;
+      }
+      
+      // Pick one randomly from the Top 4 safest digits
+      dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
+      toast.success(`${signal.symbol} Statistical Edge: Avoiding [${dangerDigit}] (from ${safeDigits.join(",")})`, { id: `fetch_${signal.symbol}` });
+    } catch (err) {
+      toast.error(`History fetch failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      return;
+    }
 
     // Use compounding martingale stake if symbol has a tracked stake > base
     const currentSymbolStake = symbolStakes.current.get(signal.symbol);
@@ -293,7 +303,7 @@ export function useAutoTrader(
     };
 
     runTradingFlow();
-  }, [config, wsRef, ensureRandomDigits, accountInfo, isAdmin, isPaid]);
+  }, [config, wsRef, ensureRandomDigits, accountInfo, isAdmin, isPaid, requestHistory, getSymbolState]);
 
   // Effect to clean up expired active trade symbols
   useEffect(() => {
