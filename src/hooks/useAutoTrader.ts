@@ -215,31 +215,53 @@ export function useAutoTrader(
     let dangerDigit: number;
     let tradeStake = config.stake;
 
-    // RULE: Fetch fresh history at point of trade to ensure zero drift
-    toast.info(`Fetching latest 1,000 ticks for ${signal.symbol}...`, { id: `fetch_${signal.symbol}` });
-    
-    try {
-      const historyData: any = await requestHistory(signal.symbol, 1000);
-      const prices = historyData?.history?.prices || [];
-      const freshDigits = prices.map((p: any) => extractLastDigit(p));
-      
-      if (freshDigits.length < 50) {
-        toast.error(`Insufficient history for ${signal.symbol}: ${freshDigits.length} ticks`);
-        return; 
-      }
+    // RULE: Hybrid History Sync
+    // 1. Try local buffer first (instant, synced in real-time)
+    const localState = getSymbolState(signal.symbol);
+    let freshDigits: number[] = [];
+    let method = "SERVER_FETCH";
 
-      const safeDigits = getLeastFrequentDigits(freshDigits, 4);
-      if (safeDigits.length === 0) {
-        toast.error(`Could not calculate safe digits for ${signal.symbol}`);
-        return;
+    if (localState && localState.digits && localState.digits.length >= 900) {
+      freshDigits = localState.digits;
+      method = "LOCAL_BUFFER";
+      process.env.NODE_ENV === 'development' && console.log(`[AutoTrader] Using high-speed local buffer for ${signal.symbol} (1000 ticks)`);
+    } else {
+      // 2. Fallback to Server Fetch if local buffer is insufficient
+      toast.info(`Local buffer low. Fetching history for ${signal.symbol}...`, { id: `fetch_${signal.symbol}` });
+      try {
+        const historyData: any = await requestHistory(signal.symbol, 1000);
+        const prices = historyData?.history?.prices || [];
+        freshDigits = prices.map((p: any) => extractLastDigit(p));
+      } catch (err) {
+        console.warn(`[AutoTrader] Server fetch failed, attempting local fallback...`);
+        if (localState && localState.digits.length > 50) {
+          freshDigits = localState.digits;
+          method = "LOCAL_FALLBACK";
+        } else {
+          toast.error(`History fetch failed and local buffer insufficient: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          return;
+        }
       }
-      
-      // Pick one randomly from the Top 4 safest digits
-      dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
-      toast.success(`${signal.symbol} Statistical Edge: Avoiding [${dangerDigit}] (from ${safeDigits.join(",")})`, { id: `fetch_${signal.symbol}` });
-    } catch (err) {
-      toast.error(`History fetch failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+
+    if (freshDigits.length < 50) {
+      toast.error(`Insufficient history for ${signal.symbol}: ${freshDigits.length} ticks`);
+      return; 
+    }
+
+    const safeDigits = getLeastFrequentDigits(freshDigits, 4);
+    if (safeDigits.length === 0) {
+      toast.error(`Could not calculate safe digits for ${signal.symbol}`);
       return;
+    }
+    
+    // Pick one randomly from the Top 4 safest digits
+    dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
+    
+    if (method === "LOCAL_BUFFER") {
+      toast.success(`${signal.symbol} Statistical Edge: Using Local Edge [${dangerDigit}]`, { id: `fetch_${signal.symbol}`, duration: 2000 });
+    } else {
+      toast.success(`${signal.symbol} Statistical Edge: Avoiding [${dangerDigit}] (Server Sync)`, { id: `fetch_${signal.symbol}` });
     }
 
     // Use compounding martingale stake if symbol has a tracked stake > base
