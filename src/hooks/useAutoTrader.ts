@@ -4,6 +4,7 @@ import type { SignalWithStatus, DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import { getLeastFrequentDigits, extractLastDigit } from "@/lib/signal-engine";
+import { select_avoid_digits } from "@/lib/adaptive-engine";
 
 export interface TradeRecord {
   symbol: string;
@@ -21,6 +22,7 @@ export interface AutoTraderConfig {
   selectedSymbols: string[];
   minConfidence: number;
   useRandomDigits: boolean;
+  useAdaptiveLogic: boolean;
 }
 
 const MARTINGALE_FACTOR = 11;
@@ -61,6 +63,7 @@ export function useAutoTrader(
       selectedSymbols: [],
       minConfidence: 0.80,
       useRandomDigits: false,
+      useAdaptiveLogic: false,
     };
   });
   const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
@@ -71,6 +74,7 @@ export function useAutoTrader(
   const randomDigitMap = useRef<Map<string, number>>(new Map());
   const symbolStakes = useRef<Map<string, number>>(new Map());
   const symbolCooldowns = useRef<Map<string, number>>(new Map()); // symbol -> timestamp until cooldown expires
+  const consecutiveLosses = useRef<Map<string, number>>(new Map()); // symbol -> consecutive losses
   // Track pending buy requests to map buy responses back to symbols
   const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map()); // buyReqId -> {symbol, supabaseId}
 
@@ -249,19 +253,33 @@ export function useAutoTrader(
       return; 
     }
 
-    const safeDigits = getLeastFrequentDigits(freshDigits, 4);
-    if (safeDigits.length === 0) {
-      toast.error(`Could not calculate safe digits for ${signal.symbol}`);
-      return;
-    }
-    
-    // Pick one randomly from the Top 4 safest digits
-    dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
-    
-    if (method === "LOCAL_BUFFER") {
-      toast.success(`${signal.symbol} Statistical Edge: Using Local Edge [${dangerDigit}]`, { id: `fetch_${signal.symbol}`, duration: 2000 });
+    if (config.useAdaptiveLogic) {
+      const adaptiveRes = select_avoid_digits(signal.symbol, freshDigits);
+      if (!adaptiveRes) {
+        // Did not meet threshold or insufficient data
+        toast.info(`Adaptive Edge: Confidence lower than threshold for ${signal.symbol}, waiting...`, { duration: 2000, id: `low_conf_${signal.symbol}` });
+        return;
+      }
+      
+      const randomIdx = Math.floor(Math.random() * adaptiveRes.avoid_digits.length);
+      dangerDigit = adaptiveRes.avoid_digits[randomIdx];
+      
+      toast.success(`${signal.symbol} Adaptive Edge: Set [${dangerDigit}] (Conf: ${adaptiveRes.confidence.toFixed(2)})`, { id: `fetch_${signal.symbol}`, duration: 2000 });
     } else {
-      toast.success(`${signal.symbol} Statistical Edge: Avoiding [${dangerDigit}] (Server Sync)`, { id: `fetch_${signal.symbol}` });
+      const safeDigits = getLeastFrequentDigits(freshDigits, 4);
+      if (safeDigits.length === 0) {
+        toast.error(`Could not calculate safe digits for ${signal.symbol}`);
+        return;
+      }
+      
+      // Pick one randomly from the Top 4 safest digits
+      dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
+      
+      if (method === "LOCAL_BUFFER") {
+        toast.success(`${signal.symbol} Statistical Edge: Using Local Edge [${dangerDigit}]`, { id: `fetch_${signal.symbol}`, duration: 2000 });
+      } else {
+        toast.success(`${signal.symbol} Statistical Edge: Avoiding [${dangerDigit}] (Server Sync)`, { id: `fetch_${signal.symbol}` });
+      }
     }
 
     // Use compounding martingale stake if symbol has a tracked stake > base
@@ -475,6 +493,22 @@ export function useAutoTrader(
         const profit = Number(poc.profit) || 0;
 
         activeTradeSymbols.current.delete(symbol);
+
+        if (isWin) {
+          consecutiveLosses.current.delete(symbol);
+        } else {
+          const currentLosses = (consecutiveLosses.current.get(symbol) || 0) + 1;
+          consecutiveLosses.current.set(symbol, currentLosses);
+          
+          if (config.useAdaptiveLogic && currentLosses >= 3) {
+             const state = getSymbolState(symbol);
+             if (state) {
+               state.digits = []; // Reset buffer
+             }
+             consecutiveLosses.current.delete(symbol);
+             toast.error(`3 consecutive losses on ${symbol} — Resetting Adaptive Buffer.`, { duration: 5000 });
+          }
+        }
 
         // Update Supabase with final result
         supabase.from("trades")

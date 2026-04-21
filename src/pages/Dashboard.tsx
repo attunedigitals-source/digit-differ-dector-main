@@ -101,6 +101,8 @@ export default function Dashboard() {
           onMinConfidenceChange={(minConfidence) => setConfig((c) => ({ ...c, minConfidence }))}
           useRandomDigits={config.useRandomDigits}
           onRandomDigitsToggle={(useRandomDigits) => setConfig((c) => ({ ...c, useRandomDigits }))}
+          useAdaptiveLogic={config.useAdaptiveLogic}
+          onAdaptiveLogicToggle={(useAdaptiveLogic) => setConfig((c) => ({ ...c, useAdaptiveLogic }))}
           tradeLog={tradeLog}
           connected={connected}
           hasToken={!!apiToken}

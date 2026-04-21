@@ -18,6 +18,8 @@ interface TradingPanelProps {
   onMinConfidenceChange: (v: number) => void;
   useRandomDigits: boolean;
   onRandomDigitsToggle: (enabled: boolean) => void;
+  useAdaptiveLogic: boolean;
+  onAdaptiveLogicToggle: (enabled: boolean) => void;
   tradeLog: TradeRecord[];
   connected: boolean;
   hasToken: boolean;
@@ -34,6 +36,8 @@ export function TradingPanel({
   onMinConfidenceChange,
   useRandomDigits,
   onRandomDigitsToggle,
+  useAdaptiveLogic,
+  onAdaptiveLogicToggle,
   tradeLog,
   connected,
   hasToken,
@@ -132,6 +136,24 @@ export function TradingPanel({
           <Switch
             checked={autoTradeEnabled}
             onCheckedChange={onAutoTradeToggle}
+            disabled={!canTrade}
+          />
+        </div>
+      </div>
+
+      {/* Adaptive Trading Toggle */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Shuffle className="w-4 h-4 text-primary" />
+          <span className="text-xs font-medium text-foreground">Adaptive Volatility Option</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {useAdaptiveLogic ? "Active" : "Off"}
+          </span>
+          <Switch
+            checked={useAdaptiveLogic}
+            onCheckedChange={onAdaptiveLogicToggle}
             disabled={!canTrade}
           />
         </div>
