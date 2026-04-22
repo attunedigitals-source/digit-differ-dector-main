@@ -361,6 +361,13 @@ export default function UserManagement() {
                                 className="text-xs gap-2 cursor-pointer"
                                 onClick={() => {
                                   setSelectedUser(u);
+                                  // Auto-select requested plan if it exists
+                                  const pendingPayment = payments?.find(p => p.user_id === u.id);
+                                  if (pendingPayment) {
+                                    setSelectedPlan(pendingPayment.plan_type as PlanType);
+                                  } else {
+                                    setSelectedPlan("1_month");
+                                  }
                                   setIsUpgradeOpen(true);
                                 }}
                               >
@@ -455,9 +462,16 @@ export default function UserManagement() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Select Subscription Plan</Label>
+              <div className="flex justify-between items-center">
+                <Label>Select Subscription Plan</Label>
+                {payments?.find(p => p.user_id === selectedUser?.id) && (
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                    Requested: {payments.find(p => p.user_id === selectedUser?.id)?.plan_type.replace('_', ' ')}
+                  </Badge>
+                )}
+              </div>
               <Select value={selectedPlan} onValueChange={(v: any) => setSelectedPlan(v)}>
-                <SelectTrigger className="bg-background border-border">
+                <SelectTrigger className={`bg-background border-border ${payments?.find(p => p.user_id === selectedUser?.id) ? "ring-1 ring-primary/50" : ""}`}>
                   <SelectValue placeholder="Select a plan" />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
