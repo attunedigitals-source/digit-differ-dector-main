@@ -261,8 +261,20 @@ export function useAutoTrader(
         return;
       }
       
-      const randomIdx = Math.floor(Math.random() * adaptiveRes.avoid_digits.length);
-      dangerDigit = adaptiveRes.avoid_digits[randomIdx];
+      let availableDigits = adaptiveRes.avoid_digits;
+      const lastDigit = lastDangerDigit.current.get(signal.symbol);
+      
+      if (lastDigit !== undefined) {
+        availableDigits = availableDigits.filter(d => d !== lastDigit);
+      }
+      
+      if (availableDigits.length === 0) {
+        toast.info(`Adaptive Edge: Skipping trade on ${signal.symbol} to avoid repeating digit [${lastDigit}]`, { duration: 2000, id: `rep_digit_${signal.symbol}` });
+        return;
+      }
+      
+      const randomIdx = Math.floor(Math.random() * availableDigits.length);
+      dangerDigit = availableDigits[randomIdx];
       
       toast.success(`${signal.symbol} Adaptive Edge: Set [${dangerDigit}] (Conf: ${adaptiveRes.confidence.toFixed(2)})`, { id: `fetch_${signal.symbol}`, duration: 2000 });
     } else {
@@ -272,8 +284,20 @@ export function useAutoTrader(
         return;
       }
       
-      // Pick one randomly from the Top 4 safest digits
-      dangerDigit = safeDigits[Math.floor(Math.random() * safeDigits.length)];
+      let availableDigits = safeDigits;
+      const lastDigit = lastDangerDigit.current.get(signal.symbol);
+      
+      if (lastDigit !== undefined) {
+        availableDigits = availableDigits.filter(d => d !== lastDigit);
+      }
+      
+      if (availableDigits.length === 0) {
+        toast.info(`Statistical Edge: Skipping trade on ${signal.symbol} to avoid repeating digit [${lastDigit}]`, { duration: 2000, id: `rep_digit_${signal.symbol}` });
+        return;
+      }
+      
+      // Pick one randomly from the Top 4 safest digits (excluding the last used)
+      dangerDigit = availableDigits[Math.floor(Math.random() * availableDigits.length)];
       
       if (method === "LOCAL_BUFFER") {
         toast.success(`${signal.symbol} Statistical Edge: Using Local Edge [${dangerDigit}]`, { id: `fetch_${signal.symbol}`, duration: 2000 });
