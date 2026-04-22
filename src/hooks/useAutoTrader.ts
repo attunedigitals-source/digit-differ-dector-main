@@ -4,7 +4,7 @@ import type { SignalWithStatus, DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import { getLeastFrequentDigits, extractLastDigit } from "@/lib/signal-engine";
-import { select_avoid_digits } from "@/lib/adaptive-engine";
+import { select_avoid_digits, update_model_weights, reset_symbol_weights } from "@/lib/adaptive-engine";
 
 export interface TradeRecord {
   symbol: string;
@@ -66,8 +66,8 @@ export function useAutoTrader(
       useAdaptiveLogic: false,
     };
   });
-  const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
-  const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number }>>(new Map());
+  const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string; avoidDigitsArray?: number[]; modelPredictions?: Record<string, number[]> }>>(new Map());
+  const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number; avoidDigitsArray?: number[]; modelPredictions?: Record<string, number[]> }>>(new Map());
   const activeTradeSymbols = useRef<Map<string, number>>(new Map()); // symbol -> timestamp when locked
   const settledContracts = useRef<Set<string>>(new Set());
   const lastDangerDigit = useRef<Map<string, number>>(new Map());
@@ -336,7 +336,9 @@ export function useAutoTrader(
         dangerDigit,
         stake: tradeStake,
         timestamp: Date.now(),
-        supabaseId: supabaseId || undefined
+        supabaseId: supabaseId || undefined,
+        avoidDigitsArray: config.useAdaptiveLogic ? adaptiveRes?.avoid_digits : undefined,
+        modelPredictions: config.useAdaptiveLogic ? adaptiveRes?.model_predictions : undefined
       });
 
       ws.send(JSON.stringify(proposalReq));
@@ -413,7 +415,17 @@ export function useAutoTrader(
           });
       }
 
-      openContracts.current.set(contractId, { symbol, stake: buyPrice, timestamp: Date.now() });
+      // Carry over adaptive state to open contract
+      const pendingSource = Array.from(pendingProposals.current.values()).find(p => p.supabaseId === buyData?.supabaseId && p.symbol === symbol) 
+        || { avoidDigitsArray: undefined, modelPredictions: undefined };
+
+      openContracts.current.set(contractId, { 
+        symbol, 
+        stake: buyPrice, 
+        timestamp: Date.now(),
+        avoidDigitsArray: pendingSource.avoidDigitsArray,
+        modelPredictions: pendingSource.modelPredictions
+      });
 
       setTradeLog((prev) => {
         const updated = [...prev];
@@ -491,6 +503,12 @@ export function useAutoTrader(
         const isWin = (poc.profit ?? 0) > 0;
         const symbol = poc.underlying || "";
         const profit = Number(poc.profit) || 0;
+        
+        const openC = openContracts.current.get(contractId);
+        if (config.useAdaptiveLogic && openC?.avoidDigitsArray && openC?.modelPredictions) {
+           // Provide feedback to adaptive engine
+           update_model_weights(symbol, isWin, openC.avoidDigitsArray, openC.modelPredictions);
+        }
 
         activeTradeSymbols.current.delete(symbol);
 
@@ -506,6 +524,7 @@ export function useAutoTrader(
                state.digits = []; // Reset buffer
              }
              consecutiveLosses.current.delete(symbol);
+             reset_symbol_weights(symbol);
              toast.error(`3 consecutive losses on ${symbol} — Resetting Adaptive Buffer.`, { duration: 5000 });
           }
         }
