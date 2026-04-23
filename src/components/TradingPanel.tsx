@@ -2,7 +2,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target } from "lucide-react";
-import type { TradeRecord, AutoTraderConfig } from "@/hooks/useAutoTrader";
+import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { getSymbolName } from "@/lib/deriv-symbols";
 
 interface TradingPanelProps {

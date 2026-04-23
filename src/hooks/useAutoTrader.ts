@@ -4,24 +4,7 @@ import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 
-export interface TradeRecord {
-  id: string;
-  symbol: string;
-  contract: string;
-  barrier: number;
-  stake: number;
-  profit: number;
-  martingale_step: number;
-  status: "WIN" | "LOSS" | "PENDING";
-  next_action: string;
-  timestamp: Date;
-}
-
-export interface AutoTraderConfig {
-  enabled: boolean;
-  baseStake: number;
-  maxMartingaleSteps: number;
-}
+import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
 
@@ -72,8 +55,24 @@ export function useAutoTrader(
   const [ticksToWait, setTicksToWait] = useState(0);
   const [martingaleCycles, setMartingaleCycles] = useState(0);
 
+  const executionStartedAtRef = useRef<number>(0);
+
+  // Watchdog: reset stuck execution
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isExecutingRef.current && Date.now() - executionStartedAtRef.current > 30000) {
+        console.warn("[AutoTrader] Watchdog triggered: Resetting stuck execution state");
+        isExecutingRef.current = false;
+        setSessionState(prev => ({ ...prev, nextAction: "WATCHDOG_RESET" }));
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const sessionStateRef = useRef(sessionState);
-  useEffect(() => { sessionStateRef.current = sessionState; }, [sessionState]);
+  useEffect(() => {
+    sessionStateRef.current = sessionState;
+  }, [sessionState]);
 
   const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
@@ -104,6 +103,7 @@ export function useAutoTrader(
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     isExecutingRef.current = true;
+    executionStartedAtRef.current = Date.now();
     try {
       const state = sessionStateRef.current;
       let nextStake = state.currentStake;

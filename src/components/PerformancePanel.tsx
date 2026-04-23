@@ -1,4 +1,4 @@
-import type { TradeRecord } from "@/hooks/useAutoTrader";
+import type { TradeRecord } from "@/hooks/trading-types";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { Award, Target, TrendingDown, RotateCcw, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
