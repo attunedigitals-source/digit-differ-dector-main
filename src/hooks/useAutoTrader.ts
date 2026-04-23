@@ -218,6 +218,7 @@ export function useAutoTrader(
 
     let dangerDigit: number;
     let tradeStake = config.stake;
+    let adaptiveRes: any = null;
 
     // RULE: Hybrid History Sync
     // 1. Try local buffer first (instant, synced in real-time)
@@ -254,7 +255,7 @@ export function useAutoTrader(
     }
 
     if (config.useAdaptiveLogic) {
-      const adaptiveRes = select_avoid_digits(signal.symbol, freshDigits);
+      adaptiveRes = select_avoid_digits(signal.symbol, freshDigits);
       if (!adaptiveRes) {
         // Did not meet threshold or insufficient data
         toast.info(`Adaptive Edge: Confidence lower than threshold for ${signal.symbol}, waiting...`, { duration: 2000, id: `low_conf_${signal.symbol}` });
