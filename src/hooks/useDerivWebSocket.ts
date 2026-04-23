@@ -58,25 +58,13 @@ export function useDerivWebSocket(apiToken?: string) {
   const onMessageRef = useRef<((data: any) => void) | null>(null);
 
   const saveSignal = useCallback(async (signal: Signal) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("matches_signals").insert({
-      user_id: user.id,
-      symbol: signal.symbol,
-      danger_digit: signal.dangerDigit,
-      confidence: signal.confidence,
-      valid_until_tick: signal.validUntilTick,
-      tick_count: signal.tickCount,
-    });
+    // Disabled to stop 400 errors during overhaul
+    return;
   }, []);
 
   const saveResult = useCallback(async (result: SignalResult) => {
-    await supabase.from("signal_results").insert({
-      symbol: result.symbol,
-      danger_digit: result.dangerDigit,
-      actual_digit: result.actualDigit,
-      win: result.win,
-    });
+    // Disabled to stop 400 errors during overhaul
+    return;
   }, []);
 
   // Helper to subscribe to balance after authorization

@@ -78,6 +78,8 @@ export function useAutoTrader(
   const settledContracts = useRef<Set<string>>(new Set());
   const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map());
 
+  const isExecutingRef = useRef(false);
+
   const select_random_contract = useCallback(() => {
     const isOver = Math.random() > 0.5;
     return {
@@ -95,90 +97,97 @@ export function useAutoTrader(
   }, []);
 
   const execute_trade = useCallback(async () => {
+    if (isExecutingRef.current) return;
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const state = sessionStateRef.current;
-    let nextStake = state.currentStake;
-    let nextStep = state.martingaleStep;
+    isExecutingRef.current = true;
+    try {
+      const state = sessionStateRef.current;
+      let nextStake = state.currentStake;
+      let nextStep = state.martingaleStep;
 
-    if (state.status === "WIN" || state.status === "IDLE") {
-      nextStake = config.baseStake;
-      nextStep = 0;
-    } else if (state.status === "LOSS") {
-      nextStake = state.currentStake * MARTINGALE_MULTIPLIER;
-      nextStep = state.martingaleStep + 1;
-    }
+      if (state.status === "WIN" || state.status === "IDLE") {
+        nextStake = config.baseStake;
+        nextStep = 0;
+      } else if (state.status === "LOSS") {
+        nextStake = state.currentStake * MARTINGALE_MULTIPLIER;
+        nextStep = state.martingaleStep + 1;
+      }
 
-    if (nextStep >= config.maxMartingaleSteps) {
-      toast.error("Max Martingale Steps reached. Stopping trading.");
-      setConfig(prev => ({ ...prev, enabled: false }));
-      return;
-    }
+      if (nextStep >= config.maxMartingaleSteps) {
+        toast.error("Max Martingale Steps reached. Stopping trading.");
+        setConfig(prev => ({ ...prev, enabled: false }));
+        return;
+      }
 
-    const { type, barrier } = select_random_contract();
-    const symbol = select_random_symbol();
+      const { type, barrier } = select_random_contract();
+      const symbol = select_random_symbol();
 
-    setSessionState(prev => ({
-      ...prev,
-      currentStake: nextStake,
-      martingaleStep: nextStep,
-      currentSymbol: symbol,
-      currentContract: type,
-      currentBarrier: barrier,
-      status: "PENDING",
-      nextAction: "WAITING_FOR_RESULT"
-    }));
+      setSessionState(prev => ({
+        ...prev,
+        currentStake: nextStake,
+        martingaleStep: nextStep,
+        currentSymbol: symbol,
+        currentContract: type,
+        currentBarrier: barrier,
+        status: "PENDING",
+        nextAction: "WAITING_FOR_RESULT"
+      }));
 
-    const { data: { user } } = await supabase.auth.getUser();
-    let supabaseId = null;
-    if (user) {
-      const { data, error } = await supabase.from("trades").insert({
-        user_id: user.id,
-        deriv_loginid: accountInfo?.loginid || "unknown",
+      const { data: { user } } = await supabase.auth.getUser();
+      let supabaseId = null;
+      if (user) {
+        const { data, error } = await supabase.from("trades").insert({
+          user_id: user.id,
+          deriv_loginid: accountInfo?.loginid || "unknown",
+          symbol: symbol,
+          stake: nextStake,
+          barrier: barrier,
+          result: "pending",
+          timestamp: new Date().toISOString()
+        }).select("id").single();
+        if (!error) supabaseId = data.id;
+      }
+
+      const reqId = Date.now() + Math.floor(Math.random() * 10000);
+      const proposalReq = {
+        proposal: 1,
+        amount: nextStake,
+        basis: "stake",
+        contract_type: type,
+        currency: "USD",
+        duration: 1,
+        duration_unit: "t",
         symbol: symbol,
+        barrier: String(barrier),
+        req_id: reqId,
+      };
+
+      pendingProposals.current.set(String(reqId), {
+        symbol,
+        dangerDigit: barrier,
         stake: nextStake,
-        barrier: barrier,
-        result: "pending",
+        timestamp: Date.now(),
+        supabaseId: supabaseId || undefined,
+      });
+
+      ws.send(JSON.stringify(proposalReq));
+      toast.info(`Initiating trade: ${type} on ${symbol}`);
+      
+      // Log for TradeMonitor integration
+      console.log(JSON.stringify({
+        event: "trade_initiated",
+        symbol,
+        contract: type,
+        barrier,
+        stake: Number(nextStake.toFixed(2)),
+        martingale_step: nextStep,
         timestamp: new Date().toISOString()
-      }).select("id").single();
-      if (!error) supabaseId = data.id;
+      }, null, 2));
+    } finally {
+      isExecutingRef.current = false;
     }
-
-    const reqId = Date.now() + Math.floor(Math.random() * 10000);
-    const proposalReq = {
-      proposal: 1,
-      amount: nextStake,
-      basis: "stake",
-      contract_type: type,
-      currency: "USD",
-      duration: 1,
-      duration_unit: "t",
-      symbol: symbol,
-      barrier: String(barrier),
-      req_id: reqId,
-    };
-
-    pendingProposals.current.set(String(reqId), {
-      symbol,
-      dangerDigit: barrier,
-      stake: nextStake,
-      timestamp: Date.now(),
-      supabaseId: supabaseId || undefined,
-    });
-
-    ws.send(JSON.stringify(proposalReq));
-    
-    // Log for TradeMonitor integration
-    console.log(JSON.stringify({
-      event: "trade_initiated",
-      symbol,
-      contract: type,
-      barrier,
-      stake: Number(nextStake.toFixed(2)),
-      martingale_step: nextStep,
-      timestamp: new Date().toISOString()
-    }, null, 2));
   }, [config, wsRef, accountInfo, select_random_contract, select_random_symbol]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
@@ -244,14 +253,7 @@ export function useAutoTrader(
     if (!config.enabled) return;
 
     if (data.msg_type === "tick") {
-      setTicksToWait(prev => {
-        if (prev > 0) {
-          const next = prev - 1;
-          if (next === 0) execute_trade();
-          return next;
-        }
-        return prev;
-      });
+      setTicksToWait(prev => prev > 0 ? prev - 1 : 0);
       return;
     }
 
@@ -304,6 +306,7 @@ export function useAutoTrader(
       }
     }
   }, [config.enabled, wsRef, handle_result, execute_trade]);
+
 
   const fetchDailyPL = useCallback(async () => {
     try {
@@ -358,7 +361,13 @@ export function useAutoTrader(
     if (config.enabled && sessionState.status === "IDLE") {
       execute_trade();
     }
-  }, [config.enabled]);
+  }, [config.enabled, sessionState.status, execute_trade]);
+
+  useEffect(() => {
+    if (config.enabled && ticksToWait === 0 && (sessionState.status === "WIN" || sessionState.status === "LOSS")) {
+      execute_trade();
+    }
+  }, [ticksToWait, config.enabled, sessionState.status, execute_trade]);
 
   const resetTradeLog = useCallback(() => {
     setTradeLog([]);
