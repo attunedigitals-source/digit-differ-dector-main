@@ -68,7 +68,15 @@ export function useAutoTrader(
       if (isExecutingRef.current && Date.now() - executionStartedAtRef.current > 30000) {
         console.warn("[AutoTrader] Watchdog triggered: Resetting stuck execution state");
         isExecutingRef.current = false;
-        setSessionState(prev => ({ ...prev, nextAction: "WATCHDOG_RESET" }));
+        
+        // Clear stale pending entries from the log when resetting
+        setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
+        
+        setSessionState(prev => ({ 
+          ...prev, 
+          status: "LOSS", // Treat as loss to trigger retry/cooldown
+          nextAction: "WATCHDOG_RESET_RETRY" 
+        }));
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -103,12 +111,16 @@ export function useAutoTrader(
   }, []);
 
   const execute_trade = useCallback(async () => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn("[AutoTrader] Trade skipped: WebSocket not open");
+      return;
+    }
+
     if (isExecutingRef.current || sessionStateRef.current.status === "PENDING" || openContracts.current.size > 0) {
       console.log("[AutoTrader] Trade skip: already executing or pending or contract open");
       return;
     }
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     isExecutingRef.current = true;
     executionStartedAtRef.current = Date.now();
