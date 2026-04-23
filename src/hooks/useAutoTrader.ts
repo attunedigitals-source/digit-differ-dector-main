@@ -254,7 +254,23 @@ export function useAutoTrader(
       return; 
     }
 
-    if (config.useAdaptiveLogic) {
+    if (config.useRandomDigits) {
+      const currentRandom = randomDigitMap.current.get(signal.symbol);
+      const lastDigit = lastDangerDigit.current.get(signal.symbol);
+      
+      if (currentRandom !== undefined && currentRandom !== lastDigit) {
+        dangerDigit = currentRandom;
+      } else {
+        // If random is same as last or not set, pick a new different one
+        let newDigit;
+        do {
+          newDigit = Math.floor(Math.random() * 10);
+        } while (newDigit === lastDigit);
+        dangerDigit = newDigit;
+        randomDigitMap.current.set(signal.symbol, dangerDigit);
+      }
+      toast.info(`${signal.symbol} Random Edge: Avoiding [${dangerDigit}]`, { id: `fetch_${signal.symbol}`, duration: 2000 });
+    } else if (config.useAdaptiveLogic) {
       adaptiveRes = select_avoid_digits(signal.symbol, freshDigits);
       if (!adaptiveRes) {
         // Did not meet threshold or insufficient data
@@ -598,7 +614,12 @@ export function useAutoTrader(
 
         // In random mode: ALWAYS regenerate digit for symbol after any trade (win or loss)
         if (config.useRandomDigits) {
-          const newDigit = Math.floor(Math.random() * 10);
+          const lastDigit = lastDangerDigit.current.get(symbol);
+          let newDigit;
+          do {
+            newDigit = Math.floor(Math.random() * 10);
+          } while (newDigit === lastDigit);
+          
           randomDigitMap.current.set(symbol, newDigit);
           setAvoidDigits((prev) => ({ ...prev, [symbol]: newDigit }));
           if (isWin) {
