@@ -92,7 +92,13 @@ export default function Dashboard() {
         {/* Auto-Trading Panel */}
         <TradingPanel
           autoTradeEnabled={config.enabled}
-          onAutoTradeToggle={(enabled) => setConfig((c) => ({ ...c, enabled }))}
+          onAutoTradeToggle={(enabled) => {
+            if (enabled) {
+              setConfig((c) => ({ ...c, enabled: true, useAdaptiveLogic: false, useRandomDigits: false }));
+            } else {
+              setConfig((c) => ({ ...c, enabled: false }));
+            }
+          }}
           stake={config.stake}
           onStakeChange={(stake) => setConfig((c) => ({ ...c, stake }))}
           selectedSymbols={config.selectedSymbols}
@@ -102,7 +108,13 @@ export default function Dashboard() {
           useRandomDigits={config.useRandomDigits}
           onRandomDigitsToggle={(useRandomDigits) => setConfig((c) => ({ ...c, useRandomDigits }))}
           useAdaptiveLogic={config.useAdaptiveLogic}
-          onAdaptiveLogicToggle={(useAdaptiveLogic) => setConfig((c) => ({ ...c, useAdaptiveLogic }))}
+          onAdaptiveLogicToggle={(useAdaptiveLogic) => {
+            if (useAdaptiveLogic) {
+              setConfig((c) => ({ ...c, enabled: true, useAdaptiveLogic: true, useRandomDigits: false }));
+            } else {
+              setConfig((c) => ({ ...c, enabled: false, useAdaptiveLogic: false }));
+            }
+          }}
           tradeLog={tradeLog}
           connected={connected}
           hasToken={!!apiToken}

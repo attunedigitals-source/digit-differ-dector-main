@@ -60,7 +60,7 @@ export function TradingPanel({
       {/* Header */}
       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
         <Bot className="w-4 h-4 text-primary" />
-        Auto-Trading
+        Auto-Trading {autoTradeEnabled ? `(${useAdaptiveLogic ? "Adaptive" : "Statistical"})` : ""}
       </div>
 
       {!connected && (
@@ -127,14 +127,14 @@ export function TradingPanel({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Bot className="w-4 h-4 text-primary" />
-          <span className="text-xs">Enable Auto-Trading</span>
+          <span className="text-xs">Enable Statistical Auto-Trading</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {autoTradeEnabled ? "Active" : "Off"}
+            {autoTradeEnabled && !useAdaptiveLogic ? "Active" : "Off"}
           </span>
           <Switch
-            checked={autoTradeEnabled}
+            checked={autoTradeEnabled && !useAdaptiveLogic}
             onCheckedChange={onAutoTradeToggle}
             disabled={!canTrade}
           />
@@ -145,28 +145,38 @@ export function TradingPanel({
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Shuffle className="w-4 h-4 text-primary" />
-          <span className="text-xs font-medium text-foreground">Adaptive Volatility Option</span>
+          <span className="text-xs font-medium text-foreground">Enable Adaptive Volatility Trading</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {useAdaptiveLogic ? "Active" : "Off"}
+            {autoTradeEnabled && useAdaptiveLogic ? "Active" : "Off"}
           </span>
           <Switch
-            checked={useAdaptiveLogic}
+            checked={autoTradeEnabled && useAdaptiveLogic}
             onCheckedChange={onAdaptiveLogicToggle}
             disabled={!canTrade}
           />
         </div>
       </div>
 
-      {/* Statistical Mode Indicator */}
-      <div className="flex items-center justify-between p-2 rounded bg-primary/5 border border-primary/10">
-        <div className="flex items-center gap-2 text-sm text-primary">
+      {/* Mode Indicator */}
+      <div className={`flex items-center justify-between p-2 rounded border transition-colors ${
+        autoTradeEnabled 
+          ? "bg-primary/5 border-primary/20" 
+          : "bg-muted/30 border-border"
+      }`}>
+        <div className={`flex items-center gap-2 text-sm ${autoTradeEnabled ? "text-primary" : "text-muted-foreground"}`}>
           <Shuffle className="w-4 h-4" />
-          <span className="text-[11px] font-medium uppercase tracking-wider">Statistical Logic Active</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider">
+            {useAdaptiveLogic ? "Adaptive Engine Active" : "Statistical Logic Active"}
+          </span>
         </div>
-        <Badge variant="outline" className="text-[10px] bg-primary/10 border-primary/20 text-primary">
-          1000 TICKS
+        <Badge variant="outline" className={`text-[10px] ${
+          autoTradeEnabled 
+            ? "bg-primary/10 border-primary/20 text-primary" 
+            : "bg-muted border-border text-muted-foreground"
+        }`}>
+          {useAdaptiveLogic ? "DYNAMIC" : "1000 TICKS"}
         </Badge>
       </div>
 
