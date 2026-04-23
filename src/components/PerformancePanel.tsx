@@ -22,9 +22,9 @@ interface PerformancePanelProps {
 }
 
 export function PerformancePanel({ tradeLog, onReset, activeAccount, dailyPL = 0 }: PerformancePanelProps) {
-  const settled = tradeLog.filter((t) => t.status === "won" || t.status === "lost");
+  const settled = tradeLog.filter((t) => t.status === "WIN" || t.status === "LOSS");
   const totalTrades = settled.length;
-  const wins = settled.filter((t) => t.status === "won").length;
+  const wins = settled.filter((t) => t.status === "WIN").length;
   const losses = totalTrades - wins;
   const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
 

@@ -1,213 +1,186 @@
-import { useState } from "react";
-import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Bot, DollarSign, TrendingUp, Shuffle } from "lucide-react";
-import type { TradeRecord } from "@/hooks/useAutoTrader";
+import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target } from "lucide-react";
+import type { TradeRecord, AutoTraderConfig } from "@/hooks/useAutoTrader";
+import { getSymbolName } from "@/lib/deriv-symbols";
 
 interface TradingPanelProps {
-  autoTradeEnabled: boolean;
-  onAutoTradeToggle: (enabled: boolean) => void;
-  stake: number;
-  onStakeChange: (stake: number) => void;
-  selectedSymbols: string[];
-  onSymbolsChange: (symbols: string[]) => void;
-  minConfidence: number;
-  onMinConfidenceChange: (v: number) => void;
-  useRandomDigits: boolean;
-  onRandomDigitsToggle: (enabled: boolean) => void;
-  useAdaptiveLogic: boolean;
-  onAdaptiveLogicToggle: (enabled: boolean) => void;
+  config: AutoTraderConfig;
+  onConfigChange: (config: AutoTraderConfig) => void;
+  sessionState: any;
+  ticksToWait: number;
   tradeLog: TradeRecord[];
   connected: boolean;
   hasToken: boolean;
+  dailyPL: number;
 }
 
 export function TradingPanel({
-  autoTradeEnabled,
-  onAutoTradeToggle,
-  stake,
-  onStakeChange,
-  selectedSymbols,
-  onSymbolsChange,
-  minConfidence,
-  onMinConfidenceChange,
-  useRandomDigits,
-  onRandomDigitsToggle,
-  useAdaptiveLogic,
-  onAdaptiveLogicToggle,
+  config,
+  onConfigChange,
+  sessionState,
+  ticksToWait,
   tradeLog,
   connected,
   hasToken,
+  dailyPL,
 }: TradingPanelProps) {
-  const toggleSymbol = (symbol: string) => {
-    if (selectedSymbols.includes(symbol)) {
-      onSymbolsChange(selectedSymbols.filter((s) => s !== symbol));
-    } else {
-      onSymbolsChange([...selectedSymbols, symbol]);
-    }
-  };
-
-  const selectAll = () => onSymbolsChange(DERIV_SYMBOLS.map((s) => s.symbol));
-  const deselectAll = () => onSymbolsChange([]);
-
-  const canTrade = connected && hasToken && selectedSymbols.length > 0 && stake > 0;
+  const canTrade = connected && hasToken && config.baseStake >= 0.35;
 
   return (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+    <div className="bg-card border border-border rounded-lg p-4 space-y-4 shadow-lg backdrop-blur-sm bg-opacity-80">
       {/* Header */}
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <Bot className="w-4 h-4 text-primary" />
-        Auto-Trading {autoTradeEnabled ? `(${useAdaptiveLogic ? "Adaptive" : "Statistical"})` : ""}
-      </div>
-
-      {!connected && (
-        <p className="text-xs text-destructive">Connect to Deriv first to enable trading.</p>
-      )}
-
-      {/* Stake */}
-      <div className="space-y-2">
-        <label className="text-xs text-muted-foreground flex items-center gap-1">
-          <DollarSign className="w-3 h-3" /> Stake per trade
-        </label>
-        <Input
-          type="number"
-          min={0.35}
-          step={0.1}
-          value={stake}
-          onChange={(e) => onStakeChange(Number(e.target.value))}
-          className="bg-muted border-border font-mono text-sm w-32"
-        />
-      </div>
-
-      {/* Min confidence */}
-      <div className="space-y-2">
-        <label className="text-xs text-muted-foreground flex items-center gap-1">
-          <TrendingUp className="w-3 h-3" /> Min confidence to trade
-        </label>
-        <Input
-          type="number"
-          min={65}
-          max={99}
-          step={1}
-          value={Math.round(minConfidence * 100)}
-          onChange={(e) => onMinConfidenceChange(Number(e.target.value) / 100)}
-          className="bg-muted border-border font-mono text-sm w-32"
-        />
-      </div>
-
-      {/* Volatility selection */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-muted-foreground">Select volatilities to trade</label>
-          <div className="flex gap-2">
-            <button onClick={selectAll} className="text-[10px] text-primary hover:underline">Select all</button>
-            <button onClick={deselectAll} className="text-[10px] text-muted-foreground hover:underline">Clear</button>
-          </div>
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Bot className="w-5 h-5 text-primary animate-pulse" />
+          Randomized Over/Under Bot
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1.5 md:gap-2">
-          {DERIV_SYMBOLS.map((s) => (
-            <label
-              key={s.symbol}
-              className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 transition-colors"
-            >
-              <Checkbox
-                checked={selectedSymbols.includes(s.symbol)}
-                onCheckedChange={() => toggleSymbol(s.symbol)}
-              />
-              <span className="text-foreground">{getSymbolName(s.symbol)}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Auto-Trading Toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Bot className="w-4 h-4 text-primary" />
-          <span className="text-xs">Enable Statistical Auto-Trading</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {autoTradeEnabled && !useAdaptiveLogic ? "Active" : "Off"}
-          </span>
-          <Switch
-            checked={autoTradeEnabled && !useAdaptiveLogic}
-            onCheckedChange={onAutoTradeToggle}
-            disabled={!canTrade}
-          />
-        </div>
-      </div>
-
-      {/* Adaptive Trading Toggle */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Shuffle className="w-4 h-4 text-primary" />
-          <span className="text-xs font-medium text-foreground">Enable Adaptive Volatility Trading</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            {autoTradeEnabled && useAdaptiveLogic ? "Active" : "Off"}
-          </span>
-          <Switch
-            checked={autoTradeEnabled && useAdaptiveLogic}
-            onCheckedChange={onAdaptiveLogicToggle}
-            disabled={!canTrade}
-          />
-        </div>
-      </div>
-
-      {/* Mode Indicator */}
-      <div className={`flex items-center justify-between p-2 rounded border transition-colors ${
-        autoTradeEnabled 
-          ? "bg-primary/5 border-primary/20" 
-          : "bg-muted/30 border-border"
-      }`}>
-        <div className={`flex items-center gap-2 text-sm ${autoTradeEnabled ? "text-primary" : "text-muted-foreground"}`}>
-          <Shuffle className="w-4 h-4" />
-          <span className="text-[11px] font-medium uppercase tracking-wider">
-            {useAdaptiveLogic ? "Adaptive Engine Active" : "Statistical Logic Active"}
-          </span>
-        </div>
-        <Badge variant="outline" className={`text-[10px] ${
-          autoTradeEnabled 
-            ? "bg-primary/10 border-primary/20 text-primary" 
-            : "bg-muted border-border text-muted-foreground"
-        }`}>
-          {useAdaptiveLogic ? "DYNAMIC" : "1000 TICKS"}
+        <Badge variant={connected ? "default" : "destructive"} className="text-[10px]">
+          {connected ? "CONNECTED" : "DISCONNECTED"}
         </Badge>
       </div>
 
-      {/* Trade log */}
-      {tradeLog.length > 0 && (
+      {!connected && (
+        <p className="text-xs text-destructive bg-destructive/10 p-2 rounded">
+          Connect to Deriv first to enable trading.
+        </p>
+      )}
+
+      {/* Main Configuration */}
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-xs text-muted-foreground">Recent trades</label>
-          <div className="max-h-64 overflow-y-auto space-y-1">
-            {tradeLog.slice(0, 20).map((trade, i) => (
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <DollarSign className="w-3 h-3" /> Base Stake
+          </label>
+          <Input
+            type="number"
+            min={0.35}
+            step={0.1}
+            value={config.baseStake}
+            onChange={(e) => onConfigChange({ ...config, baseStake: Number(e.target.value) })}
+            className="bg-muted border-border font-mono text-sm h-8"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Target className="w-3 h-3" /> Max Martingale
+          </label>
+          <Input
+            type="number"
+            min={1}
+            max={20}
+            step={1}
+            value={config.maxMartingaleSteps}
+            onChange={(e) => onConfigChange({ ...config, maxMartingaleSteps: Number(e.target.value) })}
+            className="bg-muted border-border font-mono text-sm h-8"
+          />
+        </div>
+      </div>
+
+      {/* Stats & Current Session */}
+      <div className="grid grid-cols-3 gap-2 bg-muted/30 p-3 rounded-md border border-border/50">
+        <div className="text-center">
+          <div className="text-[9px] text-muted-foreground uppercase">Daily P/L</div>
+          <div className={`text-sm font-bold ${dailyPL >= 0 ? "text-green-500" : "text-destructive"}`}>
+            ${dailyPL.toFixed(2)}
+          </div>
+        </div>
+        <div className="text-center border-x border-border/50">
+          <div className="text-[9px] text-muted-foreground uppercase">Cur Stake</div>
+          <div className="text-sm font-bold text-foreground">
+            ${sessionState.currentStake.toFixed(2)}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-[9px] text-muted-foreground uppercase">Step</div>
+          <div className="text-sm font-bold text-foreground">
+            {sessionState.martingaleStep}
+          </div>
+        </div>
+      </div>
+
+      {/* Bot Control */}
+      <div className="flex items-center justify-between p-3 bg-primary/5 rounded-md border border-primary/20">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-full ${config.enabled ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+            <Shuffle className={`w-4 h-4 ${config.enabled ? "animate-spin-slow" : ""}`} />
+          </div>
+          <div>
+            <div className="text-xs font-semibold">Auto-Trading Loop</div>
+            <div className="text-[10px] text-muted-foreground">
+              {config.enabled ? "Running Strategy..." : "Bot is Paused"}
+            </div>
+          </div>
+        </div>
+        <Switch
+          checked={config.enabled}
+          onCheckedChange={(enabled) => onConfigChange({ ...config, enabled })}
+          disabled={!canTrade}
+        />
+      </div>
+
+      {/* Status Bar */}
+      {config.enabled && (
+        <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Cooldown:
+            </span>
+            <span className="font-mono font-bold text-primary">
+              {ticksToWait > 0 ? `${ticksToWait} ticks` : "READY"}
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+             <div 
+              className="h-full bg-primary transition-all duration-300" 
+              style={{ width: ticksToWait > 0 ? `${(ticksToWait / 10) * 100}%` : '100%' }}
+            />
+          </div>
+          <div className="text-[10px] text-center italic text-muted-foreground">
+            {sessionState.nextAction}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Activity */}
+      <div className="space-y-2 pt-2 border-t border-border">
+        <label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+          <Clock className="w-3 h-3" /> Recent Activity
+        </label>
+        <div className="max-h-48 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+          {tradeLog.length === 0 ? (
+            <div className="text-[10px] text-center text-muted-foreground py-4">No trades yet this session</div>
+          ) : (
+            tradeLog.slice(0, 10).map((trade, i) => (
               <div
                 key={i}
-                className={`text-xs font-mono px-2 py-1 rounded flex items-center justify-between ${
-                  trade.status === "won"
-                    ? "bg-green-500/10 text-green-400"
-                    : trade.status === "lost"
-                    ? "bg-destructive/10 text-destructive"
-                    : "bg-muted text-muted-foreground"
+                className={`text-[10px] font-mono px-2 py-1.5 rounded flex items-center justify-between border ${
+                  trade.status === "WIN"
+                    ? "bg-green-500/5 border-green-500/20 text-green-400"
+                    : trade.status === "LOSS"
+                    ? "bg-destructive/5 border-destructive/20 text-destructive"
+                    : "bg-muted/50 border-border text-muted-foreground"
                 }`}
               >
-                <span>{getSymbolName(trade.symbol)} — avoid {trade.dangerDigit}</span>
-                <div className="flex items-center gap-2">
-                  <span>{trade.stake.toFixed(2)}</span>
-                  <Badge variant={trade.status === "won" ? "default" : trade.status === "lost" ? "destructive" : "secondary"} className="text-[10px]">
+                <div className="flex flex-col">
+                  <span className="font-semibold">{getSymbolName(trade.symbol)}</span>
+                  <span className="text-[8px] opacity-70">{trade.contract} B:{trade.barrier}</span>
+                </div>
+                <div className="flex items-center gap-2 text-right">
+                  <div className="flex flex-col">
+                    <span className="font-bold">${trade.stake.toFixed(2)}</span>
+                    <span className="text-[8px] opacity-70">Step {trade.martingale_step}</span>
+                  </div>
+                  <Badge variant={trade.status === "WIN" ? "default" : trade.status === "LOSS" ? "destructive" : "secondary"} className="text-[8px] px-1 h-4">
                     {trade.status}
                   </Badge>
                 </div>
               </div>
-            ))}
-          </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
