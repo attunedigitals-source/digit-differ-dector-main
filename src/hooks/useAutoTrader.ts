@@ -5,10 +5,12 @@ import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 
 export interface TradeRecord {
+  id: string;
   symbol: string;
-  contract: "DIGITOVER" | "DIGITUNDER";
+  contract: string;
   barrier: number;
   stake: number;
+  profit: number;
   martingale_step: number;
   status: "WIN" | "LOSS" | "PENDING";
   next_action: string;
@@ -135,6 +137,21 @@ export function useAutoTrader(
         nextAction: "WAITING_FOR_RESULT"
       }));
 
+      // Add pending trade to log for real-time visibility
+      const pendingRecord: TradeRecord = {
+        id: `pending-${reqId}`,
+        symbol,
+        contract: type,
+        barrier,
+        stake: nextStake,
+        profit: 0,
+        martingale_step: nextStep,
+        status: "PENDING",
+        next_action: "WAITING_FOR_RESULT",
+        timestamp: new Date(),
+      };
+      setTradeLog(prev => [pendingRecord, ...prev].slice(0, 100));
+
       const { data: { user } } = await supabase.auth.getUser();
       let supabaseId = null;
       if (user) {
@@ -213,16 +230,24 @@ export function useAutoTrader(
     }
 
     const newRecord: TradeRecord = {
+      id: Math.random().toString(36).substring(2, 11),
       symbol,
-      contract: state.currentContract,
-      barrier: state.currentBarrier,
+      contract: state.currentContract || "UNKNOWN",
+      barrier: state.currentBarrier || 0,
       stake: state.currentStake,
+      profit,
       martingale_step: state.martingaleStep,
       status: newStatus,
       next_action: nextAction,
       timestamp: new Date(),
     };
-    setTradeLog(prev => [newRecord, ...prev].slice(0, 100));
+    setTradeLog(prev => {
+      // Remove all pending entries to keep it clean (since we trade one at a time)
+      const filtered = prev.filter(t => !t.id.startsWith("pending-"));
+      const updated = [newRecord, ...filtered].slice(0, 100);
+      localStorage.setItem('tradeLog', JSON.stringify(updated));
+      return updated;
+    });
 
     if (supabaseId) {
       supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
