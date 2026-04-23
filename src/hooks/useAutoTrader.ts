@@ -103,7 +103,10 @@ export function useAutoTrader(
   }, []);
 
   const execute_trade = useCallback(async () => {
-    if (isExecutingRef.current) return;
+    if (isExecutingRef.current || sessionStateRef.current.status === "PENDING" || openContracts.current.size > 0) {
+      console.log("[AutoTrader] Trade skip: already executing or pending or contract open");
+      return;
+    }
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
@@ -209,7 +212,8 @@ export function useAutoTrader(
         timestamp: new Date().toISOString()
       }, null, 2));
     } finally {
-      isExecutingRef.current = false;
+      // We DO NOT reset isExecutingRef here anymore. 
+      // It will be reset in handle_result when the trade actually finishes.
     }
   }, [config, wsRef, accountInfo, select_random_contract, select_random_symbol]);
 
@@ -267,7 +271,8 @@ export function useAutoTrader(
     setSessionState(prev => ({ ...prev, status: newStatus, nextAction }));
     setTicksToWait(ticksToWaitNext);
     
-    // Log for TradeMonitor integration
+    // Crucial: Reset the execution lock only AFTER the result is processed
+    isExecutingRef.current = false;
     console.log(JSON.stringify({
       event: "trade_settled",
       symbol,
@@ -391,17 +396,20 @@ export function useAutoTrader(
     return () => clearTimeout(timer);
   }, [config, user?.id]);
 
+  // Main Auto-Trading Loop
   useEffect(() => {
-    if (config.enabled && sessionState.status === "IDLE") {
-      execute_trade();
-    }
-  }, [config.enabled, sessionState.status, execute_trade]);
+    if (!config.enabled) return;
 
-  useEffect(() => {
-    if (config.enabled && ticksToWait === 0 && (sessionState.status === "WIN" || sessionState.status === "LOSS")) {
+    // Check if we should trigger a trade
+    const shouldTrade = 
+      (sessionState.status === "IDLE") || 
+      (ticksToWait === 0 && (sessionState.status === "WIN" || sessionState.status === "LOSS"));
+
+    if (shouldTrade && !isExecutingRef.current && sessionState.status !== "PENDING" && openContracts.current.size === 0) {
+      console.log("[AutoTrader] Loop trigger: executing trade");
       execute_trade();
     }
-  }, [ticksToWait, config.enabled, sessionState.status, execute_trade]);
+  }, [config.enabled, sessionState.status, ticksToWait, execute_trade]);
 
   const resetTradeLog = useCallback(() => {
     setTradeLog([]);
