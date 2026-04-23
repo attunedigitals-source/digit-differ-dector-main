@@ -9,6 +9,7 @@ import { LiveTicker } from "@/components/LiveTicker";
 import { AccountSelector } from "@/components/AccountSelector";
 import { TradingPanel } from "@/components/TradingPanel";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { LogOut, Zap } from "lucide-react";
 
 export default function Dashboard() {
