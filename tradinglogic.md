@@ -1,67 +1,56 @@
-# Trading Logic Documentation - Digit Differs Auto-Trader
+# Trading Logic Documentation - Randomized Over/Under Auto-Trader
 
-This document outlines the technical trading logic, signal generation process, and risk management strategies implemented in the current system.
+This document outlines the technical trading logic, execution flow, and risk management strategies implemented in the current system following the Over/Under overhaul.
 
-## 1. Signal Generation Engine (`signal-engine.ts`)
-The core strategy is built on **statistical momentum analysis** of the last digits of tick data.
+## 1. Strategy Engine (`useAutoTrader.ts`)
+The system has been refactored to use a **Randomized Over/Under** strategy, moving away from statistical digit avoidance.
 
-### Data Collection
-- The system maintains a rolling window of the last **200 ticks** for each selected volatility index.
-- A minimum of **30 ticks** is required before any analysis begins.
+### Contract Selection
+For every trade initiation, the bot randomly selects one of two contract types:
+1.  **DIGITOVER**: Barrier = 5 (Wins if last digit is 6, 7, 8, or 9).
+2.  **DIGITUNDER**: Barrier = 4 (Wins if last digit is 0, 1, 2, or 3).
 
-### Danger Digit Calculation
-For each digit (0-9), a "Danger Score" is calculated using four weighted factors:
-1.  **Normalized Gap (40%)**: How many ticks have passed since the digit last appeared. Longer gaps increase the score (reversion probability).
-2.  **Recent Frequency (30%)**: Frequency of the digit in the last 20 ticks. Lower frequency increases the score.
-3.  **Pattern Persistence (15%)**: A binary score based on whether the digit appeared in the last 10 ticks.
-4.  **Overall Weight (15%)**: The digit's total frequency over the entire 200-tick history.
-
-The digit with the **highest Danger Score** is selected as the `dangerDigit`.
-
-### Signal Validation
-A signal is only emitted if:
-- **Confidence > 0.65**: The highest score must meet this threshold.
-- **Tick Interval > 10**: At least 10 ticks must have passed since the last signal for that symbol.
+### Symbol Selection
+The bot randomly selects a volatility index from the supported list for every trade to distribute risk across different market conditions:
+- Volatility 10, 25, 50, 75, 100
+- Volatility 10 (1s), 15 (1s), 25 (1s), 30 (1s), 50 (1s), 75 (1s), 90 (1s), 100 (1s)
 
 ---
 
-## 2. Automated Trading Execution (`useAutoTrader.ts`)
-Once a signal is received, the auto-trader executes a multi-step flow via WebSocket.
+## 2. Automated Trading Execution
+The execution flow is a continuous, state-aware loop driven by WebSocket responses and tick events.
 
 ### Execution Flow
-1.  **Proposal Request**: Requests a contract price for `DIGITDIFF` with a 1-tick duration and the identified `dangerDigit` as the barrier.
-2.  **Buy Execution**: Upon receiving a valid proposal ID, the system sends a `buy` command.
-3.  **Contract Subscription**: Subscribes to `proposal_open_contract` to monitor the trade outcome in real-time.
+1.  **Proposal Request**: Requests a proposal for the randomly selected symbol and contract type.
+2.  **Buy Execution**: Automatically buys the contract upon receiving a valid proposal.
+3.  **Result Monitoring**: Listens for `proposal_open_contract` updates. Once `is_sold` is true, the result is processed.
 
 ### Stake Management (Martingale)
-- **Base Stake**: Default is `$0.35` (configurable).
-- **Martingale Factor**: **11x**. 
+- **Base Stake**: Configurable in the UI (e.g., $0.35).
+- **Multiplier**: **1.8x** on losses.
+- **Max Steps**: Configurable safety cap (e.g., 10 steps). If reached, the bot automatically stops.
 - **Behavior**: 
-  - On **Win**: Stake for that specific symbol resets to the base stake.
-  - On **Loss**: The next stake for that symbol is multiplied by 11 (e.g., $0.35 -> $3.85 -> $42.35).
+  - On **Win**: Stake resets to the base stake and martingale step resets to 0.
+  - On **Loss**: Stake is multiplied by 1.8 for the next trade.
 
 ---
 
 ## 3. Risk & Stability Systems
 
-### Isolated Cooldowns
-- If a trade is lost on a specific symbol, **only that symbol** enters a random **2–8 second cooldown**.
-- Other symbols continue to trade normally without interruption.
+### Tick-Based Cooldowns
+Unlike time-based cooldowns, the bot uses real-time market ticks to pace execution:
+- **Post-Win Cooldown**: A random wait of **1–3 ticks** before the next trade.
+- **Post-Loss-Streak Cooldown**: If the bot enters a loss streak (2 or more consecutive Martingale steps), it triggers a longer cooldown of **5–10 ticks** to wait for market stabilization.
 
-### Random Digit Mode (Optional)
-- When enabled, the system ignores the signal engine and instead persistent assigns a **randomly rotated avoid digit** for each symbol.
-- The digit is automatically rotated after every trade (win or loss) to prevent pattern detection.
+### Concurrency Guard
+- An internal `isExecuting` flag prevents the bot from firing multiple overlapping trades, ensuring the session state remains synchronized with the account balance.
 
 ### WebSocket Watchdog
-- A background process monitors the time since the last received message.
-- If no messages (ticks/balance) are received for **25 seconds**, the system assumes a ghost connection and forces an immediate reconnect to ensure no signals are missed.
-
-### Safety Valves
-- **Lock Expiry**: Symbols are "locked" during an active trade. If a trade response is never received, the lock is automatically released after a short timeout (15-30s) to prevent "freezing."
-- **Settlement Cleanup**: Stale contract IDs are pruned from memory after 5 minutes to maintain performance.
+- Monitors connection health. If no messages are received for **25 seconds**, the system forces a reconnection.
 
 ---
 
-## 4. Database Integration
-- **Trade Logging**: Every trade intent, contract ID, and final outcome (win/loss/profit) is logged in the `trades` table in Supabase.
-- **Signal Archiving**: Every generated signal is archived in the `matches_signals` table for historical accuracy auditing.
+## 4. Logging & Diagnostics
+- **Trade Log**: Real-time history displayed in the UI with Win/Loss status and Martingale step tracking.
+- **Console Monitoring**: JSON-structured logs (`trade_initiated`, `trade_settled`) are outputted for external auditing and TradeMonitor integration.
+- **Supabase Sync**: Trade results are synchronized to the `trades` table for long-term performance tracking.
