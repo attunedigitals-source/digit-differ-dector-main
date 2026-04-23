@@ -137,6 +137,8 @@ export function useAutoTrader(
         nextAction: "WAITING_FOR_RESULT"
       }));
 
+      const reqId = Date.now() + Math.floor(Math.random() * 10000);
+      
       // Add pending trade to log for real-time visibility
       const pendingRecord: TradeRecord = {
         id: `pending-${reqId}`,
@@ -167,7 +169,6 @@ export function useAutoTrader(
         if (!error) supabaseId = data.id;
       }
 
-      const reqId = Date.now() + Math.floor(Math.random() * 10000);
       const proposalReq = {
         proposal: 1,
         amount: nextStake,
@@ -249,9 +250,12 @@ export function useAutoTrader(
       return updated;
     });
 
+    // Update Daily P/L locally regardless of Supabase success
+    setDailyPL(prev => prev + profit);
+
     if (supabaseId) {
       supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
-        if (!error) setDailyPL(prev => prev + profit);
+        if (error) console.error("Error updating trade result in Supabase:", error);
       });
     }
 
