@@ -74,9 +74,10 @@ export function useAutoTrader(
         
         setSessionState(prev => ({ 
           ...prev, 
-          status: "LOSS", // Treat as loss to trigger retry/cooldown
-          nextAction: "WATCHDOG_RESET_RETRY" 
+          status: "LOSS", 
+          nextAction: "WATCHDOG_TIMEOUT_RECOVERY" 
         }));
+        setTicksToWait(15); // Wait 15 ticks (approx 15-30s) after a timeout
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -133,7 +134,7 @@ export function useAutoTrader(
         nextStake = config.baseStake;
         nextStep = 0;
       } else if (state.status === "LOSS") {
-        nextStake = state.currentStake * MARTINGALE_MULTIPLIER;
+        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
       }
 
