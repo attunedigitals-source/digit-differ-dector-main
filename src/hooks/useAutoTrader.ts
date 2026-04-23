@@ -18,7 +18,12 @@ export function useAutoTrader(
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.map((t: any) => ({ ...t, timestamp: new Date(t.timestamp) }));
+        // Safety check for missing IDs or dates
+        return parsed.map((t: any) => ({
+          ...t,
+          id: t.id || Math.random().toString(36).substring(2, 11),
+          timestamp: new Date(t.timestamp || Date.now())
+        }));
       } catch (e) {
         console.error("Error loading tradeLog from localStorage", e);
       }
@@ -243,8 +248,8 @@ export function useAutoTrader(
       timestamp: new Date(),
     };
     setTradeLog(prev => {
-      // Remove all pending entries to keep it clean (since we trade one at a time)
-      const filtered = prev.filter(t => !t.id.startsWith("pending-"));
+      // Remove all pending entries safely
+      const filtered = prev.filter(t => t && t.id && !t.id.startsWith("pending-"));
       const updated = [newRecord, ...filtered].slice(0, 100);
       localStorage.setItem('tradeLog', JSON.stringify(updated));
       return updated;
