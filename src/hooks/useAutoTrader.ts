@@ -50,6 +50,8 @@ export function useAutoTrader(
   const [sessionState, setSessionState] = useState({
     currentStake: 0.35,
     martingaleStep: 0,
+    sequenceStep: 0,
+    initialChoice: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER",
     currentSymbol: "",
     currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER",
     currentBarrier: 5,
@@ -129,13 +131,17 @@ export function useAutoTrader(
       const state = sessionStateRef.current;
       let nextStake = state.currentStake;
       let nextStep = state.martingaleStep;
+      let seqStep = state.sequenceStep;
+      let initChoice = state.initialChoice;
 
       if (state.status === "WIN" || state.status === "IDLE") {
         nextStake = config.baseStake;
         nextStep = 0;
+        seqStep = 0; // Reset sequence on win
       } else if (state.status === "LOSS") {
         nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
+        seqStep = state.sequenceStep + 1; // Continue sequence on loss
       }
 
       if (nextStep >= config.maxMartingaleSteps) {
@@ -144,13 +150,31 @@ export function useAutoTrader(
         return;
       }
 
-      const { type, barrier } = select_random_contract();
+      let type: "DIGITOVER" | "DIGITUNDER";
+      let barrier: number;
+
+      if (seqStep === 0) {
+        // First trade is random
+        const randomRes = select_random_contract();
+        type = randomRes.type;
+        barrier = randomRes.barrier;
+        initChoice = type;
+      } else {
+        // Complex Ping-Pong: Next 4 ping-pong, then reverse every 4
+        // Formula: same as initial if (step % 2) === (floor((step-1)/4) % 2)
+        const isSame = (seqStep % 2) === (Math.floor((seqStep - 1) / 4) % 2);
+        type = isSame ? initChoice : (initChoice === "DIGITOVER" ? "DIGITUNDER" : "DIGITOVER");
+        barrier = type === "DIGITOVER" ? 5 : 4;
+      }
+
       const symbol = select_random_symbol();
 
       setSessionState(prev => ({
         ...prev,
         currentStake: nextStake,
         martingaleStep: nextStep,
+        sequenceStep: seqStep,
+        initialChoice: initChoice,
         currentSymbol: symbol,
         currentContract: type,
         currentBarrier: barrier,
@@ -429,6 +453,8 @@ export function useAutoTrader(
     setSessionState({
       currentStake: config.baseStake,
       martingaleStep: 0,
+      sequenceStep: 0,
+      initialChoice: "DIGITOVER",
       currentSymbol: "",
       currentContract: "DIGITOVER",
       currentBarrier: 5,
