@@ -332,9 +332,6 @@ export default function UserManagement() {
                             <span className={`font-bold ${(u.performance?.[0]?.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
                               ${(u.performance?.[0]?.net_profit || 0).toFixed(2)}
                             </span>
-                            <span className="text-muted-foreground ml-1">
-                              ({(u.performance?.[0]?.win_rate || 0).toFixed(1)}%)
-                            </span>
                           </div>
                         </div>
                       </TableCell>

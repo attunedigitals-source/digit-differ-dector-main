@@ -16,7 +16,6 @@ import {
   Search, 
   Filter, 
   TrendingUp,
-  TrendingDown,
   History,
   Clock,
   ExternalLink,
@@ -39,7 +38,7 @@ interface AccountSummary {
   today_trades: number;
   today_profit: number;
   last_trade_at: string;
-  win_rate: number;
+
   profiles?: { 
     email: string;
     subscription_status: string;
@@ -98,11 +97,7 @@ export default function TradeMonitor() {
                   today_trades: isToday ? (a.today_trades || 0) + 1 : a.today_trades,
                   today_profit: isToday ? (Number(a.today_profit) || 0) + profit : a.today_profit,
                   last_trade_at: newTrade.timestamp,
-                  // Simple win/loss update for win_rate if result is known
-                  wins: newTrade.result === 'won' ? (a.wins || 0) + 1 : a.wins,
-                  win_rate: a.total_trades > 0 
-                    ? (((newTrade.result === 'won' ? (a.wins || 0) + 1 : a.wins) / ((a.total_trades || 0) + 1)) * 100)
-                    : a.win_rate
+                  wins: newTrade.result === 'won' ? (a.wins || 0) + 1 : a.wins
                 };
               }
               return a;
@@ -124,9 +119,7 @@ export default function TradeMonitor() {
   const totalProfitToday = accounts.reduce((acc, curr) => acc + (Number(curr.today_profit) || 0), 0);
   const activeBotsToday = accounts.filter(a => (a.today_trades || 0) > 0).length;
 
-  const averageWinRate = accounts.length > 0 
-    ? (accounts.reduce((acc, curr) => acc + (Number(curr.win_rate) || 0), 0) / accounts.length).toFixed(1)
-    : "0";
+  const totalUsers = accounts.length;
 
   // Helper for relative time
   const getRelativeTime = (timestamp: string) => {
@@ -173,11 +166,11 @@ export default function TradeMonitor() {
           <Card className="border-border bg-card/40">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-primary/10 p-2.5 rounded-full">
-                <TrendingDown className="w-5 h-5 text-primary" />
+                <Filter className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">System Win Rate</p>
-                <h4 className="text-xl font-bold">{averageWinRate}%</h4>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Total Users</p>
+                <h4 className="text-xl font-bold">{totalUsers}</h4>
               </div>
             </CardContent>
           </Card>

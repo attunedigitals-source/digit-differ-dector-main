@@ -254,7 +254,7 @@ export default function UserDetail() {
           <SummaryCard title="Today (WAT)" value={`${(dualPL?.wat || 0) >= 0 ? "+" : ""}${(dualPL?.wat || 0).toFixed(2)}`} subtitle="Africa/Lagos" icon={<TrendingUp className="w-5 h-5 text-green-500" />} isPositive={(dualPL?.wat || 0) >= 0} />
           <SummaryCard title="Today (Local)" value={`${(dualPL?.local || 0) >= 0 ? "+" : ""}${(dualPL?.local || 0).toFixed(2)}`} subtitle="Client Timeframe" icon={<TrendingUp className="w-5 h-5 text-blue-500" />} isPositive={(dualPL?.local || 0) >= 0} />
           <SummaryCard title="Total Volume" value={`${performance?.total_trades || 0}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-slate-500" />} />
-          <SummaryCard title="Net Profit" value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} subtitle={`${(Number(performance?.win_rate) || 0).toFixed(1)}% Win Rate`} icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} isPositive={(Number(performance?.net_profit) || 0) >= 0} />
+          <SummaryCard title="Net Profit" value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} subtitle="Lifetime" icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} isPositive={(Number(performance?.net_profit) || 0) >= 0} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -268,18 +268,18 @@ export default function UserDetail() {
                 </div>
               ) : (
                 <Table>
-                  <TableHeader><TableRow className="bg-muted/20 border-border"><TableHead className="text-xs">Date</TableHead><TableHead className="text-xs text-center">Trades</TableHead><TableHead className="text-xs text-center">Wins/Loss</TableHead><TableHead className="text-xs text-center">Win Rate</TableHead><TableHead className="text-xs text-right">Profit</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-muted/20 border-border"><TableHead className="text-xs">Date</TableHead><TableHead className="text-xs text-center">Trades</TableHead><TableHead className="text-xs text-center">Wins/Loss</TableHead><TableHead className="text-xs text-right">Profit</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {filteredDailyHistory.map((day: any) => (
                       <TableRow key={`${day.trade_date}-${day.deriv_loginid}`} className="border-border/50 hover:bg-muted/10 transition-colors">
                         <TableCell className="text-sm font-medium">{new Date(day.trade_date).toLocaleDateString()}</TableCell>
                         <TableCell className="text-center font-mono text-xs">{day.total_trades}</TableCell>
                         <TableCell className="text-center"><div className="flex items-center justify-center gap-1.5"><span className="text-green-500 font-bold text-xs">{day.wins}W</span><span className="text-muted-foreground text-[10px]">/</span><span className="text-destructive font-bold text-xs">{Number(day.total_trades) - Number(day.wins)}L</span></div></TableCell>
-                        <TableCell className="text-center"><Badge variant="outline" className="text-[10px] font-mono">{((Number(day.wins) / Number(day.total_trades)) * 100).toFixed(1)}%</Badge></TableCell>
+
                         <TableCell className={`text-right font-mono text-sm font-bold ${(Number(day.daily_profit) || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>{(Number(day.daily_profit) || 0) >= 0 ? '+' : ''}{(Number(day.daily_profit) || 0).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
-                    {filteredDailyHistory.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-xs italic">No trade history found</TableCell></TableRow>}
+                    {filteredDailyHistory.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-xs italic">No trade history found</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               )}

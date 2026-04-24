@@ -1,6 +1,6 @@
 import type { TradeRecord } from "@/hooks/trading-types";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
-import { Award, Target, TrendingDown, RotateCcw, Wallet } from "lucide-react";
+import { Target, TrendingDown, RotateCcw, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -26,7 +26,6 @@ export function PerformancePanel({ tradeLog, onReset, activeAccount, dailyPL = 0
   const totalTrades = settled.length;
   const wins = settled.filter((t) => t.status === "WIN").length;
   const losses = totalTrades - wins;
-  const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
 
   const stats = [
     {
@@ -47,12 +46,7 @@ export function PerformancePanel({ tradeLog, onReset, activeAccount, dailyPL = 0
       icon: Target,
       color: "text-info",
     },
-    {
-      label: "Win Rate",
-      value: `${winRate.toFixed(1)}%`,
-      icon: Award,
-      color: winRate >= 50 ? "text-success" : "text-danger",
-    },
+
     {
       label: "Wins",
       value: wins,
