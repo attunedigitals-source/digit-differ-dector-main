@@ -1,5 +1,5 @@
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
-import { Activity, ShieldCheck } from "lucide-react";
+import { Activity } from "lucide-react";
 import { getLeastFrequentDigits, SymbolState } from "@/lib/signal-engine";
 
 interface LiveTickerProps {
@@ -24,7 +24,6 @@ export function LiveTicker({ tickCounts, lastDigits, selectedSymbols, avoidDigit
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
         {active.map((s) => {
           const state = allStates.get(s.symbol);
-          const safeDigits = state ? getLeastFrequentDigits(state.digits, 4) : [];
           const activeAvoid = avoidDigits?.[s.symbol];
 
           return (
@@ -35,11 +34,6 @@ export function LiveTicker({ tickCounts, lastDigits, selectedSymbols, avoidDigit
               </div>
               
               <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1 text-[10px] text-emerald-500 font-medium">
-                    <ShieldCheck className="w-3 h-3" />
-                    SAFE: {safeDigits.length > 0 ? safeDigits.join(", ") : "..."}
-                  </div>
                   {activeAvoid !== undefined && (
                     <div className="text-[10px] text-rose-500 font-bold uppercase transition-all animate-pulse">
                       Avoiding: {activeAvoid}
