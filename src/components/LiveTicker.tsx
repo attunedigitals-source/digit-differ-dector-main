@@ -34,6 +34,7 @@ export function LiveTicker({ tickCounts, lastDigits, selectedSymbols, avoidDigit
               </div>
               
               <div className="flex items-center justify-between">
+                <div>
                   {activeAvoid !== undefined && (
                     <div className="text-[10px] text-rose-500 font-bold uppercase transition-all animate-pulse">
                       Avoiding: {activeAvoid}
