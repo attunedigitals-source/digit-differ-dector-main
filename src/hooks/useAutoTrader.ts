@@ -67,17 +67,27 @@ export function useAutoTrader(
   // Watchdog: reset stuck execution
   useEffect(() => {
     const interval = setInterval(() => {
-      if (isExecutingRef.current && Date.now() - executionStartedAtRef.current > 30000) {
+      const now = Date.now();
+
+      // Fix 3: Evict open contracts that have been open for >45s (subscription likely dropped)
+      openContracts.current.forEach((contract, id) => {
+        if (now - contract.timestamp > 45000) {
+          console.warn(`[AutoTrader] Stale open contract ${id} evicted by watchdog`);
+          openContracts.current.delete(id);
+        }
+      });
+
+      if (isExecutingRef.current && now - executionStartedAtRef.current > 30000) {
         console.warn("[AutoTrader] Watchdog triggered: Resetting stuck execution state");
         isExecutingRef.current = false;
-        
+
         // Clear stale pending entries from the log when resetting
         setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
-        
-        setSessionState(prev => ({ 
-          ...prev, 
-          status: "LOSS", 
-          nextAction: "WATCHDOG_TIMEOUT_RECOVERY" 
+
+        setSessionState(prev => ({
+          ...prev,
+          status: "LOSS",
+          nextAction: "WATCHDOG_TIMEOUT_RECOVERY"
         }));
         setTicksToWait(15); // Wait 15 ticks (approx 15-30s) after a timeout
       }
@@ -96,6 +106,8 @@ export function useAutoTrader(
   const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map());
 
   const isExecutingRef = useRef(false);
+  // Stores per-proposal timeout handles so they can be cancelled when a response arrives
+  const proposalTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const select_random_contract = useCallback(() => {
     const isOver = Math.random() > 0.5;
@@ -183,7 +195,7 @@ export function useAutoTrader(
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
-      
+
       // Add pending trade to log for real-time visibility
       const pendingRecord: TradeRecord = {
         id: `pending-${reqId}`,
@@ -199,21 +211,6 @@ export function useAutoTrader(
       };
       setTradeLog(prev => [pendingRecord, ...prev].slice(0, 100));
 
-      const { data: { user } } = await supabase.auth.getUser();
-      let supabaseId = null;
-      if (user) {
-        const { data, error } = await supabase.from("trades").insert({
-          user_id: user.id,
-          deriv_loginid: accountInfo?.loginid || "unknown",
-          symbol: symbol,
-          stake: nextStake,
-          barrier: barrier,
-          result: "pending",
-          timestamp: new Date().toISOString()
-        }).select("id").single();
-        if (!error) supabaseId = data.id;
-      }
-
       const proposalReq = {
         proposal: 1,
         amount: nextStake,
@@ -227,17 +224,19 @@ export function useAutoTrader(
         req_id: reqId,
       };
 
+      // Register the pending proposal before sending (supabaseId filled in background)
       pendingProposals.current.set(String(reqId), {
         symbol,
         dangerDigit: barrier,
         stake: nextStake,
         timestamp: Date.now(),
-        supabaseId: supabaseId || undefined,
+        supabaseId: undefined,
       });
 
+      // Fix 1: Send WS proposal immediately — do NOT block on Supabase
       ws.send(JSON.stringify(proposalReq));
       toast.info(`Initiating trade: ${type} on ${symbol}`);
-      
+
       // Log for TradeMonitor integration
       console.log(JSON.stringify({
         event: "trade_initiated",
@@ -248,9 +247,47 @@ export function useAutoTrader(
         martingale_step: nextStep,
         timestamp: new Date().toISOString()
       }, null, 2));
+
+      // Fix 2: Per-proposal 15s timeout — if Deriv never responds, self-heal
+      const proposalTimeout = setTimeout(() => {
+        if (pendingProposals.current.has(String(reqId))) {
+          console.warn(`[AutoTrader] Proposal ${reqId} timed out — clearing execution lock`);
+          pendingProposals.current.delete(String(reqId));
+          proposalTimeouts.current.delete(String(reqId));
+          isExecutingRef.current = false;
+          setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
+          setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "PROPOSAL_TIMEOUT_RETRY" }));
+          setTicksToWait(3);
+        }
+      }, 15000);
+      proposalTimeouts.current.set(String(reqId), proposalTimeout);
+
+      // Fix 1 (cont): Background Supabase write — failure does NOT affect trading
+      (async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data, error } = await supabase.from("trades").insert({
+              user_id: user.id,
+              deriv_loginid: accountInfo?.loginid || "unknown",
+              symbol: symbol,
+              stake: nextStake,
+              barrier: barrier,
+              result: "pending",
+              timestamp: new Date().toISOString()
+            }).select("id").single();
+            if (!error && data) {
+              const entry = pendingProposals.current.get(String(reqId));
+              if (entry) entry.supabaseId = data.id;
+            }
+          }
+        } catch (err) {
+          console.warn("[AutoTrader] Background Supabase insert failed:", err);
+        }
+      })();
     } finally {
-      // We DO NOT reset isExecutingRef here anymore. 
-      // It will be reset in handle_result when the trade actually finishes.
+      // We DO NOT reset isExecutingRef here.
+      // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
   }, [config, wsRef, accountInfo, select_random_contract, select_random_symbol]);
 
@@ -340,6 +377,12 @@ export function useAutoTrader(
       const pending = pendingProposals.current.get(reqId);
       if (!pending) return;
       pendingProposals.current.delete(reqId);
+      // Fix 2: Proposal arrived in time — cancel the self-heal timeout
+      const timeout = proposalTimeouts.current.get(reqId);
+      if (timeout) {
+        clearTimeout(timeout);
+        proposalTimeouts.current.delete(reqId);
+      }
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       const buyReqId = Date.now() + Math.floor(Math.random() * 10000);
