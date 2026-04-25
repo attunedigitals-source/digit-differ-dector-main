@@ -99,9 +99,6 @@ export function TradingPanel({
                 ${total.toFixed(2)}
               </span>
             </div>
-            <div className="text-[9px] font-semibold text-center text-destructive">
-              ⚠ Max capital at risk across {config.maxMartingaleSteps} consecutive losses
-            </div>
           </div>
         );
       })()}
