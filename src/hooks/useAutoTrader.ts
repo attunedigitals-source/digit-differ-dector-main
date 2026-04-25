@@ -172,9 +172,9 @@ export function useAutoTrader(
         barrier = randomRes.barrier;
         initChoice = type;
       } else {
-        // Complex Ping-Pong: Next 4 ping-pong, then reverse every 4
-        // Formula: same as initial if (step % 2) === (floor((step-1)/4) % 2)
-        const isSame = (seqStep % 2) === (Math.floor((seqStep - 1) / 4) % 2);
+        // Updated Ping-Pong: flip pattern every 2 steps
+// Logic: same as initial if (step % 2) === (floor((step-1)/2) % 2)
+        const isSame = (seqStep % 2) === (Math.floor((seqStep - 1) / 2) % 2);
         type = isSame ? initChoice : (initChoice === "DIGITOVER" ? "DIGITUNDER" : "DIGITOVER");
         barrier = type === "DIGITOVER" ? 5 : 4;
       }
