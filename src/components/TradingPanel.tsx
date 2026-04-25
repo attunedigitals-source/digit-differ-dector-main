@@ -83,50 +83,24 @@ export function TradingPanel({
         const MULTIPLIER = 1.8;
         let total = 0;
         let stake = config.baseStake;
-        const steps: { step: number; stake: number }[] = [];
         for (let i = 0; i < config.maxMartingaleSteps; i++) {
-          const s = Number(stake.toFixed(2));
-          steps.push({ step: i + 1, stake: s });
-          total += s;
+          total += Number(stake.toFixed(2));
           stake = stake * MULTIPLIER;
         }
-        const isHighRisk = total > 50;
-        const isMedRisk = total > 15 && total <= 50;
 
         return (
-          <div className="rounded-md border border-border/60 bg-muted/20 p-3 space-y-2">
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
-                <TrendingUp className="w-3 h-3 text-yellow-500" />
+              <span className="text-[10px] uppercase tracking-wider text-destructive/80 font-bold flex items-center gap-1">
+                <TrendingUp className="w-3 h-3 text-destructive" />
                 Risk Tolerance
               </span>
-              <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-full border ${
-                isHighRisk
-                  ? "bg-destructive/10 text-destructive border-destructive/30"
-                  : isMedRisk
-                  ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
-                  : "bg-green-500/10 text-green-500 border-green-500/30"
-              }`}>
+              <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full border bg-destructive/10 text-destructive border-destructive/30">
                 ${total.toFixed(2)}
               </span>
             </div>
-            <p className="text-[9px] text-muted-foreground leading-relaxed">
-              Max loss across <span className="font-bold text-foreground">{config.maxMartingaleSteps}</span> consecutive losses at ${config.baseStake.toFixed(2)} base stake.
-            </p>
-            {/* Step breakdown — collapsible on small screens */}
-            <div className="grid grid-cols-4 gap-1 pt-1">
-              {steps.map(({ step, stake: s }) => (
-                <div key={step} className="flex flex-col items-center bg-background/50 rounded px-1 py-0.5 border border-border/40">
-                  <span className="text-[8px] text-muted-foreground">L{step}</span>
-                  <span className="text-[9px] font-mono font-bold text-foreground">${s.toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-            <div className={`text-[9px] font-semibold text-center pt-0.5 ${
-              isHighRisk ? "text-destructive" : isMedRisk ? "text-yellow-400" : "text-green-500"
-            }`}>
-              {isHighRisk ? "⚠ High risk — consider reducing stake or steps" :
-               isMedRisk ? "◈ Moderate risk" : "✓ Conservative risk profile"}
+            <div className="text-[9px] font-semibold text-center text-destructive">
+              ⚠ Max capital at risk across {config.maxMartingaleSteps} consecutive losses
             </div>
           </div>
         );
