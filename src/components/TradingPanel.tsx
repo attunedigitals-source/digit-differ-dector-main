@@ -121,6 +121,7 @@ export function TradingPanel({
               </label>
               <Select
                 value={String(config.cooldownIntervalMinutes)}
+                disabled={config.enabled}
                 onValueChange={(value) =>
                   onConfigChange({
                     ...config,
@@ -140,7 +141,7 @@ export function TradingPanel({
                 </SelectContent>
               </Select>
               <p className="text-[9px] text-muted-foreground">
-                After continuous trading for the selected time, bot pauses for a random 2–5 minutes.
+                After continuous trading for the selected time, bot pauses for a random 5–8 minutes. This setting locks while auto-trading is on.
               </p>
             </div>
           </div>
@@ -214,7 +215,7 @@ export function TradingPanel({
           <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
              <div 
               className="h-full bg-primary transition-all duration-300" 
-              style={{ width: ticksToWait > 0 ? `${Math.min(100, (ticksToWait / 300) * 100)}%` : '100%' }}
+              style={{ width: ticksToWait > 0 ? `${Math.min(100, (ticksToWait / 480) * 100)}%` : '100%' }}
             />
           </div>
           <div className="text-[10px] text-center italic text-muted-foreground">
