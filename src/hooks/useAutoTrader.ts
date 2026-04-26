@@ -358,12 +358,37 @@ export function useAutoTrader(
     });
 
     // Update Daily P/L locally regardless of Supabase success
-    setDailyPL(prev => prev + profit);
+    setDailyPL(prev => {
+      const updatedPL = prev + profit;
+
+      if (updatedPL >= nextProfitCooldownTarget) {
+        const profitCooldownTicks = Math.floor(Math.random() * 21) + 50; // 50-70 ticks
+        ticksToWaitNext = Math.max(ticksToWaitNext, profitCooldownTicks);
+        nextAction = `PROFIT_INTERVAL_HIT_PAUSING_${ticksToWaitNext}_TICKS`;
+        setNextProfitCooldownTarget(previousTarget => {
+          let advancedTarget = previousTarget;
+          while (updatedPL >= advancedTarget) {
+            advancedTarget += config.profitIntervalCooldownAmount;
+          }
+          return advancedTarget;
+        });
+      }
+
+      return updatedPL;
+    });
 
     if (supabaseId) {
       supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
         if (error) console.error("Error updating trade result in Supabase:", error);
       });
+    }
+
+    if (windDownMode && isWin) {
+      nextAction = "WIND_DOWN_COMPLETED_LAST_TRADE_PROFIT";
+      ticksToWaitNext = 0;
+      setConfig(prev => ({ ...prev, enabled: false }));
+      setWindDownMode(false);
+      toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
     }
 
     setSessionState(prev => ({ ...prev, status: newStatus, nextAction }));
@@ -381,10 +406,10 @@ export function useAutoTrader(
       timestamp: new Date().toISOString()
     }, null, 2));
     
-    if (ticksToWaitNext === 0) {
+    if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
       execute_trade();
     }
-  }, [martingaleCycles, execute_trade]);
+  }, [martingaleCycles, execute_trade, config.profitIntervalCooldownAmount, nextProfitCooldownTarget, windDownMode]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
@@ -527,6 +552,19 @@ export function useAutoTrader(
     return () => clearTimeout(timer);
   }, [config, user?.id]);
 
+  useEffect(() => {
+    setNextProfitCooldownTarget(currentTarget => {
+      if (dailyPL >= currentTarget) {
+        let advancedTarget = currentTarget;
+        while (dailyPL >= advancedTarget) {
+          advancedTarget += config.profitIntervalCooldownAmount;
+        }
+        return advancedTarget;
+      }
+      return Math.max(config.profitIntervalCooldownAmount, currentTarget);
+    });
+  }, [config.profitIntervalCooldownAmount, dailyPL]);
+
   // Main Auto-Trading Loop
   useEffect(() => {
     if (!config.enabled) return;
@@ -577,5 +615,7 @@ export function useAutoTrader(
     ticksToWait,
     handleTradeMessage,
     execute_trade,
+    windDownMode,
+    activateWindDown,
   };
 }

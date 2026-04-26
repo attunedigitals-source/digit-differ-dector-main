@@ -1,7 +1,8 @@
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target, Flag } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { getSymbolName } from "@/lib/deriv-symbols";
 
@@ -10,12 +11,18 @@ const COOLDOWN_MINUTE_OPTIONS: Array<AutoTraderConfig["continuousTradeCooldownMi
 interface TradingPanelProps {
   config: AutoTraderConfig;
   onConfigChange: (config: AutoTraderConfig) => void;
-  sessionState: any;
+  sessionState: {
+    currentStake: number;
+    martingaleStep: number;
+    nextAction: string;
+  };
   ticksToWait: number;
   tradeLog: TradeRecord[];
   connected: boolean;
   hasToken: boolean;
   dailyPL: number;
+  windDownMode: boolean;
+  onActivateWindDown: () => void;
 }
 
 export function TradingPanel({
@@ -27,6 +34,8 @@ export function TradingPanel({
   connected,
   hasToken,
   dailyPL,
+  windDownMode,
+  onActivateWindDown,
 }: TradingPanelProps) {
   const canTrade = connected && hasToken && config.baseStake >= 0.35;
 
@@ -171,6 +180,17 @@ export function TradingPanel({
           disabled={!canTrade}
         />
       </div>
+      <Button
+        type="button"
+        variant={windDownMode ? "secondary" : "outline"}
+        size="sm"
+        className="w-full"
+        onClick={onActivateWindDown}
+        disabled={!config.enabled || windDownMode}
+      >
+        <Flag className="w-4 h-4 mr-2" />
+        {windDownMode ? "Wind Down Armed (Waiting Profit)" : "Wind Down On Next Profit"}
+      </Button>
 
       {/* Status Bar */}
       {config.enabled && (
