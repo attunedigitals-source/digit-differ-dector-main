@@ -7,21 +7,22 @@ import { useAuth } from "./useAuth";
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
-const MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT = 50;
+const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
+const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Number(incoming?.baseStake ?? 0.35);
   const maxMartingaleSteps = Number(incoming?.maxMartingaleSteps ?? 10);
-  const profitIntervalCooldownAmount = Math.max(
-    MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT,
-    Number(incoming?.profitIntervalCooldownAmount ?? MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT)
-  );
+  const rawCooldownMinutes = Number(incoming?.cooldownIntervalMinutes ?? DEFAULT_COOLDOWN_INTERVAL_MINUTES);
+  const cooldownIntervalMinutes = COOLDOWN_INTERVAL_OPTIONS.includes(rawCooldownMinutes as AutoTraderConfig["cooldownIntervalMinutes"])
+    ? (rawCooldownMinutes as AutoTraderConfig["cooldownIntervalMinutes"])
+    : DEFAULT_COOLDOWN_INTERVAL_MINUTES;
 
   return {
     enabled: Boolean(incoming?.enabled),
     baseStake,
     maxMartingaleSteps,
-    profitIntervalCooldownAmount,
+    cooldownIntervalMinutes,
   };
 };
 
@@ -61,7 +62,7 @@ export function useAutoTrader(
       enabled: false,
       baseStake: 0.35,
       maxMartingaleSteps: 10,
-      profitIntervalCooldownAmount: MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT,
+      cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
     });
   });
 
@@ -79,10 +80,9 @@ export function useAutoTrader(
 
   const [ticksToWait, setTicksToWait] = useState(0);
   const [martingaleCycles, setMartingaleCycles] = useState(0);
-  const [nextProfitCooldownTarget, setNextProfitCooldownTarget] = useState(
-    sanitizeConfig(config).profitIntervalCooldownAmount
-  );
   const [windDownMode, setWindDownMode] = useState(false);
+  const [continuousTradeStartAt, setContinuousTradeStartAt] = useState<number | null>(null);
+  const continuousTradeStartAtRef = useRef<number | null>(null);
 
   const executionStartedAtRef = useRef<number>(0);
 
@@ -121,6 +121,9 @@ export function useAutoTrader(
   useEffect(() => {
     sessionStateRef.current = sessionState;
   }, [sessionState]);
+  useEffect(() => {
+    continuousTradeStartAtRef.current = continuousTradeStartAt;
+  }, [continuousTradeStartAt]);
 
   const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
@@ -161,6 +164,9 @@ export function useAutoTrader(
 
     isExecutingRef.current = true;
     executionStartedAtRef.current = Date.now();
+    if (!continuousTradeStartAtRef.current) {
+      setContinuousTradeStartAt(Date.now());
+    }
     try {
       const state = sessionStateRef.current;
       let nextStake = state.currentStake;
@@ -357,23 +363,18 @@ export function useAutoTrader(
 
     // Update Daily P/L locally regardless of Supabase success
     setDailyPL(prev => {
-      const updatedPL = prev + profit;
-
-      if (updatedPL >= nextProfitCooldownTarget) {
-        const profitCooldownTicks = Math.floor(Math.random() * 21) + 50; // 50-70 ticks
-        ticksToWaitNext = Math.max(ticksToWaitNext, profitCooldownTicks);
-        nextAction = `PROFIT_INTERVAL_HIT_PAUSING_${ticksToWaitNext}_TICKS`;
-        setNextProfitCooldownTarget(previousTarget => {
-          let advancedTarget = previousTarget;
-          while (updatedPL >= advancedTarget) {
-            advancedTarget += config.profitIntervalCooldownAmount;
-          }
-          return advancedTarget;
-        });
-      }
-
-      return updatedPL;
+      return prev + profit;
     });
+
+    const now = Date.now();
+    const effectiveStartAt = continuousTradeStartAtRef.current ?? now;
+    const cooldownDurationMs = config.cooldownIntervalMinutes * 60 * 1000;
+    if (now - effectiveStartAt >= cooldownDurationMs) {
+      const timeCooldownTicks = Math.floor(Math.random() * 21) + 50; // 50-70 ticks
+      ticksToWaitNext = Math.max(ticksToWaitNext, timeCooldownTicks);
+      nextAction = `TIME_INTERVAL_${config.cooldownIntervalMinutes}M_PAUSING_${ticksToWaitNext}_TICKS`;
+      setContinuousTradeStartAt(now);
+    }
 
     if (supabaseId) {
       supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
@@ -407,7 +408,7 @@ export function useAutoTrader(
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
       execute_trade();
     }
-  }, [martingaleCycles, execute_trade, config.profitIntervalCooldownAmount, nextProfitCooldownTarget, windDownMode]);
+  }, [martingaleCycles, execute_trade, config.cooldownIntervalMinutes, windDownMode]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
@@ -523,19 +524,6 @@ export function useAutoTrader(
     return () => clearTimeout(timer);
   }, [config, user?.id]);
 
-  useEffect(() => {
-    setNextProfitCooldownTarget(currentTarget => {
-      if (dailyPL >= currentTarget) {
-        let advancedTarget = currentTarget;
-        while (dailyPL >= advancedTarget) {
-          advancedTarget += config.profitIntervalCooldownAmount;
-        }
-        return advancedTarget;
-      }
-      return Math.max(config.profitIntervalCooldownAmount, currentTarget);
-    });
-  }, [config.profitIntervalCooldownAmount, dailyPL]);
-
   // Main Auto-Trading Loop
   useEffect(() => {
     if (!config.enabled) return;
@@ -556,6 +544,14 @@ export function useAutoTrader(
       setWindDownMode(false);
     }
   }, [config.enabled, windDownMode]);
+
+  useEffect(() => {
+    if (!config.enabled) {
+      setContinuousTradeStartAt(null);
+    } else if (!continuousTradeStartAt) {
+      setContinuousTradeStartAt(Date.now());
+    }
+  }, [config.enabled, continuousTradeStartAt]);
 
   const activateWindDown = useCallback(() => {
     if (!config.enabled) {
@@ -581,8 +577,8 @@ export function useAutoTrader(
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
-    setNextProfitCooldownTarget(config.profitIntervalCooldownAmount);
-  }, [config.baseStake, config.profitIntervalCooldownAmount]);
+    setContinuousTradeStartAt(config.enabled ? Date.now() : null);
+  }, [config.baseStake, config.enabled]);
 
   return {
     config,
