@@ -15,4 +15,5 @@ export interface AutoTraderConfig {
   enabled: boolean;
   baseStake: number;
   maxMartingaleSteps: number;
+  profitIntervalCooldownAmount: number;
 }
