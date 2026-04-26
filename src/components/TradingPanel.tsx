@@ -2,11 +2,10 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target, Flag } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { getSymbolName } from "@/lib/deriv-symbols";
-
-const MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT = 50;
 
 interface TradingPanelProps {
   config: AutoTraderConfig;
@@ -113,26 +112,29 @@ export function TradingPanel({
 
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Profit Interval Cooldown ($)
+                <Clock className="w-3 h-3" /> Cooldown Interval (Minutes)
               </label>
-              <Input
-                type="number"
-                min={MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT}
-                step={1}
-                value={config.profitIntervalCooldownAmount}
-                onChange={(e) =>
+              <Select
+                value={String(config.cooldownIntervalMinutes)}
+                onValueChange={(value) =>
                   onConfigChange({
                     ...config,
-                    profitIntervalCooldownAmount: Math.max(
-                      MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT,
-                      Number(e.target.value || MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT)
-                    ),
+                    cooldownIntervalMinutes: Number(value) as AutoTraderConfig["cooldownIntervalMinutes"],
                   })
                 }
-                className="bg-muted border-border font-mono text-sm h-8"
-              />
+              >
+                <SelectTrigger className="bg-muted border-border font-mono text-sm h-8">
+                  <SelectValue placeholder="Select cooldown interval" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 Minutes</SelectItem>
+                  <SelectItem value="40">40 Minutes</SelectItem>
+                  <SelectItem value="50">50 Minutes</SelectItem>
+                  <SelectItem value="60">60 Minutes</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-[9px] text-muted-foreground">
-                Every time net daily profit reaches this amount, trading pauses for 50-70 ticks.
+                After continuous trading for the selected time, bot pauses for 50-70 ticks.
               </p>
             </div>
           </div>
