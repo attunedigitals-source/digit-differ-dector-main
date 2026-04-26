@@ -7,6 +7,24 @@ import { useAuth } from "./useAuth";
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
+const CONTINUOUS_COOLDOWN_MINUTES = [30, 40, 50, 60] as const;
+const DEFAULT_CONTINUOUS_COOLDOWN_MINUTES: AutoTraderConfig["continuousTradeCooldownMinutes"] = 30;
+
+const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
+  const baseStake = Number(incoming?.baseStake ?? 0.35);
+  const maxMartingaleSteps = Number(incoming?.maxMartingaleSteps ?? 10);
+  const rawCooldownMinutes = Number(incoming?.continuousTradeCooldownMinutes ?? DEFAULT_CONTINUOUS_COOLDOWN_MINUTES);
+  const continuousTradeCooldownMinutes = CONTINUOUS_COOLDOWN_MINUTES.includes(rawCooldownMinutes as AutoTraderConfig["continuousTradeCooldownMinutes"])
+    ? (rawCooldownMinutes as AutoTraderConfig["continuousTradeCooldownMinutes"])
+    : DEFAULT_CONTINUOUS_COOLDOWN_MINUTES;
+
+  return {
+    enabled: Boolean(incoming?.enabled),
+    baseStake,
+    maxMartingaleSteps,
+    continuousTradeCooldownMinutes,
+  };
+};
 
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
@@ -35,16 +53,17 @@ export function useAutoTrader(
     const saved = localStorage.getItem('autoTraderConfig');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        return sanitizeConfig(JSON.parse(saved));
       } catch (e) {
         console.error("Error loading config from localStorage", e);
       }
     }
-    return {
+    return sanitizeConfig({
       enabled: false,
       baseStake: 0.35,
       maxMartingaleSteps: 10,
-    };
+      continuousTradeCooldownMinutes: DEFAULT_CONTINUOUS_COOLDOWN_MINUTES,
+    });
   });
 
   const [sessionState, setSessionState] = useState({
@@ -61,6 +80,7 @@ export function useAutoTrader(
 
   const [ticksToWait, setTicksToWait] = useState(0);
   const [martingaleCycles, setMartingaleCycles] = useState(0);
+  const continuousTradeStartedAtRef = useRef<number | null>(null);
 
   const executionStartedAtRef = useRef<number>(0);
 
@@ -140,6 +160,10 @@ export function useAutoTrader(
     isExecutingRef.current = true;
     executionStartedAtRef.current = Date.now();
     try {
+      if (!continuousTradeStartedAtRef.current) {
+        continuousTradeStartedAtRef.current = Date.now();
+      }
+
       const state = sessionStateRef.current;
       let nextStake = state.currentStake;
       let nextStep = state.martingaleStep;
@@ -366,7 +390,34 @@ export function useAutoTrader(
     if (!config.enabled) return;
 
     if (data.msg_type === "tick") {
-      setTicksToWait(prev => prev > 0 ? prev - 1 : 0);
+      setTicksToWait(prev => {
+        const next = prev > 0 ? prev - 1 : 0;
+        if (next === 0 && prev > 0) {
+          continuousTradeStartedAtRef.current = null;
+        }
+        return next;
+      });
+
+      const activeTradeDurationMs =
+        Number(config.continuousTradeCooldownMinutes) * 60 * 1000;
+      const now = Date.now();
+      const startedAt = continuousTradeStartedAtRef.current;
+      const canTriggerDurationCooldown =
+        startedAt !== null &&
+        ticksToWait === 0 &&
+        sessionStateRef.current.status !== "PENDING" &&
+        openContracts.current.size === 0 &&
+        now - startedAt >= activeTradeDurationMs;
+
+      if (canTriggerDurationCooldown) {
+        const cooldownTicks = Math.floor(Math.random() * 21) + 50; // 50-70 ticks
+        setTicksToWait(cooldownTicks);
+        setSessionState(prev => ({
+          ...prev,
+          nextAction: `TIME_COOLDOWN_${config.continuousTradeCooldownMinutes}M_PAUSING_${cooldownTicks}_TICKS`,
+        }));
+        continuousTradeStartedAtRef.current = null;
+      }
       return;
     }
 
@@ -424,7 +475,7 @@ export function useAutoTrader(
         setTicksToWait(2);
       }
     }
-  }, [config.enabled, wsRef, handle_result, execute_trade]);
+  }, [config.enabled, config.continuousTradeCooldownMinutes, wsRef, handle_result, ticksToWait]);
 
 
   const fetchDailyPL = useCallback(async () => {
@@ -459,7 +510,7 @@ export function useAutoTrader(
     const syncConfig = async () => {
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
-        const cloudConfig = data.config as AutoTraderConfig;
+        const cloudConfig = sanitizeConfig(data.config as AutoTraderConfig);
         if (JSON.stringify(cloudConfig) !== JSON.stringify(config)) {
           setConfig(prev => ({ ...prev, ...cloudConfig, enabled: prev.enabled }));
         }
@@ -491,6 +542,12 @@ export function useAutoTrader(
     }
   }, [config.enabled, sessionState.status, ticksToWait, execute_trade]);
 
+  useEffect(() => {
+    if (!config.enabled) {
+      continuousTradeStartedAtRef.current = null;
+    }
+  }, [config.enabled]);
+
   const resetTradeLog = useCallback(() => {
     setTradeLog([]);
     setSessionState({
@@ -506,6 +563,7 @@ export function useAutoTrader(
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
+    continuousTradeStartedAtRef.current = null;
   }, [config.baseStake]);
 
   return {
