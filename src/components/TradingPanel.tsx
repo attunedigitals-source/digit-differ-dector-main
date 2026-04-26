@@ -6,7 +6,7 @@ import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target, Flag } from "lucid
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { getSymbolName } from "@/lib/deriv-symbols";
 
-const MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT = 50;
+const COOLDOWN_MINUTE_OPTIONS: Array<AutoTraderConfig["continuousTradeCooldownMinutes"]> = [30, 40, 50, 60];
 
 interface TradingPanelProps {
   config: AutoTraderConfig;
@@ -113,26 +113,26 @@ export function TradingPanel({
 
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Profit Interval Cooldown ($)
+                <Clock className="w-3 h-3" /> Continuous Trade Cooldown Timer
               </label>
-              <Input
-                type="number"
-                min={MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT}
-                step={1}
-                value={config.profitIntervalCooldownAmount}
+              <select
+                value={config.continuousTradeCooldownMinutes}
                 onChange={(e) =>
                   onConfigChange({
                     ...config,
-                    profitIntervalCooldownAmount: Math.max(
-                      MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT,
-                      Number(e.target.value || MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT)
-                    ),
+                    continuousTradeCooldownMinutes: Number(e.target.value) as AutoTraderConfig["continuousTradeCooldownMinutes"],
                   })
                 }
-                className="bg-muted border-border font-mono text-sm h-8"
-              />
+                className="flex h-8 w-full rounded-md border border-border bg-muted px-3 py-1 text-sm font-mono ring-offset-background"
+              >
+                {COOLDOWN_MINUTE_OPTIONS.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {minutes} Minutes
+                  </option>
+                ))}
+              </select>
               <p className="text-[9px] text-muted-foreground">
-                Every time net daily profit reaches this amount, trading pauses for 50-70 ticks.
+                After continuous trading for the selected duration, bot pauses for 50-70 ticks before continuing.
               </p>
             </div>
           </div>
