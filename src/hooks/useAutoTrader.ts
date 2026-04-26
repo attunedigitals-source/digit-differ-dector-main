@@ -53,15 +53,18 @@ export function useAutoTrader(
     const saved = localStorage.getItem('autoTraderConfig');
     if (saved) {
       try {
+        return JSON.parse(saved);
         return sanitizeConfig(JSON.parse(saved));
       } catch (e) {
         console.error("Error loading config from localStorage", e);
       }
     }
+    return {
     return sanitizeConfig({
       enabled: false,
       baseStake: 0.35,
       maxMartingaleSteps: 10,
+    };
       continuousTradeCooldownMinutes: DEFAULT_CONTINUOUS_COOLDOWN_MINUTES,
     });
   });
@@ -106,35 +109,7 @@ export function useAutoTrader(
 
         setSessionState(prev => ({
           ...prev,
-          status: "LOSS",
-          nextAction: "WATCHDOG_TIMEOUT_RECOVERY"
-        }));
-        setTicksToWait(15); // Wait 15 ticks (approx 15-30s) after a timeout
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const sessionStateRef = useRef(sessionState);
-  useEffect(() => {
-    sessionStateRef.current = sessionState;
-  }, [sessionState]);
-
-  const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
-  const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
-  const settledContracts = useRef<Set<string>>(new Set());
-  const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map());
-
-  const isExecutingRef = useRef(false);
-  // Stores per-proposal timeout handles so they can be cancelled when a response arrives
-  const proposalTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-
-  const select_random_contract = useCallback(() => {
-    const isOver = Math.random() > 0.5;
-    return {
-      type: isOver ? "DIGITOVER" : "DIGITUNDER" as "DIGITOVER" | "DIGITUNDER",
-      barrier: isOver ? 5 : 4
-    };
+@@ -118,50 +138,54 @@ export function useAutoTrader(
   }, []);
 
   const select_random_symbol = useCallback(() => {
@@ -189,207 +164,7 @@ export function useAutoTrader(
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
 
-      if (seqStep === 0) {
-        // First trade is random
-        const randomRes = select_random_contract();
-        type = randomRes.type;
-        barrier = randomRes.barrier;
-        initChoice = type;
-      } else {
-        // Updated Ping-Pong: flip pattern every 2 steps
-// Logic: same as initial if (step % 2) === (floor((step-1)/2) % 2)
-        const isSame = (seqStep % 2) === (Math.floor((seqStep - 1) / 2) % 2);
-        type = isSame ? initChoice : (initChoice === "DIGITOVER" ? "DIGITUNDER" : "DIGITOVER");
-        barrier = type === "DIGITOVER" ? 5 : 4;
-      }
-
-      const symbol = select_random_symbol();
-
-      setSessionState(prev => ({
-        ...prev,
-        currentStake: nextStake,
-        martingaleStep: nextStep,
-        sequenceStep: seqStep,
-        initialChoice: initChoice,
-        currentSymbol: symbol,
-        currentContract: type,
-        currentBarrier: barrier,
-        status: "PENDING",
-        nextAction: "WAITING_FOR_RESULT"
-      }));
-
-      const reqId = Date.now() + Math.floor(Math.random() * 10000);
-
-      // Add pending trade to log for real-time visibility
-      const pendingRecord: TradeRecord = {
-        id: `pending-${reqId}`,
-        symbol,
-        contract: type,
-        barrier,
-        stake: nextStake,
-        profit: 0,
-        martingale_step: nextStep,
-        status: "PENDING",
-        next_action: "WAITING_FOR_RESULT",
-        timestamp: new Date(),
-      };
-      setTradeLog(prev => [pendingRecord, ...prev].slice(0, 100));
-
-      const proposalReq = {
-        proposal: 1,
-        amount: nextStake,
-        basis: "stake",
-        contract_type: type,
-        currency: "USD",
-        duration: 1,
-        duration_unit: "t",
-        symbol: symbol,
-        barrier: String(barrier),
-        req_id: reqId,
-      };
-
-      // Register the pending proposal before sending (supabaseId filled in background)
-      pendingProposals.current.set(String(reqId), {
-        symbol,
-        dangerDigit: barrier,
-        stake: nextStake,
-        timestamp: Date.now(),
-        supabaseId: undefined,
-      });
-
-      // Fix 1: Send WS proposal immediately — do NOT block on Supabase
-      ws.send(JSON.stringify(proposalReq));
-      toast.info(`Initiating trade: ${type} on ${symbol}`);
-
-      // Log for TradeMonitor integration
-      console.log(JSON.stringify({
-        event: "trade_initiated",
-        symbol,
-        contract: type,
-        barrier,
-        stake: Number(nextStake.toFixed(2)),
-        martingale_step: nextStep,
-        timestamp: new Date().toISOString()
-      }, null, 2));
-
-      // Fix 2: Per-proposal 15s timeout — if Deriv never responds, self-heal
-      const proposalTimeout = setTimeout(() => {
-        if (pendingProposals.current.has(String(reqId))) {
-          console.warn(`[AutoTrader] Proposal ${reqId} timed out — clearing execution lock`);
-          pendingProposals.current.delete(String(reqId));
-          proposalTimeouts.current.delete(String(reqId));
-          isExecutingRef.current = false;
-          setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
-          setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "PROPOSAL_TIMEOUT_RETRY" }));
-          setTicksToWait(3);
-        }
-      }, 15000);
-      proposalTimeouts.current.set(String(reqId), proposalTimeout);
-
-      // Fix 1 (cont): Background Supabase write — failure does NOT affect trading
-      (async () => {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data, error } = await supabase.from("trades").insert({
-              user_id: user.id,
-              deriv_loginid: accountInfo?.loginid || "unknown",
-              symbol: symbol,
-              stake: nextStake,
-              barrier: barrier,
-              result: "pending",
-              timestamp: new Date().toISOString()
-            }).select("id").single();
-            if (!error && data) {
-              const entry = pendingProposals.current.get(String(reqId));
-              if (entry) entry.supabaseId = data.id;
-            }
-          }
-        } catch (err) {
-          console.warn("[AutoTrader] Background Supabase insert failed:", err);
-        }
-      })();
-    } finally {
-      // We DO NOT reset isExecutingRef here.
-      // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
-    }
-  }, [config, wsRef, accountInfo, select_random_contract, select_random_symbol]);
-
-  const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
-    const state = sessionStateRef.current;
-    const newStatus = isWin ? "WIN" : "LOSS";
-    let nextAction = "";
-    let ticksToWaitNext = 0;
-    
-    if (isWin) {
-      ticksToWaitNext = Math.floor(Math.random() * 3) + 1;
-      nextAction = `WIN_DETECTED_WAITING_${ticksToWaitNext}_TICKS`;
-      setMartingaleCycles(0);
-    } else {
-      nextAction = "CONTINUE_MARTINGALE";
-      const nextCycles = martingaleCycles + 1;
-      if (nextCycles >= 2) {
-        ticksToWaitNext = Math.floor(Math.random() * 6) + 5;
-        nextAction = `PAUSING_${ticksToWaitNext}_TICKS_AFTER_2_CYCLES`;
-        setMartingaleCycles(0);
-      } else {
-        setMartingaleCycles(nextCycles);
-      }
-    }
-
-    const newRecord: TradeRecord = {
-      id: Math.random().toString(36).substring(2, 11),
-      symbol,
-      contract: state.currentContract || "UNKNOWN",
-      barrier: state.currentBarrier || 0,
-      stake: state.currentStake,
-      profit,
-      martingale_step: state.martingaleStep,
-      status: newStatus,
-      next_action: nextAction,
-      timestamp: new Date(),
-    };
-    setTradeLog(prev => {
-      // Remove all pending entries safely
-      const filtered = prev.filter(t => t && t.id && !t.id.startsWith("pending-"));
-      const updated = [newRecord, ...filtered].slice(0, 100);
-      localStorage.setItem('tradeLog', JSON.stringify(updated));
-      return updated;
-    });
-
-    // Update Daily P/L locally regardless of Supabase success
-    setDailyPL(prev => {
-      const updatedPL = prev + profit;
-
-      if (updatedPL >= nextProfitCooldownTarget) {
-        const profitCooldownTicks = Math.floor(Math.random() * 21) + 50; // 50-70 ticks
-        ticksToWaitNext = Math.max(ticksToWaitNext, profitCooldownTicks);
-        nextAction = `PROFIT_INTERVAL_HIT_PAUSING_${ticksToWaitNext}_TICKS`;
-        setNextProfitCooldownTarget(previousTarget => {
-          let advancedTarget = previousTarget;
-          while (updatedPL >= advancedTarget) {
-            advancedTarget += config.profitIntervalCooldownAmount;
-          }
-          return advancedTarget;
-        });
-      }
-
-      return updatedPL;
-    });
-
-    if (supabaseId) {
-      supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
-        if (error) console.error("Error updating trade result in Supabase:", error);
-      });
-    }
-
-    if (windDownMode && isWin) {
-      nextAction = "WIND_DOWN_COMPLETED_LAST_TRADE_PROFIT";
-      ticksToWaitNext = 0;
-      setConfig(prev => ({ ...prev, enabled: false }));
-      setWindDownMode(false);
-      toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
-    }
+@@ -344,51 +368,78 @@ export function useAutoTrader(
 
     setSessionState(prev => ({ ...prev, status: newStatus, nextAction }));
     setTicksToWait(ticksToWaitNext);
@@ -406,15 +181,16 @@ export function useAutoTrader(
       timestamp: new Date().toISOString()
     }, null, 2));
     
-    if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
+    if (ticksToWaitNext === 0) {
       execute_trade();
     }
-  }, [martingaleCycles, execute_trade, config.profitIntervalCooldownAmount, nextProfitCooldownTarget, windDownMode]);
+  }, [martingaleCycles, execute_trade]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
 
     if (data.msg_type === "tick") {
+      setTicksToWait(prev => prev > 0 ? prev - 1 : 0);
       setTicksToWait(prev => {
         const next = prev > 0 ? prev - 1 : 0;
         if (next === 0 && prev > 0) {
@@ -468,13 +244,7 @@ export function useAutoTrader(
 
     if (data.msg_type === "buy" && data.buy) {
       const contractId = String(data.buy.contract_id);
-      const buyReqId = String(data.req_id);
-      const buyData = pendingBuys.current.get(buyReqId);
-      pendingBuys.current.delete(buyReqId);
-      const symbol = buyData?.symbol || "";
-      const buyPrice = data.buy.buy_price ?? state.currentStake;
-      if (buyData?.supabaseId) supabase.from("trades").update({ contract_id: contractId }).eq("id", buyData.supabaseId).then();
-      openContracts.current.set(contractId, { symbol, stake: buyPrice, timestamp: Date.now(), supabaseId: buyData?.supabaseId });
+@@ -402,122 +453,129 @@ export function useAutoTrader(
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 }));
     }
@@ -500,6 +270,7 @@ export function useAutoTrader(
         setTicksToWait(2);
       }
     }
+  }, [config.enabled, wsRef, handle_result, execute_trade]);
   }, [config.enabled, config.continuousTradeCooldownMinutes, wsRef, handle_result, ticksToWait]);
 
 
@@ -535,6 +306,7 @@ export function useAutoTrader(
     const syncConfig = async () => {
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
+        const cloudConfig = data.config as AutoTraderConfig;
         const cloudConfig = sanitizeConfig(data.config as AutoTraderConfig);
         if (JSON.stringify(cloudConfig) !== JSON.stringify(config)) {
           setConfig(prev => ({ ...prev, ...cloudConfig, enabled: prev.enabled }));
@@ -551,19 +323,6 @@ export function useAutoTrader(
     }, 2000);
     return () => clearTimeout(timer);
   }, [config, user?.id]);
-
-  useEffect(() => {
-    setNextProfitCooldownTarget(currentTarget => {
-      if (dailyPL >= currentTarget) {
-        let advancedTarget = currentTarget;
-        while (dailyPL >= advancedTarget) {
-          advancedTarget += config.profitIntervalCooldownAmount;
-        }
-        return advancedTarget;
-      }
-      return Math.max(config.profitIntervalCooldownAmount, currentTarget);
-    });
-  }, [config.profitIntervalCooldownAmount, dailyPL]);
 
   // Main Auto-Trading Loop
   useEffect(() => {
@@ -615,7 +374,5 @@ export function useAutoTrader(
     ticksToWait,
     handleTradeMessage,
     execute_trade,
-    windDownMode,
-    activateWindDown,
   };
 }
