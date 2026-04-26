@@ -82,6 +82,7 @@ export function useAutoTrader(
   const [nextProfitCooldownTarget, setNextProfitCooldownTarget] = useState(
     sanitizeConfig(config).profitIntervalCooldownAmount
   );
+  const [windDownMode, setWindDownMode] = useState(false);
 
   const executionStartedAtRef = useRef<number>(0);
 
@@ -380,6 +381,14 @@ export function useAutoTrader(
       });
     }
 
+    if (windDownMode && isWin) {
+      nextAction = "WIND_DOWN_COMPLETED_LAST_TRADE_PROFIT";
+      ticksToWaitNext = 0;
+      setConfig(prev => ({ ...prev, enabled: false }));
+      setWindDownMode(false);
+      toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
+    }
+
     setSessionState(prev => ({ ...prev, status: newStatus, nextAction }));
     setTicksToWait(ticksToWaitNext);
     
@@ -395,10 +404,10 @@ export function useAutoTrader(
       timestamp: new Date().toISOString()
     }, null, 2));
     
-    if (ticksToWaitNext === 0) {
+    if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
       execute_trade();
     }
-  }, [martingaleCycles, execute_trade, config.profitIntervalCooldownAmount, nextProfitCooldownTarget]);
+  }, [martingaleCycles, execute_trade, config.profitIntervalCooldownAmount, nextProfitCooldownTarget, windDownMode]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
@@ -542,6 +551,21 @@ export function useAutoTrader(
     }
   }, [config.enabled, sessionState.status, ticksToWait, execute_trade]);
 
+  useEffect(() => {
+    if (!config.enabled && windDownMode) {
+      setWindDownMode(false);
+    }
+  }, [config.enabled, windDownMode]);
+
+  const activateWindDown = useCallback(() => {
+    if (!config.enabled) {
+      toast.error("Enable auto-trading before activating wind down.");
+      return;
+    }
+    setWindDownMode(true);
+    toast.info("Wind down armed: bot will stop only after the next profitable settled trade.");
+  }, [config.enabled]);
+
   const resetTradeLog = useCallback(() => {
     setTradeLog([]);
     setSessionState({
@@ -571,5 +595,7 @@ export function useAutoTrader(
     ticksToWait,
     handleTradeMessage,
     execute_trade,
+    windDownMode,
+    activateWindDown,
   };
 }
