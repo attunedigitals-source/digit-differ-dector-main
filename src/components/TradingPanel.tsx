@@ -5,6 +5,8 @@ import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target } from "lucide-reac
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { getSymbolName } from "@/lib/deriv-symbols";
 
+const MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT = 50;
+
 interface TradingPanelProps {
   config: AutoTraderConfig;
   onConfigChange: (config: AutoTraderConfig) => void;
@@ -89,7 +91,7 @@ export function TradingPanel({
         }
 
         return (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1.5">
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-wider text-destructive/80 font-bold flex items-center gap-1">
                 <TrendingUp className="w-3 h-3 text-destructive" />
@@ -98,6 +100,31 @@ export function TradingPanel({
               <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full border bg-destructive/10 text-destructive border-destructive/30">
                 ${total.toFixed(2)}
               </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Profit Interval Cooldown ($)
+              </label>
+              <Input
+                type="number"
+                min={MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT}
+                step={1}
+                value={config.profitIntervalCooldownAmount}
+                onChange={(e) =>
+                  onConfigChange({
+                    ...config,
+                    profitIntervalCooldownAmount: Math.max(
+                      MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT,
+                      Number(e.target.value || MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT)
+                    ),
+                  })
+                }
+                className="bg-muted border-border font-mono text-sm h-8"
+              />
+              <p className="text-[9px] text-muted-foreground">
+                Every time net daily profit reaches this amount, trading pauses for 50-70 ticks.
+              </p>
             </div>
           </div>
         );

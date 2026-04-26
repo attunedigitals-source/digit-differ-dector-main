@@ -7,6 +7,23 @@ import { useAuth } from "./useAuth";
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
+const MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT = 50;
+
+const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
+  const baseStake = Number(incoming?.baseStake ?? 0.35);
+  const maxMartingaleSteps = Number(incoming?.maxMartingaleSteps ?? 10);
+  const profitIntervalCooldownAmount = Math.max(
+    MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT,
+    Number(incoming?.profitIntervalCooldownAmount ?? MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT)
+  );
+
+  return {
+    enabled: Boolean(incoming?.enabled),
+    baseStake,
+    maxMartingaleSteps,
+    profitIntervalCooldownAmount,
+  };
+};
 
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
@@ -35,16 +52,17 @@ export function useAutoTrader(
     const saved = localStorage.getItem('autoTraderConfig');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        return sanitizeConfig(JSON.parse(saved));
       } catch (e) {
         console.error("Error loading config from localStorage", e);
       }
     }
-    return {
+    return sanitizeConfig({
       enabled: false,
       baseStake: 0.35,
       maxMartingaleSteps: 10,
-    };
+      profitIntervalCooldownAmount: MIN_PROFIT_INTERVAL_COOLDOWN_AMOUNT,
+    });
   });
 
   const [sessionState, setSessionState] = useState({
@@ -61,6 +79,9 @@ export function useAutoTrader(
 
   const [ticksToWait, setTicksToWait] = useState(0);
   const [martingaleCycles, setMartingaleCycles] = useState(0);
+  const [nextProfitCooldownTarget, setNextProfitCooldownTarget] = useState(
+    sanitizeConfig(config).profitIntervalCooldownAmount
+  );
 
   const executionStartedAtRef = useRef<number>(0);
 
@@ -334,7 +355,24 @@ export function useAutoTrader(
     });
 
     // Update Daily P/L locally regardless of Supabase success
-    setDailyPL(prev => prev + profit);
+    setDailyPL(prev => {
+      const updatedPL = prev + profit;
+
+      if (updatedPL >= nextProfitCooldownTarget) {
+        const profitCooldownTicks = Math.floor(Math.random() * 21) + 50; // 50-70 ticks
+        ticksToWaitNext = Math.max(ticksToWaitNext, profitCooldownTicks);
+        nextAction = `PROFIT_INTERVAL_HIT_PAUSING_${ticksToWaitNext}_TICKS`;
+        setNextProfitCooldownTarget(previousTarget => {
+          let advancedTarget = previousTarget;
+          while (updatedPL >= advancedTarget) {
+            advancedTarget += config.profitIntervalCooldownAmount;
+          }
+          return advancedTarget;
+        });
+      }
+
+      return updatedPL;
+    });
 
     if (supabaseId) {
       supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
@@ -360,7 +398,7 @@ export function useAutoTrader(
     if (ticksToWaitNext === 0) {
       execute_trade();
     }
-  }, [martingaleCycles, execute_trade]);
+  }, [martingaleCycles, execute_trade, config.profitIntervalCooldownAmount, nextProfitCooldownTarget]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
@@ -459,7 +497,7 @@ export function useAutoTrader(
     const syncConfig = async () => {
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
-        const cloudConfig = data.config as AutoTraderConfig;
+        const cloudConfig = sanitizeConfig(data.config as AutoTraderConfig);
         if (JSON.stringify(cloudConfig) !== JSON.stringify(config)) {
           setConfig(prev => ({ ...prev, ...cloudConfig, enabled: prev.enabled }));
         }
@@ -475,6 +513,19 @@ export function useAutoTrader(
     }, 2000);
     return () => clearTimeout(timer);
   }, [config, user?.id]);
+
+  useEffect(() => {
+    setNextProfitCooldownTarget(currentTarget => {
+      if (dailyPL >= currentTarget) {
+        let advancedTarget = currentTarget;
+        while (dailyPL >= advancedTarget) {
+          advancedTarget += config.profitIntervalCooldownAmount;
+        }
+        return advancedTarget;
+      }
+      return Math.max(config.profitIntervalCooldownAmount, currentTarget);
+    });
+  }, [config.profitIntervalCooldownAmount, dailyPL]);
 
   // Main Auto-Trading Loop
   useEffect(() => {
@@ -506,7 +557,8 @@ export function useAutoTrader(
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
-  }, [config.baseStake]);
+    setNextProfitCooldownTarget(config.profitIntervalCooldownAmount);
+  }, [config.baseStake, config.profitIntervalCooldownAmount]);
 
   return {
     config,
