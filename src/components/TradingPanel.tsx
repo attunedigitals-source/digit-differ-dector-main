@@ -37,6 +37,11 @@ export function TradingPanel({
   onActivateWindDown,
 }: TradingPanelProps) {
   const canTrade = connected && hasToken && config.baseStake >= 0.35;
+  const formatCooldown = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${String(secs).padStart(2, "0")}`;
+  };
 
   return (
     <div className="bg-card border border-border rounded-lg p-4 space-y-4 shadow-lg backdrop-blur-sm bg-opacity-80">
@@ -127,6 +132,7 @@ export function TradingPanel({
                   <SelectValue placeholder="Select cooldown interval" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="2">2 Minutes (Quick Test)</SelectItem>
                   <SelectItem value="30">30 Minutes</SelectItem>
                   <SelectItem value="40">40 Minutes</SelectItem>
                   <SelectItem value="50">50 Minutes</SelectItem>
@@ -134,7 +140,7 @@ export function TradingPanel({
                 </SelectContent>
               </Select>
               <p className="text-[9px] text-muted-foreground">
-                After continuous trading for the selected time, bot pauses for 50-70 ticks.
+                After continuous trading for the selected time, bot pauses for a random 2–5 minutes.
               </p>
             </div>
           </div>
@@ -202,13 +208,13 @@ export function TradingPanel({
               <Clock className="w-3 h-3" /> Cooldown:
             </span>
             <span className="font-mono font-bold text-primary">
-              {ticksToWait > 0 ? `${ticksToWait} ticks` : "READY"}
+              {ticksToWait > 0 ? formatCooldown(ticksToWait) : "READY"}
             </span>
           </div>
           <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
              <div 
               className="h-full bg-primary transition-all duration-300" 
-              style={{ width: ticksToWait > 0 ? `${Math.min(100, (ticksToWait / 15) * 100)}%` : '100%' }}
+              style={{ width: ticksToWait > 0 ? `${Math.min(100, (ticksToWait / 300) * 100)}%` : '100%' }}
             />
           </div>
           <div className="text-[10px] text-center italic text-muted-foreground">
