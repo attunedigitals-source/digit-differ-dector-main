@@ -133,7 +133,6 @@ export function TradingPanel({
                   <SelectValue placeholder="Select cooldown interval" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2">2 Minutes (Quick Test)</SelectItem>
                   <SelectItem value="30">30 Minutes</SelectItem>
                   <SelectItem value="40">40 Minutes</SelectItem>
                   <SelectItem value="50">50 Minutes</SelectItem>
