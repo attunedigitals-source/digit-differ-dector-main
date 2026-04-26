@@ -11,6 +11,10 @@ const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinut
 const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [2, 30, 40, 50, 60];
 const COOLDOWN_WAIT_MIN_SECONDS = 300;
 const COOLDOWN_WAIT_MAX_SECONDS = 480;
+const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
+const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
+const LOSS_TRADE_COOLDOWN_MIN_TICKS = 5;
+const LOSS_TRADE_COOLDOWN_MAX_TICKS = 8;
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Number(incoming?.baseStake ?? 0.35);
@@ -154,6 +158,12 @@ export function useAutoTrader(
 
   const randomCooldownSeconds = useCallback(() => {
     return Math.floor(Math.random() * (COOLDOWN_WAIT_MAX_SECONDS - COOLDOWN_WAIT_MIN_SECONDS + 1)) + COOLDOWN_WAIT_MIN_SECONDS;
+  }, []);
+
+  const randomTradeCooldownTicks = useCallback((isWin: boolean) => {
+    const minTicks = isWin ? WIN_TRADE_COOLDOWN_MIN_TICKS : LOSS_TRADE_COOLDOWN_MIN_TICKS;
+    const maxTicks = isWin ? WIN_TRADE_COOLDOWN_MAX_TICKS : LOSS_TRADE_COOLDOWN_MAX_TICKS;
+    return Math.floor(Math.random() * (maxTicks - minTicks + 1)) + minTicks;
   }, []);
 
   const execute_trade = useCallback(async () => {
@@ -328,8 +338,10 @@ export function useAutoTrader(
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
     const newStatus = isWin ? "WIN" : "LOSS";
-    let nextAction = isWin ? "WIN_CONTINUE_TRADING" : "LOSS_CONTINUE_MARTINGALE";
-    let ticksToWaitNext = 0;
+    let ticksToWaitNext = randomTradeCooldownTicks(isWin);
+    let nextAction = isWin
+      ? `WIN_COOLDOWN_${ticksToWaitNext}T_CONTINUE_TRADING`
+      : `LOSS_COOLDOWN_${ticksToWaitNext}T_CONTINUE_MARTINGALE`;
 
     const newRecord: TradeRecord = {
       id: Math.random().toString(36).substring(2, 11),
@@ -360,8 +372,9 @@ export function useAutoTrader(
     const effectiveStartAt = continuousTradeStartAtRef.current ?? now;
     const cooldownDurationMs = config.cooldownIntervalMinutes * 60 * 1000;
     if (now - effectiveStartAt >= cooldownDurationMs) {
-      ticksToWaitNext = randomCooldownSeconds();
-      nextAction = `TIME_INTERVAL_${config.cooldownIntervalMinutes}M_PAUSING_${Math.ceil(ticksToWaitNext / 60)}M`;
+      const intervalPauseSeconds = randomCooldownSeconds();
+      ticksToWaitNext = Math.max(ticksToWaitNext, intervalPauseSeconds);
+      nextAction = `${nextAction}_AND_TIME_INTERVAL_${config.cooldownIntervalMinutes}M_PAUSING_${Math.ceil(intervalPauseSeconds / 60)}M`;
       setContinuousTradeStartAt(now);
       setMartingaleCycles(0);
     }
@@ -398,7 +411,7 @@ export function useAutoTrader(
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
       execute_trade();
     }
-  }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds]);
+  }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
