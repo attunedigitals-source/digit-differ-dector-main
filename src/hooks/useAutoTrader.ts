@@ -8,7 +8,9 @@ import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
 const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
-const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
+const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [2, 30, 40, 50, 60];
+const COOLDOWN_WAIT_MIN_SECONDS = 120;
+const COOLDOWN_WAIT_MAX_SECONDS = 300;
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Number(incoming?.baseStake ?? 0.35);
@@ -111,7 +113,7 @@ export function useAutoTrader(
           status: "LOSS",
           nextAction: "WATCHDOG_TIMEOUT_RECOVERY"
         }));
-        setTicksToWait(15); // Wait 15 ticks (approx 15-30s) after a timeout
+        setTicksToWait(30); // Wait 30 seconds after a timeout
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -148,6 +150,10 @@ export function useAutoTrader(
       "R_10", "R_25", "R_50", "R_75", "R_100"
     ];
     return symbols[Math.floor(Math.random() * symbols.length)];
+  }, []);
+
+  const randomCooldownSeconds = useCallback(() => {
+    return Math.floor(Math.random() * (COOLDOWN_WAIT_MAX_SECONDS - COOLDOWN_WAIT_MIN_SECONDS + 1)) + COOLDOWN_WAIT_MIN_SECONDS;
   }, []);
 
   const execute_trade = useCallback(async () => {
@@ -285,7 +291,7 @@ export function useAutoTrader(
           isExecutingRef.current = false;
           setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
           setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "PROPOSAL_TIMEOUT_RETRY" }));
-          setTicksToWait(3);
+          setTicksToWait(30);
         }
       }, 15000);
       proposalTimeouts.current.set(String(reqId), proposalTimeout);
@@ -326,15 +332,15 @@ export function useAutoTrader(
     let ticksToWaitNext = 0;
     
     if (isWin) {
-      ticksToWaitNext = Math.floor(Math.random() * 3) + 1;
-      nextAction = `WIN_DETECTED_WAITING_${ticksToWaitNext}_TICKS`;
+      ticksToWaitNext = randomCooldownSeconds();
+      nextAction = `WIN_DETECTED_COOLDOWN_${Math.ceil(ticksToWaitNext / 60)}M`;
       setMartingaleCycles(0);
     } else {
       nextAction = "CONTINUE_MARTINGALE";
       const nextCycles = martingaleCycles + 1;
       if (nextCycles >= 2) {
-        ticksToWaitNext = Math.floor(Math.random() * 6) + 5;
-        nextAction = `PAUSING_${ticksToWaitNext}_TICKS_AFTER_2_CYCLES`;
+        ticksToWaitNext = randomCooldownSeconds();
+        nextAction = `PAUSING_${Math.ceil(ticksToWaitNext / 60)}M_AFTER_2_CYCLES`;
         setMartingaleCycles(0);
       } else {
         setMartingaleCycles(nextCycles);
@@ -370,9 +376,9 @@ export function useAutoTrader(
     const effectiveStartAt = continuousTradeStartAtRef.current ?? now;
     const cooldownDurationMs = config.cooldownIntervalMinutes * 60 * 1000;
     if (now - effectiveStartAt >= cooldownDurationMs) {
-      const timeCooldownTicks = Math.floor(Math.random() * 21) + 50; // 50-70 ticks
-      ticksToWaitNext = Math.max(ticksToWaitNext, timeCooldownTicks);
-      nextAction = `TIME_INTERVAL_${config.cooldownIntervalMinutes}M_PAUSING_${ticksToWaitNext}_TICKS`;
+      const timeCooldownSeconds = randomCooldownSeconds();
+      ticksToWaitNext = Math.max(ticksToWaitNext, timeCooldownSeconds);
+      nextAction = `TIME_INTERVAL_${config.cooldownIntervalMinutes}M_PAUSING_${Math.ceil(ticksToWaitNext / 60)}M`;
       setContinuousTradeStartAt(now);
     }
 
@@ -412,11 +418,6 @@ export function useAutoTrader(
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
-
-    if (data.msg_type === "tick") {
-      setTicksToWait(prev => prev > 0 ? prev - 1 : 0);
-      return;
-    }
 
     const state = sessionStateRef.current;
     
@@ -469,10 +470,18 @@ export function useAutoTrader(
       if (pendingProposals.current.has(reqId) || Array.from(pendingBuys.current.keys()).includes(reqId)) {
         toast.error(`Trade error: ${data.error.message}`);
         setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERROR_RETRY" }));
-        setTicksToWait(2);
+        setTicksToWait(30);
       }
     }
   }, [config.enabled, wsRef, handle_result, execute_trade]);
+
+  useEffect(() => {
+    if (!config.enabled || ticksToWait <= 0) return;
+    const timer = setInterval(() => {
+      setTicksToWait(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [config.enabled, ticksToWait]);
 
 
   const fetchDailyPL = useCallback(async () => {
