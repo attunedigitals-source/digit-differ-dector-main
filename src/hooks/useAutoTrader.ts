@@ -13,8 +13,8 @@ const COOLDOWN_WAIT_MIN_SECONDS = 300;
 const COOLDOWN_WAIT_MAX_SECONDS = 480;
 const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
-const LOSS_TRADE_COOLDOWN_MIN_TICKS = 5;
-const LOSS_TRADE_COOLDOWN_MAX_TICKS = 8;
+const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
+const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Number(incoming?.baseStake ?? 0.35);
