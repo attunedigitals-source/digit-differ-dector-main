@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { getDerivRedirectUri } from "@/lib/deriv-oauth";
+import { clearDerivOAuthSession, exchangeDerivAuthorizationCode, getCodeVerifier, validateOAuthState } from "@/lib/deriv-oauth";
 
 interface DerivAuthorizeResponse {
   loginid?: string;
@@ -113,50 +113,13 @@ export default function DerivCallback() {
         const code = params.get("code");
         const state = params.get("state");
 
-        const storedState = sessionStorage.getItem("deriv_oauth_state");
-        const verifier = sessionStorage.getItem("deriv_code_verifier");
-
         if (!code) {
           throw new Error("Missing authorization code from Deriv OAuth callback.");
         }
 
-        if (!state || state !== storedState) {
-          throw new Error("OAuth state validation failed.");
-        }
-
-        if (!verifier) {
-          throw new Error("Missing PKCE code verifier.");
-        }
-
-        const appId = import.meta.env.VITE_DERIV_APP_ID;
-        if (!appId) {
-          throw new Error("Deriv App ID not configured.");
-        }
-
-        const response = await fetch("https://oauth.deriv.com/oauth2/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            client_id: appId,
-            redirect_uri: getDerivRedirectUri(),
-            code,
-            code_verifier: verifier,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error_description || data.error || "Failed to exchange Deriv OAuth code.");
-        }
-
-        const token = data.access_token || data.token1;
-        if (!token) {
-          throw new Error("Deriv access token is missing from token exchange response.");
-        }
+        validateOAuthState(state);
+        const verifier = getCodeVerifier();
+        const token = await exchangeDerivAuthorizationCode(code, verifier);
 
         await processToken(token);
       } catch (error: unknown) {
@@ -164,8 +127,7 @@ export default function DerivCallback() {
         toast.error(error instanceof Error ? error.message : "Could not complete Deriv OAuth connection.");
         navigate("/auth");
       } finally {
-        sessionStorage.removeItem("deriv_code_verifier");
-        sessionStorage.removeItem("deriv_oauth_state");
+        clearDerivOAuthSession();
       }
     };
 
