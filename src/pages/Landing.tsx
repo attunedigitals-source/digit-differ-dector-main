@@ -28,7 +28,7 @@ const Landing = () => {
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
               <Zap className="text-primary-foreground w-6 h-6" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-white">DigitDiffer<span className="text-primary">Pro</span></span>
+            <span className="text-xl font-bold tracking-tight text-white">Digit Bot <span className="text-primary">Pro</span></span>
           </div>
           
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
@@ -76,7 +76,7 @@ const Landing = () => {
           </h1>
           
           <p className="max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground mb-10 leading-relaxed">
-            DigitDiffer Pro is an advanced analytical tool that harnesses the power of ensemble learning and adaptive volatility analysis to give you a statistical edge in Deriv markets. Disciplined, automated, and precision-engineered.
+            Digit Bot Pro is an advanced trading tool that harnesses ensemble learning and adaptive volatility analysis to deliver data-driven precision in Deriv markets.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
@@ -96,7 +96,7 @@ const Landing = () => {
             <div className="relative rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#0a0a0a]">
               <img 
                 src="/landing-hero.png" 
-                alt="DigitDiffer Pro Dashboard Preview" 
+                alt="Digit Bot Pro Dashboard Preview" 
                 className="w-full h-auto object-cover opacity-90"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent opacity-60" />
@@ -110,7 +110,7 @@ const Landing = () => {
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Precision-Engineered Features</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">Everything you need to trade Deriv synthetic indices with a statistical advantage.</p>
+            <p className="text-muted-foreground max-w-xl mx-auto">Everything you need from a focused trading tool for Deriv synthetic indices.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -158,7 +158,7 @@ const Landing = () => {
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">1</div>
                   <div>
                     <h4 className="text-xl font-bold mb-1">Connect Your Account</h4>
-                    <p className="text-muted-foreground">Securely connect via Deriv API. No API tokens stored on our servers.</p>
+                    <p className="text-muted-foreground">Securely connect via Deriv OAuth 2.0 authorization.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -171,8 +171,8 @@ const Landing = () => {
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">3</div>
                   <div>
-                    <h4 className="text-xl font-bold mb-1">Automate Trading</h4>
-                    <p className="text-muted-foreground">Launch the trader and let the ensemble engine handle digit avoidance.</p>
+                    <h4 className="text-xl font-bold mb-1">Use the Tool</h4>
+                    <p className="text-muted-foreground">Launch Digit Bot Pro and let the ensemble engine handle disciplined digit-differ execution.</p>
                   </div>
                 </div>
               </div>
@@ -211,12 +211,12 @@ const Landing = () => {
               </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Your Security, <br />Our Priority.</h2>
               <p className="text-muted-foreground text-lg mb-8 leading-relaxed">
-                DigitDiffer Pro is built with a "Privacy First" architecture. We never store your Deriv credentials or trade history on our servers. All execution happens client-side in your browser.
+                Digit Bot Pro is built with a privacy-first architecture as a client-side trading tool. We never store your Deriv credentials or trade history on our servers.
               </p>
               <ul className="space-y-4">
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
-                  <span>Official Deriv API Integration</span>
+                  <span>Official Deriv OAuth 2.0 Integration</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
@@ -248,10 +248,10 @@ const Landing = () => {
             <div className="max-w-xs">
               <div className="flex items-center gap-2 mb-6">
                 <Zap className="text-primary w-6 h-6" />
-                <span className="text-xl font-bold tracking-tight text-white">DigitDifferPro</span>
+                <span className="text-xl font-bold tracking-tight text-white">DigitBotPro</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Advanced statistical analysis tools for Deriv synthetic indices. Empowering traders with data-driven insights.
+                Digit Bot Pro is a trading tool for Deriv synthetic indices, built to support disciplined and data-driven execution.
               </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-12">
@@ -286,7 +286,7 @@ const Landing = () => {
               <strong>Risk Warning:</strong> Trading synthetic indices involves significant risk of loss and is not suitable for all investors. The high degree of leverage can work against you as well as for you. Before deciding to trade, you should carefully consider your investment objectives, level of experience, and risk appetite. Past performance is not indicative of future results.
             </p>
             <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} DigitDiffer Pro. All rights reserved. Not affiliated with Deriv.com.
+              © {new Date().getFullYear()} Digit Bot Pro. All rights reserved. Not affiliated with Deriv.com.
             </p>
           </div>
         </div>
