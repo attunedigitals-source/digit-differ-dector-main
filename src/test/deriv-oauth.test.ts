@@ -28,7 +28,7 @@ describe("deriv-oauth", () => {
   it("builds Deriv authorize URL with PKCE and stores verifier/state", async () => {
     const url = new URL(await buildDerivAuthorizeUrl());
 
-    expect(url.origin + url.pathname).toBe("https://oauth.deriv.com/oauth2/authorize");
+    expect(url.origin + url.pathname).toBe("https://auth.deriv.com/oauth2/auth");
     expect(url.searchParams.get("app_id")).toBe("12345");
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
