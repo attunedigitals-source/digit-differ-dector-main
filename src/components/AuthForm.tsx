@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { LogIn, UserPlus, Zap, ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
-import { generateCodeVerifier, generateCodeChallenge, generateState } from "@/lib/pkce";
+import { startDerivOAuth } from "@/lib/deriv-oauth";
 
 
 export function AuthForm() {
@@ -147,33 +147,11 @@ export function AuthForm() {
               variant="outline" 
               className="w-full bg-[#ff444f]/10 border-[#ff444f]/20 hover:bg-[#ff444f]/20 text-[#ff444f] font-bold h-11"
               onClick={async () => {
-                const appId = import.meta.env.VITE_DERIV_APP_ID;
-                if (!appId) {
-                  toast.error("Deriv App ID not configured.");
-                  return;
+                try {
+                  await startDerivOAuth();
+                } catch (error: unknown) {
+                  toast.error(error instanceof Error ? error.message : "Failed to start Deriv OAuth.");
                 }
-                
-                // PKCE Flow
-                const verifier = generateCodeVerifier();
-                const challenge = await generateCodeChallenge(verifier);
-                const state = generateState();
-                
-                // Store verifier and state for callback verification
-                sessionStorage.setItem("deriv_code_verifier", verifier);
-                sessionStorage.setItem("deriv_oauth_state", state);
-                
-                const redirectUri = `${window.location.origin}/deriv-callback`;
-                
-                const authUrl = new URL("https://oauth.deriv.com/oauth2/authorize");
-                authUrl.searchParams.set("app_id", appId);
-                authUrl.searchParams.set("l", "EN");
-                authUrl.searchParams.set("response_type", "code");
-                authUrl.searchParams.set("redirect_uri", redirectUri);
-                authUrl.searchParams.set("code_challenge", challenge);
-                authUrl.searchParams.set("code_challenge_method", "S256");
-                authUrl.searchParams.set("state", state);
-                
-                window.location.href = authUrl.toString();
               }}
               disabled={loading}
             >

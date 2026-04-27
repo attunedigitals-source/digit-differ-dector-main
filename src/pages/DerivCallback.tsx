@@ -3,54 +3,135 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { getDerivRedirectUri } from "@/lib/deriv-oauth";
+
+interface DerivAuthorizeResponse {
+  loginid?: string;
+  email?: string;
+}
+
+const fetchDerivAuthorizeResponse = (token: string): Promise<DerivAuthorizeResponse> => {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket("wss://ws.derivws.com/websockets/v3");
+
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error("Timed out while fetching Deriv account details."));
+    }, 10000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ authorize: token }));
+    };
+
+    ws.onmessage = (event) => {
+      const payload = JSON.parse(event.data);
+
+      if (payload.error) {
+        clearTimeout(timer);
+        ws.close();
+        reject(new Error(payload.error.message || "Deriv authorization failed."));
+        return;
+      }
+
+      if (payload.msg_type === "authorize" && payload.authorize) {
+        clearTimeout(timer);
+        const authorize = payload.authorize;
+        ws.close();
+
+        resolve({
+          loginid: authorize.loginid,
+          email: authorize.email,
+        });
+      }
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("Unable to connect to Deriv WebSocket."));
+    };
+  });
+};
 
 export default function DerivCallback() {
   const navigate = useNavigate();
-  const { user, refreshProfile } = useAuth();
+  const { refreshProfile } = useAuth();
 
   useEffect(() => {
+    const processToken = async (token: string) => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        toast.error("Please sign in to the app before connecting Deriv.");
+        navigate("/auth");
+        return;
+      }
+
+      const derivAccount = await fetchDerivAuthorizeResponse(token).catch((error) => {
+        console.warn("Could not load Deriv authorize details:", error);
+        return null;
+      });
+
+      const derivLoginId = derivAccount?.loginid || null;
+      const derivEmail = derivAccount?.email || currentUser.email || null;
+
+      const { error: tokenError } = await supabase
+        .from("user_deriv_tokens")
+        .upsert(
+          {
+            user_id: currentUser.id,
+            deriv_api_token: token,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (tokenError) {
+        throw tokenError;
+      }
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          deriv_loginid: derivLoginId,
+          deriv_email: derivEmail,
+          email: currentUser.email || derivEmail,
+        })
+        .eq("id", currentUser.id);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      await refreshProfile();
+      toast.success("Deriv account connected successfully.");
+      navigate("/auth");
+    };
+
     const handleCallback = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const state = params.get("state");
-      
-      const storedState = sessionStorage.getItem("deriv_oauth_state");
-      const verifier = sessionStorage.getItem("deriv_code_verifier");
-      
-      if (!code) {
-        // Fallback for implicit flow if still active or if error
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const token1 = params.get("token1") || hashParams.get("token1");
-        const acct1 = params.get("acct1") || hashParams.get("acct1");
-        
-        if (token1 && acct1) {
-          await processToken(token1, acct1);
-          return;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get("code");
+        const state = params.get("state");
+
+        const storedState = sessionStorage.getItem("deriv_oauth_state");
+        const verifier = sessionStorage.getItem("deriv_code_verifier");
+
+        if (!code) {
+          throw new Error("Missing authorization code from Deriv OAuth callback.");
         }
 
-        console.error("Missing code in callback", { query: window.location.search });
-        toast.error("Failed to connect: Missing authorization code.");
-        navigate("/dashboard");
-        return;
-      }
+        if (!state || state !== storedState) {
+          throw new Error("OAuth state validation failed.");
+        }
 
-      if (state !== storedState) {
-        console.error("State mismatch", { received: state, stored: storedState });
-        toast.error("Security alert: OAuth state mismatch.");
-        navigate("/dashboard");
-        return;
-      }
+        if (!verifier) {
+          throw new Error("Missing PKCE code verifier.");
+        }
 
-      if (!verifier) {
-        console.error("Missing code verifier");
-        toast.error("Failed to connect: Missing security verifier.");
-        navigate("/dashboard");
-        return;
-      }
-
-      try {
         const appId = import.meta.env.VITE_DERIV_APP_ID;
-        const redirectUri = `${window.location.origin}/deriv-callback`;
+        if (!appId) {
+          throw new Error("Deriv App ID not configured.");
+        }
 
         const response = await fetch("https://oauth.deriv.com/oauth2/token", {
           method: "POST",
@@ -60,85 +141,36 @@ export default function DerivCallback() {
           body: new URLSearchParams({
             grant_type: "authorization_code",
             client_id: appId,
-            redirect_uri: redirectUri,
-            code: code,
+            redirect_uri: getDerivRedirectUri(),
+            code,
             code_verifier: verifier,
           }),
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error_description || errorData.error || "Failed to exchange code");
-        }
-
         const data = await response.json();
-        // Deriv's response for code exchange typically includes the token and account info
-        // Note: You might need to adjust based on the exact structure Deriv returns
-        const token = data.access_token || data.token1;
-        const account = data.account_id || data.acct1;
 
-        if (!token || !account) {
-          throw new Error("Token or account ID not found in response");
+        if (!response.ok) {
+          throw new Error(data.error_description || data.error || "Failed to exchange Deriv OAuth code.");
         }
 
-        await processToken(token, account);
-      } catch (error: any) {
-        console.error("Error in Deriv code exchange:", error);
-        toast.error(`Error connecting Deriv: ${error.message}`);
-        navigate("/dashboard");
+        const token = data.access_token || data.token1;
+        if (!token) {
+          throw new Error("Deriv access token is missing from token exchange response.");
+        }
+
+        await processToken(token);
+      } catch (error: unknown) {
+        console.error("Deriv OAuth callback failed:", error);
+        toast.error(error instanceof Error ? error.message : "Could not complete Deriv OAuth connection.");
+        navigate("/auth");
       } finally {
-        // Clean up session storage
         sessionStorage.removeItem("deriv_code_verifier");
         sessionStorage.removeItem("deriv_oauth_state");
       }
     };
 
-    const processToken = async (token: string, loginid: string) => {
-      try {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (!currentUser) {
-          toast.error("Please log in to the app first.");
-          navigate("/auth");
-          return;
-        }
-
-        // 1. Save the primary token
-        const { error: tokenError } = await supabase
-          .from("user_deriv_tokens")
-          .upsert(
-            { 
-              user_id: currentUser.id, 
-              deriv_api_token: token,
-              updated_at: new Date().toISOString()
-            },
-            { onConflict: "user_id" }
-          );
-
-        if (tokenError) throw tokenError;
-
-        // 2. Update profile with Deriv details
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .update({
-            deriv_loginid: loginid,
-          })
-          .eq("id", currentUser.id);
-
-        if (profileError) throw profileError;
-
-        await refreshProfile();
-        toast.success("Deriv account connected successfully!");
-        navigate("/dashboard");
-      } catch (error: any) {
-        console.error("Error processing token:", error);
-        throw error;
-      }
-    };
-
     handleCallback();
-  }, [navigate, user, refreshProfile]);
-
+  }, [navigate, refreshProfile]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

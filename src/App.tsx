@@ -29,6 +29,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Index />} />
           <Route path="/api/auth/deriv/callback" element={<DerivCallback />} />
+          <Route path="/deriv-callback" element={<DerivCallback />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           

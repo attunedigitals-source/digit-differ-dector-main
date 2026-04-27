@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Key, Save, Zap } from "lucide-react";
+import { startDerivOAuth } from "@/lib/deriv-oauth";
+import { Key, Zap } from "lucide-react";
 
 interface TokenSettingsProps {
   userId: string;
@@ -11,13 +11,7 @@ interface TokenSettingsProps {
 }
 
 export function TokenSettings({ userId, onTokenSaved }: TokenSettingsProps) {
-  const [token, setToken] = useState("");
-  const [saving, setSaving] = useState(false);
   const [hasToken, setHasToken] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const derivAppId = import.meta.env.VITE_DERIV_APP_ID;
-  const redirectUrl = import.meta.env.VITE_DERIV_REDIRECT_URL;
 
   useEffect(() => {
     supabase
@@ -27,37 +21,17 @@ export function TokenSettings({ userId, onTokenSaved }: TokenSettingsProps) {
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
-          setToken(data.deriv_api_token);
           setHasToken(true);
           onTokenSaved(data.deriv_api_token);
         }
       });
   }, [userId, onTokenSaved]);
 
-  const handleDerivLogin = () => {
-    if (!derivAppId) {
-      toast.error("Deriv App ID not configured.");
-      return;
-    }
-    const oauthUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${derivAppId}&l=EN`;
-    window.location.href = oauthUrl;
-  };
-
-  const handleSave = async () => {
-    if (!token.trim()) return;
-    setSaving(true);
-    const { error } = await supabase.from("user_deriv_tokens").upsert(
-      { user_id: userId, deriv_api_token: token.trim(), updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
-    );
-    setSaving(false);
-    if (error) {
-      console.error("Token save error:", error);
-      toast.error(`Failed to save token: ${error.message}`);
-    } else {
-      toast.success("API token saved");
-      setHasToken(true);
-      onTokenSaved(token.trim());
+  const handleDerivLogin = async () => {
+    try {
+      await startDerivOAuth();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to start Deriv OAuth.");
     }
   };
 
@@ -76,8 +50,8 @@ export function TokenSettings({ userId, onTokenSaved }: TokenSettingsProps) {
         )}
       </div>
 
-      <Button 
-        onClick={handleDerivLogin} 
+      <Button
+        onClick={handleDerivLogin}
         variant={hasToken ? "outline" : "default"}
         className="w-full gap-2 h-11 font-bold shadow-lg shadow-primary/10"
       >
@@ -86,40 +60,14 @@ export function TokenSettings({ userId, onTokenSaved }: TokenSettingsProps) {
       </Button>
 
       <div className="pt-2 border-t border-border/50">
-        <button 
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="text-[10px] text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest font-bold"
-        >
-          {showAdvanced ? "Hide Advanced Settings" : "Advanced: Manual Token"}
-        </button>
-        
-        {showAdvanced && (
-          <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Enter manual API token"
-                className="bg-muted border-border font-mono text-xs h-9"
-              />
-              <Button onClick={handleSave} disabled={saving} size="sm" className="h-9">
-                <Save className="w-3.5 h-3.5 mr-1" />
-                {hasToken ? "Update" : "Save"}
-              </Button>
-            </div>
-            <p className="text-[10px] text-muted-foreground italic">
-              Manual tokens are useful for specific API restrictions or testing.
-            </p>
-          </div>
-        )}
-      </div>
-      
-      {!showAdvanced && (
         <p className="text-[11px] text-muted-foreground leading-tight">
-          Clicking connect will securely redirect you to Deriv.com to authorize this tool.
+          OAuth 2.0 is now used for account authorization. No manual API token entry is required.
         </p>
-      )}
+      </div>
+
+      <p className="text-[11px] text-muted-foreground leading-tight">
+        Clicking connect will securely redirect you to Deriv to grant account management and trade access.
+      </p>
     </div>
   );
 }
