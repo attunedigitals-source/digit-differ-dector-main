@@ -110,14 +110,20 @@ export default function DerivCallback() {
     const handleCallback = async () => {
       try {
         const params = new URLSearchParams(window.location.search);
-        const code = params.get("code");
+        const error = params.get("error");
+        const errorDescription = params.get("error_description");
         const state = params.get("state");
+        const code = params.get("code");
+
+        if (error) {
+          throw new Error(errorDescription || error);
+        }
+
+        validateOAuthState(state);
 
         if (!code) {
           throw new Error("Missing authorization code from Deriv OAuth callback.");
         }
-
-        validateOAuthState(state);
         const verifier = getCodeVerifier();
         const token = await exchangeDerivAuthorizationCode(code, verifier);
 

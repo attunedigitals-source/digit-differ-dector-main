@@ -1,7 +1,7 @@
 import { generateCodeChallenge, generateCodeVerifier, generateState } from "@/lib/pkce";
+import { supabase } from "@/integrations/supabase/client";
 
 const OAUTH_AUTHORIZE_URL = "https://auth.deriv.com/oauth2/auth";
-const OAUTH_TOKEN_URL = "https://oauth.deriv.com/oauth2/token";
 
 export const DERIV_SESSION_KEYS = {
   verifier: "deriv_code_verifier",
@@ -37,17 +37,11 @@ export const buildDerivAuthorizeUrl = async (): Promise<string> => {
 
   const authUrl = new URL(OAUTH_AUTHORIZE_URL);
   authUrl.searchParams.set("app_id", appId);
-  authUrl.searchParams.set("l", "EN");
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("redirect_uri", getDerivRedirectUri());
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
   authUrl.searchParams.set("state", state);
-
-  const scopes = import.meta.env.VITE_DERIV_OAUTH_SCOPES;
-  if (scopes) {
-    authUrl.searchParams.set("scope", scopes);
-  }
 
   return authUrl.toString();
 };
@@ -80,35 +74,19 @@ export const clearDerivOAuthSession = (): void => {
 };
 
 export const exchangeDerivAuthorizationCode = async (code: string, codeVerifier: string): Promise<string> => {
-  const appId = import.meta.env.VITE_DERIV_APP_ID;
-  if (!appId) {
-    throw new Error("Deriv App ID not configured.");
-  }
-
-  const response = await fetch(OAUTH_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: appId,
-      redirect_uri: getDerivRedirectUri(),
+  const { data, error } = await supabase.functions.invoke<DerivTokenResponse>("deriv-oauth-token", {
+    body: {
       code,
-      code_verifier: codeVerifier,
-    }),
+      codeVerifier,
+      redirectUri: getDerivRedirectUri(),
+    },
   });
 
-  const data = (await response.json()) as DerivTokenResponse & {
-    error?: string;
-    error_description?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(data.error_description || data.error || "Failed to exchange Deriv OAuth code.");
+  if (error) {
+    throw new Error(error.message || "Failed to exchange Deriv OAuth code.");
   }
 
-  const token = data.access_token || data.token1;
+  const token = data?.access_token || data?.token1;
   if (!token) {
     throw new Error("Deriv access token is missing from token exchange response.");
   }
