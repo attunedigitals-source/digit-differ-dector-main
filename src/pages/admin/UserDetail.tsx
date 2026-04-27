@@ -250,7 +250,13 @@ export default function UserDetail() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-5">
-          <SummaryCard title="User Identity" value={profile?.email} subtitle={`TZ: ${profile?.timezone || 'UTC'}`} icon={<UserIcon className="w-5 h-5 text-primary" />} />
+          <SummaryCard
+            title="User Identity"
+            value={profile?.email}
+            subtitle={`TZ: ${profile?.timezone || 'UTC'}`}
+            icon={<UserIcon className="w-5 h-5 text-primary" />}
+            valueClassName="text-sm leading-tight whitespace-normal break-all"
+          />
           <SummaryCard title="Today (WAT)" value={`${(dualPL?.wat || 0) >= 0 ? "+" : ""}${(dualPL?.wat || 0).toFixed(2)}`} subtitle="Africa/Lagos" icon={<TrendingUp className="w-5 h-5 text-green-500" />} isPositive={(dualPL?.wat || 0) >= 0} />
           <SummaryCard title="Today (Local)" value={`${(dualPL?.local || 0) >= 0 ? "+" : ""}${(dualPL?.local || 0).toFixed(2)}`} subtitle="Client Timeframe" icon={<TrendingUp className="w-5 h-5 text-blue-500" />} isPositive={(dualPL?.local || 0) >= 0} />
           <SummaryCard title="Total Volume" value={`${performance?.total_trades || 0}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-slate-500" />} />
@@ -303,16 +309,16 @@ export default function UserDetail() {
   );
 }
 
-function SummaryCard({ title, value, subtitle, icon, isPositive }: any) {
+function SummaryCard({ title, value, subtitle, icon, isPositive, valueClassName = "" }: any) {
   return (
     <Card className="border-border bg-card/40 p-4">
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0 flex-1">
           <p className="text-[10px] font-bold text-muted-foreground uppercase">{title}</p>
-          <h4 className={`text-lg font-bold truncate ${isPositive !== undefined ? (isPositive ? 'text-green-500' : 'text-destructive') : ''}`}>{value}</h4>
+          <h4 className={`text-lg font-bold truncate ${isPositive !== undefined ? (isPositive ? 'text-green-500' : 'text-destructive') : ''} ${valueClassName}`}>{value}</h4>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
-        <div className="p-2 rounded-lg bg-background/50 border border-border">{icon}</div>
+        <div className="p-2 rounded-lg bg-background/50 border border-border shrink-0">{icon}</div>
       </div>
     </Card>
   );
