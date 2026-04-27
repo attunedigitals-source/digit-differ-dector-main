@@ -1,8 +1,7 @@
 import { generateCodeChallenge, generateCodeVerifier, generateState } from "@/lib/pkce";
 
-const DERIV_OAUTH_BASE_URL = "https://oauth.deriv.com/oauth2";
-const OAUTH_AUTHORIZE_URL = `${DERIV_OAUTH_BASE_URL}/authorize`;
-const OAUTH_TOKEN_URL = `${DERIV_OAUTH_BASE_URL}/token`;
+const OAUTH_AUTHORIZE_URL = "https://auth.deriv.com/oauth2/auth";
+const OAUTH_TOKEN_URL = "https://oauth.deriv.com/oauth2/token";
 
 export const DERIV_SESSION_KEYS = {
   verifier: "deriv_code_verifier",
