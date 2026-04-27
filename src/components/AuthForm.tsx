@@ -140,6 +140,24 @@ export function AuthForm() {
               Continue with Google
             </Button>
 
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full bg-[#ff444f]/10 border-[#ff444f]/20 hover:bg-[#ff444f]/20 text-[#ff444f] font-bold h-11"
+              onClick={() => {
+                const appId = import.meta.env.VITE_DERIV_APP_ID;
+                if (!appId) {
+                  toast.error("Deriv App ID not configured.");
+                  return;
+                }
+                window.location.href = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=EN`;
+              }}
+              disabled={loading}
+            >
+              <Zap className="w-4 h-4 mr-3" />
+              Continue with Deriv
+            </Button>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-border" />

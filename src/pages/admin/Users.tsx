@@ -289,6 +289,7 @@ export default function UserManagement() {
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Lifetime Perf</TableHead>
                     <TableHead className="text-xs">Plan Expiry</TableHead>
+                    <TableHead className="text-xs">Deriv ID</TableHead>
                     <TableHead className="text-xs">Role</TableHead>
                     <TableHead className="text-xs text-right">Actions</TableHead>
                   </TableRow>
@@ -340,6 +341,9 @@ export default function UserManagement() {
                           <Calendar className="w-3 h-3" />
                           {u.subscription_expiry ? new Date(u.subscription_expiry).toLocaleDateString() : 'Lifetime Free'}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs font-mono">{u.deriv_loginid || 'Not Linked'}</span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-[10px] uppercase">{u.role}</Badge>

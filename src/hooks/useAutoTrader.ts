@@ -36,7 +36,7 @@ export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null
 ) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
     const saved = localStorage.getItem('tradeLog');
     if (saved) {
@@ -178,8 +178,26 @@ export function useAutoTrader(
       return;
     }
 
+    const now = Date.now();
+    const state = sessionStateRef.current;
+    
+    // subscription Check: Block real account trading if not active
+    const isReal = accountInfo && !accountInfo.is_virtual;
+    const isSubscribed = user && profile && profile.subscription_status === "active";
+    
+    if (isReal && !isSubscribed) {
+      toast.error("Real account trading requires an active subscription. Please upgrade or use a virtual account.", {
+        id: "sub-check-error",
+        duration: 5000
+      });
+      setConfig(prev => ({ ...prev, enabled: false }));
+      isExecutingRef.current = false;
+      return;
+    }
+
     isExecutingRef.current = true;
-    executionStartedAtRef.current = Date.now();
+    executionStartedAtRef.current = now;
+
     if (!continuousTradeStartAtRef.current) {
       setContinuousTradeStartAt(Date.now());
     }

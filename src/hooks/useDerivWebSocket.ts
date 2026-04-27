@@ -11,7 +11,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+const WS_URL = `wss://ws.derivws.com/websockets/v3?app_id=${import.meta.env.VITE_DERIV_APP_ID || '1089'}`;
 
 export interface DerivAccount {
   loginid: string;
