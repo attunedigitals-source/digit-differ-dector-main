@@ -1,4 +1,4 @@
-// /pages/api/deriv/auth.ts
+// /api/deriv/auth.js
 import { generateVerifier, generateChallenge } from "@/lib/pkce";
 
 export default async function handler(req, res) {
