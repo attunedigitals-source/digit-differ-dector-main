@@ -1,25 +1,39 @@
-import type { NextApiRequest, NextApiResponse } from "next";
+// /pages/api/deriv/callback.ts
+import axios from "axios";
+import { createClient } from "@supabase/supabase-js";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    res.status(405).json({ error: "Method not allowed" });
-    return;
+export default async function handler(req, res) {
+  const { code, state } = req.query;
+
+  const verifier = global.oauthStore?.[state];
+
+  if (!verifier) {
+    return res.status(400).send("Invalid state");
   }
 
-  const { code, state, error } = req.query;
+  const tokenRes = await axios.post(
+    "https://api.deriv.com/oauth2/token",
+    {
+      grant_type: "authorization_code",
+      code,
+      app_id: process.env.DERIV_APP_ID,
+      code_verifier: verifier,
+    }
+  );
 
-  if (error) {
-    res.status(400).json({ error: String(error) });
-    return;
-  }
+  const { access_token, refresh_token, expires_in } = tokenRes.data;
 
-  if (!code || !state) {
-    res.status(400).json({ error: "Missing OAuth code or state" });
-    return;
-  }
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
-  // TODO: Exchange code for access token with Deriv OAuth endpoint.
-  // TODO: Validate state and persist resulting account details.
-  res.status(200).json({ message: "Callback received", code, state });
+  await supabase.from("deriv_accounts").insert({
+    user_id: "TEMP_USER", // replace later with real auth
+    access_token,
+    refresh_token,
+    expires_at: Date.now() + expires_in * 1000,
+  });
+
+  res.redirect("/dashboard");
 }
