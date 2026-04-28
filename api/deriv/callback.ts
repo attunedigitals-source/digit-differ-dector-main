@@ -1,0 +1,1 @@
+// Deriv callback endpoint placeholder.
