@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { startDerivOAuth } from "@/lib/deriv-oauth";
 import { Key, Zap } from "lucide-react";
+import { startDerivOAuth } from "@/lib/deriv-oauth";
+
 
 interface TokenSettingsProps {
   userId: string;

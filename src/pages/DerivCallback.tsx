@@ -3,7 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { clearDerivOAuthSession, exchangeDerivAuthorizationCode, getCodeVerifier, validateOAuthState } from "@/lib/deriv-oauth";
+import { 
+  clearDerivOAuthSession, 
+  exchangeDerivAuthorizationCode, 
+  getCodeVerifier, 
+  validateOAuthState 
+} from "@/lib/deriv-oauth";
 
 interface DerivAuthorizeResponse {
   loginid?: string;
@@ -94,7 +99,6 @@ export default function DerivCallback() {
         .update({
           deriv_loginid: derivLoginId,
           deriv_email: derivEmail,
-          email: currentUser.email || derivEmail,
         })
         .eq("id", currentUser.id);
 
@@ -104,7 +108,7 @@ export default function DerivCallback() {
 
       await refreshProfile();
       toast.success("Deriv account connected successfully.");
-      navigate("/auth");
+      navigate("/dashboard");
     };
 
     const handleCallback = async () => {
@@ -124,8 +128,14 @@ export default function DerivCallback() {
         if (!code) {
           throw new Error("Missing authorization code from Deriv OAuth callback.");
         }
+        
         const verifier = getCodeVerifier();
-        const token = await exchangeDerivAuthorizationCode(code, verifier);
+        const tokenData = await exchangeDerivAuthorizationCode(code, verifier);
+        
+        const token = tokenData.access_token || tokenData.token1;
+        if (!token) {
+          throw new Error("Access token not found in Deriv response.");
+        }
 
         await processToken(token);
       } catch (error: unknown) {

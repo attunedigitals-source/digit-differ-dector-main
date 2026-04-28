@@ -1,12 +1,11 @@
 /**
  * Generates a cryptographically random string to be used as a code verifier.
- * @param length The length of the verifier (between 43 and 128 characters).
  * @returns A base64url encoded random string.
  */
-export function generateCodeVerifier(length: number = 64): string {
-  const array = new Uint8Array(length);
+export function generateCodeVerifier(): string {
+  const array = new Uint8Array(32);
   window.crypto.getRandomValues(array);
-  return base64UrlEncode(array).substring(0, length);
+  return base64UrlEncode(array);
 }
 
 /**
@@ -27,8 +26,7 @@ export async function generateCodeChallenge(verifier: string): Promise<string> {
  * @returns A base64url encoded string.
  */
 function base64UrlEncode(array: Uint8Array): string {
-  const base64 = btoa(String.fromCharCode(...Array.from(array)));
-  return base64
+  return btoa(String.fromCharCode(...Array.from(array)))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
@@ -38,5 +36,6 @@ function base64UrlEncode(array: Uint8Array): string {
  * Generates a random state string for CSRF protection.
  */
 export function generateState(): string {
-  return generateCodeVerifier(32);
+  return window.crypto.randomUUID ? window.crypto.randomUUID() : generateCodeVerifier();
 }
+

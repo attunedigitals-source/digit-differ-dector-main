@@ -1,7 +1,9 @@
 import { generateCodeChallenge, generateCodeVerifier, generateState } from "@/lib/pkce";
 import { supabase } from "@/integrations/supabase/client";
+import { CLIENT_ID, REDIRECT_URI } from "@/config/deriv";
 
-const OAUTH_AUTHORIZE_URL = "https://auth.deriv.com/oauth2/auth";
+const OAUTH_AUTHORIZE_URL = "https://oauth.deriv.com/oauth2/authorize";
+const OAUTH_TOKEN_URL = "https://oauth.deriv.com/oauth2/token";
 
 export const DERIV_SESSION_KEYS = {
   verifier: "deriv_code_verifier",
@@ -15,19 +17,14 @@ export interface DerivTokenResponse {
   expires_in?: number;
   scope?: string;
   token_type?: string;
+  account_id?: string;
+  loginid?: string;
   [key: string]: unknown;
 }
 
-export const getDerivRedirectUri = () =>
-  import.meta.env.VITE_DERIV_REDIRECT_URL || `${window.location.origin}/api/auth/deriv/callback`;
+export const getDerivRedirectUri = () => REDIRECT_URI;
 
 export const buildDerivAuthorizeUrl = async (): Promise<string> => {
-  const appId = import.meta.env.VITE_DERIV_APP_ID;
-
-  if (!appId) {
-    throw new Error("Deriv App ID not configured.");
-  }
-
   const verifier = generateCodeVerifier();
   const challenge = await generateCodeChallenge(verifier);
   const state = generateState();
@@ -36,12 +33,13 @@ export const buildDerivAuthorizeUrl = async (): Promise<string> => {
   sessionStorage.setItem(DERIV_SESSION_KEYS.state, state);
 
   const authUrl = new URL(OAUTH_AUTHORIZE_URL);
-  authUrl.searchParams.set("app_id", appId);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("redirect_uri", getDerivRedirectUri());
+  authUrl.searchParams.set("client_id", CLIENT_ID);
+  authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+  authUrl.searchParams.set("scope", "trade account_manage");
+  authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
-  authUrl.searchParams.set("state", state);
 
   return authUrl.toString();
 };
@@ -73,25 +71,28 @@ export const clearDerivOAuthSession = (): void => {
   sessionStorage.removeItem(DERIV_SESSION_KEYS.state);
 };
 
-export const exchangeDerivAuthorizationCode = async (code: string, codeVerifier: string): Promise<string> => {
-  const { data, error } = await supabase.functions.invoke<DerivTokenResponse>("deriv-oauth-token", {
-    body: {
-      code,
-      codeVerifier,
-      redirectUri: getDerivRedirectUri(),
+export const exchangeDerivAuthorizationCode = async (code: string, codeVerifier: string): Promise<DerivTokenResponse> => {
+  // Use public token endpoint directly since PKCE doesn't require client_secret
+  const response = await fetch(OAUTH_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
     },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code: code,
+      code_verifier: codeVerifier,
+    }),
   });
 
-  if (error) {
-    throw new Error(error.message || "Failed to exchange Deriv OAuth code.");
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error_description || errorData.error || "Failed to exchange Deriv OAuth code.");
   }
 
-  const token = data?.access_token || data?.token1;
-  if (!token) {
-    throw new Error("Deriv access token is missing from token exchange response.");
-  }
-
-  return token;
+  return response.json();
 };
 
 export const derivApiFetch = async (
@@ -107,3 +108,4 @@ export const derivApiFetch = async (
     headers,
   });
 };
+
