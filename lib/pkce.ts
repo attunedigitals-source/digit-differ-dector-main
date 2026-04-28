@@ -1,22 +1,10 @@
-import { createHash, randomBytes } from "crypto";
+// /lib/pkce.ts
+import crypto from "crypto";
 
-function base64UrlEncode(input: Buffer): string {
-  return input
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+export function generateVerifier() {
+  return crypto.randomBytes(32).toString("base64url");
 }
 
-export function generateCodeVerifier(length = 32): string {
-  return base64UrlEncode(randomBytes(length));
-}
-
-export function generateCodeChallenge(verifier: string): string {
-  const digest = createHash("sha256").update(verifier).digest();
-  return base64UrlEncode(digest);
-}
-
-export function generateState(): string {
-  return base64UrlEncode(randomBytes(16));
+export function generateChallenge(verifier: string) {
+  return crypto.createHash("sha256").update(verifier).digest("base64url");
 }
