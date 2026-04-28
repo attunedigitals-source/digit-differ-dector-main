@@ -1,0 +1,1 @@
+// Deriv auth endpoint placeholder.
