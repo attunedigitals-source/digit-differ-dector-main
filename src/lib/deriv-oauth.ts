@@ -77,9 +77,11 @@ export const exchangeDerivAuthorizationCode = async (code: string, codeVerifier:
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
+      "Deriv-App-ID": CLIENT_ID,
     },
     body: new URLSearchParams({
       grant_type: "authorization_code",
+
       client_id: CLIENT_ID,
       redirect_uri: REDIRECT_URI,
       code: code,
@@ -102,10 +104,13 @@ export const derivApiFetch = async (
 ): Promise<Response> => {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${accessToken}`);
+  headers.set("Deriv-App-ID", CLIENT_ID);
+  headers.set("Content-Type", "application/json");
 
   return fetch(endpoint, {
     ...init,
     headers,
   });
 };
+
 
