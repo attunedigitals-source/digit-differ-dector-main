@@ -34,7 +34,7 @@ export const buildDerivAuthorizeUrl = async (): Promise<string> => {
 
   const authUrl = new URL(OAUTH_AUTHORIZE_URL);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("client_id", CLIENT_ID);
+  authUrl.searchParams.set("app_id", CLIENT_ID);
   authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
   authUrl.searchParams.set("scope", "trade account_manage");
   authUrl.searchParams.set("state", state);
