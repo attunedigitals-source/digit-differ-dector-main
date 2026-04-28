@@ -1,23 +1,30 @@
 // /api/deriv/auth.js
-import { generateVerifier, generateChallenge } from "@/lib/pkce";
 
-export default async function handler(req, res) {
-  const verifier = generateVerifier();
-  const challenge = generateChallenge(verifier);
-  const state = crypto.randomUUID();
+export default function handler(req, res) {
+  try {
+    const appId = process.env.DERIV_APP_ID;
+    const redirectUri = process.env.DERIV_REDIRECT_URI;
 
-  // TEMP STORE (IMPORTANT)
-  global.oauthStore = global.oauthStore || {};
-  global.oauthStore[state] = verifier;
+    if (!appId || !redirectUri) {
+      return res.status(500).json({
+        error: "Missing environment variables"
+      });
+    }
 
-  const url = `https://oauth.deriv.com/oauth2/authorize
-?app_id=${process.env.DERIV_APP_ID}
-&redirect_uri=${encodeURIComponent(process.env.DERIV_REDIRECT_URI)}
+    const state = Math.random().toString(36).substring(2);
+
+    const url = `https://oauth.deriv.com/oauth2/authorize
+?app_id=${appId}
+&redirect_uri=${encodeURIComponent(redirectUri)}
 &response_type=code
 &scope=trade account_manage
-&state=${state}
-&code_challenge=${challenge}
-&code_challenge_method=S256`;
+&state=${state}`;
 
-  res.redirect(url);
+    res.writeHead(302, { Location: url });
+    res.end();
+
+  } catch (err) {
+    console.error("AUTH ERROR:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
 }
