@@ -155,8 +155,6 @@ export function AuthForm() {
                   toast.error(error instanceof Error ? error.message : "Failed to start Deriv OAuth.");
                   setLoading(false);
                 }
-
-                }
               }}
               disabled={loading}
             >
