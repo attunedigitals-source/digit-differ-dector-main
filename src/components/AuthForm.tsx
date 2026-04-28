@@ -6,9 +6,6 @@ import { toast } from "sonner";
 import { LogIn, UserPlus, Zap, ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
-import { startDerivOAuth } from "@/lib/deriv-oauth";
-
-
 
 export function AuthForm() {
   const { signIn, signUp } = useAuth();
@@ -57,6 +54,10 @@ export function AuthForm() {
     } else {
       toast.success("Password reset link sent! Check your email.");
     }
+  };
+
+  const connectDeriv = () => {
+    window.location.href = "/api/deriv/auth";
   };
 
   const handleGoogleSignIn = async () => {
@@ -147,15 +148,7 @@ export function AuthForm() {
               type="button" 
               variant="outline" 
               className="w-full bg-[#ff444f]/10 border-[#ff444f]/20 hover:bg-[#ff444f]/20 text-[#ff444f] font-bold h-11"
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  await startDerivOAuth();
-                } catch (error: unknown) {
-                  toast.error(error instanceof Error ? error.message : "Failed to start Deriv OAuth.");
-                  setLoading(false);
-                }
-              }}
+              onClick={connectDeriv}
               disabled={loading}
             >
 
