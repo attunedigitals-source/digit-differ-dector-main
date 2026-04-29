@@ -55,7 +55,8 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
 
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
-  accountInfo: DerivAccount | null
+  accountInfo: DerivAccount | null,
+  connected: boolean
 ) {
   const { user } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
@@ -113,36 +114,45 @@ export function useAutoTrader(
 
   const executionStartedAtRef = useRef<number>(0);
 
-  // Watchdog: reset stuck execution
+  const requestContractStatus = useCallback((contractId: string) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    console.log(`[AutoTrader] Polling status for contract ${contractId}`);
+    ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId }));
+    return true;
+  }, [wsRef]);
+
+  // Watchdog: monitor and resolve stuck execution
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
 
-      // Fix 3: Evict open contracts that have been open for >45s (subscription likely dropped)
+      // Poll open contracts that haven't settled within 30s
       openContracts.current.forEach((contract, id) => {
-        if (now - contract.timestamp > 45000) {
-          console.warn(`[AutoTrader] Stale open contract ${id} evicted by watchdog`);
-          openContracts.current.delete(id);
+        if (now - contract.timestamp > 30000) {
+          console.log(`[AutoTrader] Stale open contract ${id} detection - requesting refresh`);
+          requestContractStatus(id);
         }
       });
 
-      if (isExecutingRef.current && now - executionStartedAtRef.current > 30000) {
-        console.warn("[AutoTrader] Watchdog triggered: Resetting stuck execution state");
+      // Safety check for stuck execution lock (no pending/open contracts but lock is on)
+      if (isExecutingRef.current && 
+          pendingProposals.current.size === 0 && 
+          pendingBuys.current.size === 0 && 
+          openContracts.current.size === 0 && 
+          now - executionStartedAtRef.current > 45000) {
+        console.warn("[AutoTrader] Watchdog triggered: Resetting empty stuck execution lock");
         isExecutingRef.current = false;
-
-        // Clear stale pending entries from the log when resetting
         setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
-
         setSessionState(prev => ({
           ...prev,
           status: "LOSS",
-          nextAction: "WATCHDOG_TIMEOUT_RECOVERY"
+          nextAction: "WATCHDOG_RECOVERY_LOCK_RESET"
         }));
-        setTicksToWait(30); // Wait 30 seconds after a timeout
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [requestContractStatus]);
 
   const sessionStateRef = useRef(sessionState);
   useEffect(() => {
@@ -510,6 +520,46 @@ export function useAutoTrader(
       console.error("Unexpected error in fetchDailyPL:", err);
     }
   }, []);
+
+  useEffect(() => {
+    if (!user?.id || !connected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    const recoverPendingTrades = async () => {
+      try {
+        console.log("[AutoTrader] Recovery: Checking for pending trades in database...");
+        const { data: pendingTrades, error } = await supabase
+          .from("trades")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("result", "pending")
+          .not("contract_id", "is", null);
+
+        if (error) throw error;
+        if (!pendingTrades || pendingTrades.length === 0) return;
+
+        console.log(`[AutoTrader] Recovery: Found ${pendingTrades.length} pending trades. Resolving...`);
+        
+        pendingTrades.forEach(trade => {
+          if (trade.contract_id) {
+            // Populate openContracts so handle_result can find it
+            openContracts.current.set(trade.contract_id, {
+              symbol: trade.symbol || "",
+              stake: Number(trade.stake) || 0,
+              timestamp: new Date(trade.timestamp).getTime(),
+              supabaseId: trade.id
+            });
+            requestContractStatus(trade.contract_id);
+          }
+        });
+      } catch (err) {
+        console.error("[AutoTrader] Recovery failed:", err);
+      }
+    };
+
+    // Delay recovery slightly to ensure socket is ready for multiple requests
+    const timer = setTimeout(recoverPendingTrades, 2000);
+    return () => clearTimeout(timer);
+  }, [user?.id, connected, requestContractStatus, wsRef]);
 
   useEffect(() => {
     fetchDailyPL();

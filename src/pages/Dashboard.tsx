@@ -26,7 +26,7 @@ export default function Dashboard() {
   const { 
     config, setConfig, tradeLog, setTradeLog, 
     dailyPL, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown
-  } = useAutoTrader(wsRef, activeAccount);
+  } = useAutoTrader(wsRef, activeAccount, connected);
 
   // Wire auto-trader message handler
   useEffect(() => {
