@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Shield, Zap, BarChart3, Lock, CheckCircle2, Menu } from "lucide-react";
+import { ArrowRight, Shield, Zap, Brain, Lock, CheckCircle2, Menu } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 
@@ -71,7 +71,7 @@ const Landing = () => {
           </div>
           
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
-            Master Digit Differs with <br />
+            Master Digits with <br />
             <span className="text-primary">Predictive Intelligence</span>
           </h1>
           
@@ -116,11 +116,11 @@ const Landing = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="p-8 bg-secondary/50 border-border hover:border-primary/50 transition-all group">
               <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <BarChart3 className="text-primary w-6 h-6" />
+                <Brain className="text-primary w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Ensemble Predictions</h3>
+              <h3 className="text-xl font-bold mb-3">Advance AI Predictions</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Combines Entropy, Markov, and Compression models to identify digits with the lowest probability of occurrence.
+                Uses adaptive AI models to forecast higher-probability opportunities and support more confident, data-driven entries.
               </p>
             </Card>
 
@@ -140,7 +140,7 @@ const Landing = () => {
               </div>
               <h3 className="text-xl font-bold mb-3">Smart Risk Controls</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Advanced Martingale logic with hard stop-losses, win targets, and daily risk capital protection.
+                Advanced risk controls with strict stop-losses, win targets, and daily capital protection rules to keep execution disciplined.
               </p>
             </Card>
           </div>
@@ -158,21 +158,21 @@ const Landing = () => {
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">1</div>
                   <div>
                     <h4 className="text-xl font-bold mb-1">Connect Your Account</h4>
-                    <p className="text-muted-foreground">Securely connect via Deriv OAuth 2.0 authorization.</p>
+                    <p className="text-muted-foreground">Securely connect using your Deriv API token for direct account access.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">2</div>
                   <div>
                     <h4 className="text-xl font-bold mb-1">Configure Strategy</h4>
-                    <p className="text-muted-foreground">Select your volatility index and set your risk parameters and targets.</p>
+                    <p className="text-muted-foreground">Set your preferred market, stake, and protection settings to match your trading plan.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">3</div>
                   <div>
                     <h4 className="text-xl font-bold mb-1">Use the Tool</h4>
-                    <p className="text-muted-foreground">Launch Digit Bot Pro and let the ensemble engine handle disciplined digit-differ execution.</p>
+                    <p className="text-muted-foreground">Launch Digit Bot Pro and let the predictive engine execute your configured strategy with discipline.</p>
                   </div>
                 </div>
               </div>
@@ -211,7 +211,7 @@ const Landing = () => {
               </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Your Security, <br />Our Priority.</h2>
               <p className="text-muted-foreground text-lg mb-8 leading-relaxed">
-                Digit Bot Pro is built with a privacy-first architecture as a client-side trading tool. We never store your Deriv credentials or trade history on our servers.
+                Digit Bot Pro uses the Deriv API within a privacy-first, client-side architecture. Your API credentials and trade activity stay on your device and are never stored on our servers.
               </p>
               <ul className="space-y-4">
                 <li className="flex items-center gap-3">
