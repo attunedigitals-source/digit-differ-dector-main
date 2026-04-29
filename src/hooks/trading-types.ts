@@ -1,6 +1,7 @@
 export interface TradeRecord {
   id: string;
   symbol: string;
+  sequence_name?: string;
   contract: string;
   barrier: number;
   stake: number;

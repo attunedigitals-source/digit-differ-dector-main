@@ -255,6 +255,7 @@ export function useAutoTrader(
       const pendingRecord: TradeRecord = {
         id: `pending-${reqId}`,
         symbol,
+        sequence_name: activeSequenceNameRef.current,
         contract: type,
         barrier,
         stake: nextStake,
@@ -357,6 +358,7 @@ export function useAutoTrader(
     const newRecord: TradeRecord = {
       id: Math.random().toString(36).substring(2, 11),
       symbol,
+      sequence_name: activeSequenceNameRef.current,
       contract: state.currentContract || "UNKNOWN",
       barrier: state.currentBarrier || 0,
       stake: state.currentStake,
