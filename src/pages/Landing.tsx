@@ -216,7 +216,7 @@ const Landing = () => {
               <ul className="space-y-4">
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
-                  <span>Official Deriv OAuth 2.0 Integration</span>
+                  <span>Official Deviv API Integration</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
@@ -266,16 +266,16 @@ const Landing = () => {
               <div>
                 <h4 className="font-bold mb-4">Support</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
+                                    <li><Link to="/documentation" className="hover:text-primary transition-colors">Documentation</Link></li>
                   <li><a href="#" className="hover:text-primary transition-colors">API Status</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
+                                    <li><a href="https://t.me/Blade234" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">Contact</a></li>
                 </ul>
               </div>
               <div>
                 <h4 className="font-bold mb-4">Legal</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-primary transition-colors">Privacy Policy</a></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">Terms of Service</a></li>
+                                    <li><Link to="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+                                    <li><Link to="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</Link></li>
                 </ul>
               </div>
             </div>
