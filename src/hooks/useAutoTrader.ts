@@ -15,6 +15,27 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
+const U4 = "DIGITUNDER" as const;
+const O5 = "DIGITOVER" as const;
+
+const sequences = [
+  { name: "SEQ_01_STRICT_ALTERNATING", pattern: [U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5] },
+  { name: "SEQ_02_DOUBLE_BLOCK", pattern: [U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5] },
+  { name: "SEQ_03_TRIPLE_WAVE", pattern: [U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5] },
+  { name: "SEQ_04_SPIKE_REVERSAL", pattern: [U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4] },
+  { name: "SEQ_05_U4_BIAS", pattern: [U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5] },
+  { name: "SEQ_06_ZIGZAG_COMPRESSION", pattern: [U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4] },
+  { name: "SEQ_07_DELAYED_FLIP", pattern: [U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4] },
+  { name: "SEQ_08_MIRROR_CYCLE", pattern: [U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4] },
+  { name: "SEQ_09_REVERSE_ALTERNATING", pattern: [O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4] },
+  { name: "SEQ_10_O5_DOUBLE_BLOCK", pattern: [O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4] },
+  { name: "SEQ_11_O5_TRIPLE_WAVE", pattern: [O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4] },
+  { name: "SEQ_12_INVERTED_SPIKE", pattern: [O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5] },
+  { name: "SEQ_13_O5_BIAS", pattern: [O5, O5, O5, U4, O5, U4, O5, O5, O5, U4, O5, U4, O5, O5, O5, U4, O5, O5, O5, U4, O5, U4, O5, O5, O5, U4, O5, U4, O5, O5, O5, U4] },
+  { name: "SEQ_14_EXTENDED_CLUSTER", pattern: [U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5] },
+  { name: "SEQ_15_COMPRESSION_FLIP", pattern: [O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5] },
+  { name: "SEQ_16_WAVE_REVERSAL", pattern: [U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5] }
+] as const;
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Number(incoming?.baseStake ?? 0.35);
@@ -140,12 +161,14 @@ export function useAutoTrader(
   // Stores per-proposal timeout handles so they can be cancelled when a response arrives
   const proposalTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const select_random_contract = useCallback(() => {
-    const isOver = Math.random() > 0.5;
-    return {
-      type: isOver ? "DIGITOVER" : "DIGITUNDER" as "DIGITOVER" | "DIGITUNDER",
-      barrier: isOver ? 5 : 4
-    };
+  const activeSequenceRef = useRef<(typeof sequences)[number]>(sequences[0]);
+  const activeSequenceNameRef = useRef<string>(sequences[0].name);
+  const stepIndexRef = useRef<number>(0);
+  const pickRandomSequence = useCallback(() => {
+    const selected = sequences[Math.floor(Math.random() * sequences.length)];
+    activeSequenceRef.current = selected;
+    activeSequenceNameRef.current = selected.name;
+    stepIndexRef.current = 0;
   }, []);
 
   const select_random_symbol = useCallback(() => {
@@ -188,16 +211,17 @@ export function useAutoTrader(
       let nextStake = state.currentStake;
       let nextStep = state.martingaleStep;
       let seqStep = state.sequenceStep;
-      let initChoice = state.initialChoice;
 
       if (state.status === "WIN" || state.status === "IDLE") {
         nextStake = config.baseStake;
         nextStep = 0;
-        seqStep = 0; // Reset sequence on win
+        seqStep = 0;
+        pickRandomSequence();
       } else if (state.status === "LOSS") {
         nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
-        seqStep = state.sequenceStep + 1; // Continue sequence on loss
+        seqStep = state.sequenceStep + 1;
+        stepIndexRef.current += 1;
       }
 
       if (nextStep >= config.maxMartingaleSteps) {
@@ -206,22 +230,9 @@ export function useAutoTrader(
         return;
       }
 
-      let type: "DIGITOVER" | "DIGITUNDER";
-      let barrier: number;
-
-      if (seqStep === 0) {
-        // First trade is random
-        const randomRes = select_random_contract();
-        type = randomRes.type;
-        barrier = randomRes.barrier;
-        initChoice = type;
-      } else {
-        // Updated Ping-Pong: flip pattern every 2 steps
-// Logic: same as initial if (step % 2) === (floor((step-1)/2) % 2)
-        const isSame = (seqStep % 2) === (Math.floor((seqStep - 1) / 2) % 2);
-        type = isSame ? initChoice : (initChoice === "DIGITOVER" ? "DIGITUNDER" : "DIGITOVER");
-        barrier = type === "DIGITOVER" ? 5 : 4;
-      }
+      const trade = activeSequenceRef.current.pattern[stepIndexRef.current % 32];
+      const type: "DIGITOVER" | "DIGITUNDER" = trade;
+      const barrier = type === "DIGITOVER" ? 5 : 4;
 
       const symbol = select_random_symbol();
 
@@ -230,7 +241,7 @@ export function useAutoTrader(
         currentStake: nextStake,
         martingaleStep: nextStep,
         sequenceStep: seqStep,
-        initialChoice: initChoice,
+        initialChoice: type,
         currentSymbol: symbol,
         currentContract: type,
         currentBarrier: barrier,
@@ -333,7 +344,7 @@ export function useAutoTrader(
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
-  }, [config, wsRef, accountInfo, select_random_contract, select_random_symbol]);
+  }, [config, wsRef, accountInfo, pickRandomSequence, select_random_symbol]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
@@ -400,6 +411,10 @@ export function useAutoTrader(
     isExecutingRef.current = false;
     console.log(JSON.stringify({
       event: "trade_settled",
+      sequence: activeSequenceNameRef.current,
+      step: stepIndexRef.current,
+      trade: state.currentContract,
+      result: newStatus,
       symbol,
       status: newStatus,
       profit: Number(profit.toFixed(2)),
