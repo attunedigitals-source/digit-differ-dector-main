@@ -85,9 +85,11 @@ const Landing = () => {
                 Launch Tool <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
-            <Button size="lg" variant="outline" className="h-14 px-10 text-lg font-semibold border-border hover:bg-secondary">
-              View Guide
-            </Button>
+            <Link to="/documentation">
+              <Button size="lg" variant="outline" className="h-14 px-10 text-lg font-semibold border-border hover:bg-secondary">
+                View Guide
+              </Button>
+            </Link>
           </div>
 
           {/* Hero Image / Preview */}
