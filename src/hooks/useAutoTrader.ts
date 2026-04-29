@@ -15,6 +15,7 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
+const STALE_CONTRACT_POLL_MS = 45000;
 const U4 = "DIGITUNDER" as const;
 const O5 = "DIGITOVER" as const;
 
@@ -118,11 +119,17 @@ export function useAutoTrader(
     const interval = setInterval(() => {
       const now = Date.now();
 
-      // Fix 3: Evict open contracts that have been open for >45s (subscription likely dropped)
+      // Fix 3: Re-poll stale open contracts instead of evicting them.
+      // This avoids losing result accounting when settlement messages are delayed.
       openContracts.current.forEach((contract, id) => {
-        if (now - contract.timestamp > 45000) {
-          console.warn(`[AutoTrader] Stale open contract ${id} evicted by watchdog`);
-          openContracts.current.delete(id);
+        if (now - contract.timestamp > STALE_CONTRACT_POLL_MS) {
+          const requested = requestContractStatus(id);
+          if (requested) {
+            openContracts.current.set(id, { ...contract, timestamp: now });
+            console.warn(`[AutoTrader] Stale open contract ${id}: requested status refresh`);
+          } else {
+            console.warn(`[AutoTrader] Stale open contract ${id}: socket unavailable for status refresh`);
+          }
         }
       });
 
@@ -142,7 +149,7 @@ export function useAutoTrader(
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [requestContractStatus]);
 
   const sessionStateRef = useRef(sessionState);
   useEffect(() => {
@@ -188,6 +195,13 @@ export function useAutoTrader(
     const maxTicks = isWin ? WIN_TRADE_COOLDOWN_MAX_TICKS : LOSS_TRADE_COOLDOWN_MAX_TICKS;
     return Math.floor(Math.random() * (maxTicks - minTicks + 1)) + minTicks;
   }, []);
+
+  const requestContractStatus = useCallback((contractId: string) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId }));
+    return true;
+  }, [wsRef]);
 
   const execute_trade = useCallback(async () => {
     const ws = wsRef.current;
