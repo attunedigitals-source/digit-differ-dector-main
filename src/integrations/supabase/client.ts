@@ -4,11 +4,22 @@ import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const LEGACY_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const resolvedSupabaseUrl = SUPABASE_URL || "https://example.supabase.co";
+const resolvedSupabaseKey = SUPABASE_PUBLISHABLE_KEY || LEGACY_SUPABASE_ANON_KEY || "public-anon-key-placeholder";
+
+if (!SUPABASE_URL || (!SUPABASE_PUBLISHABLE_KEY && !LEGACY_SUPABASE_ANON_KEY)) {
+  console.error(
+    "[supabase] Missing VITE_SUPABASE_URL or publishable key. " +
+    "Configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (or legacy VITE_SUPABASE_ANON_KEY)."
+  );
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(resolvedSupabaseUrl, resolvedSupabaseKey, {
   auth: {
     storage: localStorage,
     persistSession: true,
