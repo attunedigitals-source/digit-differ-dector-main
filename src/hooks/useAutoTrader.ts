@@ -479,22 +479,53 @@ export function useAutoTrader(
     if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
       const poc = data.proposal_open_contract;
       const contractId = String(poc.contract_id);
-      if ((poc.is_sold || poc.is_expired) && !settledContracts.current.has(contractId)) {
-        settledContracts.current.add(contractId);
-        const isWin = (poc.profit ?? 0) > 0;
-        const profit = Number(poc.profit) || 0;
-        const openC = openContracts.current.get(contractId);
-        handle_result(isWin, poc.underlying || "", profit, openC?.supabaseId);
-        openContracts.current.delete(contractId);
+      const status = poc.status;
+      const isFinished = poc.is_sold || poc.is_expired || ["won", "lost", "sold", "expired"].includes(status);
+
+      console.log(`[AutoTrader] Contract ${contractId} update: status=${status}, is_sold=${poc.is_sold}, profit=${poc.profit}`);
+
+      if (isFinished) {
+        if (!settledContracts.current.has(contractId)) {
+          console.log(`[AutoTrader] Settling contract ${contractId} (${status})`);
+          settledContracts.current.add(contractId);
+          const isWin = (poc.profit ?? 0) > 0 || status === "won";
+          const profit = Number(poc.profit) || 0;
+          const openC = openContracts.current.get(contractId);
+          handle_result(isWin, poc.underlying || "", profit, openC?.supabaseId);
+        }
+        
+        // Always remove from openContracts if finished to stop watchdog polling
+        if (openContracts.current.has(contractId)) {
+          console.log(`[AutoTrader] Removing ${contractId} from active monitoring`);
+          openContracts.current.delete(contractId);
+        }
       }
     }
 
     if (data.error) {
       const reqId = String(data.req_id);
+      console.error(`[AutoTrader] API Error (req_id: ${reqId}):`, data.error);
+
+      // Reset execution lock if this error belongs to a pending trade attempt
       if (pendingProposals.current.has(reqId) || Array.from(pendingBuys.current.keys()).includes(reqId)) {
         toast.error(`Trade error: ${data.error.message}`);
         setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERROR_RETRY" }));
         setTicksToWait(30);
+        isExecutingRef.current = false;
+        
+        pendingProposals.current.delete(reqId);
+        // Clear buy if match
+        const buyReq = Array.from(pendingBuys.current.keys()).find(k => k === reqId);
+        if (buyReq) pendingBuys.current.delete(buyReq);
+      }
+
+      // If it's a contract status error and we have it in openContracts, clear it
+      if (data.msg_type === "proposal_open_contract" && data.error.code === "ContractNotFound") {
+        // We don't have the contract ID directly in the error top-level usually, 
+        // but we can check our open contracts if the watchdog just polled.
+        console.warn("[AutoTrader] Contract not found on Deriv. Clearing stale references.");
+        openContracts.current.clear(); // Nuclear option if we hit this, or we could be more specific
+        isExecutingRef.current = false;
       }
     }
   }, [config.enabled, wsRef, handle_result, execute_trade]);
