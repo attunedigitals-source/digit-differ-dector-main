@@ -113,6 +113,12 @@ export function useAutoTrader(
   const continuousTradeStartAtRef = useRef<number | null>(null);
 
   const executionStartedAtRef = useRef<number>(0);
+  const requestContractStatus = useCallback((contractId: string) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId }));
+    return true;
+  }, [wsRef]);
 
   // Watchdog: reset stuck execution
   useEffect(() => {
