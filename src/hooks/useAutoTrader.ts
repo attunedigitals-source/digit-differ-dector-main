@@ -25,7 +25,6 @@ const sequences = [
   { name: "SEQ_04_SPIKE_REVERSAL", pattern: [U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4] },
   { name: "SEQ_05_U4_BIAS", pattern: [U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5] },
   { name: "SEQ_06_ZIGZAG_COMPRESSION", pattern: [U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4] },
-  { name: "SEQ_07_DELAYED_FLIP", pattern: [U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4] },
   { name: "SEQ_08_MIRROR_CYCLE", pattern: [U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4] },
   { name: "SEQ_09_REVERSE_ALTERNATING", pattern: [O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4] },
   { name: "SEQ_10_O5_DOUBLE_BLOCK", pattern: [O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4] },
