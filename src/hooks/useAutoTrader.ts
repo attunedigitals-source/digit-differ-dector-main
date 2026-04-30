@@ -76,6 +76,8 @@ export function useAutoTrader(
     return [];
   });
   const [dailyPL, setDailyPL] = useState<number>(0);
+  const [dailyStats, setDailyStats] = useState({ total_trades: 0, wins: 0 });
+  const [ticksToWait, setTicksToWait] = useState(0);
   const [config, setConfig] = useState<AutoTraderConfig>(() => {
     const saved = localStorage.getItem('autoTraderConfig');
     if (saved) {
@@ -274,7 +276,7 @@ export function useAutoTrader(
         next_action: "WAITING_FOR_RESULT",
         timestamp: new Date(),
       };
-      setTradeLog(prev => [pendingRecord, ...prev].slice(0, 500));
+      setTradeLog(prev => [pendingRecord, ...prev].slice(0, 2000));
 
       const proposalReq = {
         proposal: 1,
@@ -380,10 +382,14 @@ export function useAutoTrader(
     setTradeLog(prev => {
       // Remove all pending entries safely
       const filtered = prev.filter(t => t && t.id && !t.id.startsWith("pending-"));
-      const updated = [newRecord, ...filtered].slice(0, 500);
-      localStorage.setItem('tradeLog', JSON.stringify(updated));
-      return updated;
+      return [newRecord, ...filtered].slice(0, 2000);
     });
+
+    // Update Daily Stats locally
+    setDailyStats(prev => ({
+      total_trades: prev.total_trades + 1,
+      wins: prev.wins + (isWin ? 1 : 0)
+    }));
 
     // Update Daily P/L locally regardless of Supabase success
     setDailyPL(prev => {
@@ -544,8 +550,14 @@ export function useAutoTrader(
       if (!user) return;
       const { data: profileData } = await supabase.from('profiles').select('timezone').eq('id', user.id).single();
       const tz = profileData?.timezone || "UTC";
-      const { data, error } = await supabase.rpc('get_user_daily_pl', { p_user_id: user.id, p_timezone: tz });
-      if (!error && data !== null) setDailyPL(Number(data));
+      const { data, error } = await supabase.rpc('get_user_daily_stats', { p_user_id: user.id, p_timezone: tz });
+      if (!error && data) {
+        setDailyPL(Number(data.profit_loss));
+        setDailyStats({
+          total_trades: Number(data.total_trades),
+          wins: Number(data.wins)
+        });
+      }
     } catch (err) {
       console.error("Unexpected error in fetchDailyPL:", err);
     }
@@ -602,7 +614,7 @@ export function useAutoTrader(
   }, [config]);
 
   useEffect(() => {
-    localStorage.setItem('tradeLog', JSON.stringify(tradeLog.slice(0, 500)));
+    localStorage.setItem('tradeLog', JSON.stringify(tradeLog.slice(0, 100)));
   }, [tradeLog]);
 
   useEffect(() => {
@@ -689,6 +701,7 @@ export function useAutoTrader(
     tradeLog,
     setTradeLog,
     dailyPL,
+    dailyStats,
     resetTradeLog,
     sessionState,
     ticksToWait,

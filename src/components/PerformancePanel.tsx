@@ -19,12 +19,21 @@ interface PerformancePanelProps {
   onReset: () => void;
   activeAccount?: DerivAccount | null;
   dailyPL?: number;
+  dailyStats?: { total_trades: number; wins: number };
 }
 
-export function PerformancePanel({ tradeLog, onReset, activeAccount, dailyPL = 0 }: PerformancePanelProps) {
+export function PerformancePanel({ 
+  tradeLog, 
+  onReset, 
+  activeAccount, 
+  dailyPL = 0,
+  dailyStats
+}: PerformancePanelProps) {
   const settled = tradeLog.filter((t) => t.status === "WIN" || t.status === "LOSS");
-  const totalTrades = settled.length;
-  const wins = settled.filter((t) => t.status === "WIN").length;
+  
+  // Use persistent dailyStats if available, otherwise fallback to local session history
+  const totalTrades = dailyStats ? dailyStats.total_trades : settled.length;
+  const wins = dailyStats ? dailyStats.wins : settled.filter((t) => t.status === "WIN").length;
   const losses = totalTrades - wins;
 
   const stats = [

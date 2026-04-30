@@ -25,7 +25,7 @@ export default function Dashboard() {
 
   const { 
     config, setConfig, tradeLog, setTradeLog, 
-    dailyPL, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown
+    dailyPL, dailyStats, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown
   } = useAutoTrader(wsRef, activeAccount, connected);
 
   // Wire auto-trader message handler
@@ -110,6 +110,7 @@ export default function Dashboard() {
               onReset={resetTradeLog} 
               activeAccount={activeAccount} 
               dailyPL={dailyPL}
+              dailyStats={dailyStats}
             />
 
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
