@@ -274,7 +274,7 @@ export function useAutoTrader(
         next_action: "WAITING_FOR_RESULT",
         timestamp: new Date(),
       };
-      setTradeLog(prev => [pendingRecord, ...prev].slice(0, 100));
+      setTradeLog(prev => [pendingRecord, ...prev].slice(0, 500));
 
       const proposalReq = {
         proposal: 1,
