@@ -614,7 +614,7 @@ export function useAutoTrader(
   }, [config]);
 
   useEffect(() => {
-    localStorage.setItem('tradeLog', JSON.stringify(tradeLog.slice(0, 100)));
+    localStorage.setItem('tradeLog', JSON.stringify(tradeLog.slice(0, 50)));
   }, [tradeLog]);
 
   useEffect(() => {
