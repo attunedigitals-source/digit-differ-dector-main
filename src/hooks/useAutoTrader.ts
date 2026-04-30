@@ -380,7 +380,7 @@ export function useAutoTrader(
     setTradeLog(prev => {
       // Remove all pending entries safely
       const filtered = prev.filter(t => t && t.id && !t.id.startsWith("pending-"));
-      const updated = [newRecord, ...filtered].slice(0, 100);
+      const updated = [newRecord, ...filtered].slice(0, 500);
       localStorage.setItem('tradeLog', JSON.stringify(updated));
       return updated;
     });
@@ -602,7 +602,7 @@ export function useAutoTrader(
   }, [config]);
 
   useEffect(() => {
-    localStorage.setItem('tradeLog', JSON.stringify(tradeLog.slice(-100)));
+    localStorage.setItem('tradeLog', JSON.stringify(tradeLog.slice(0, 500)));
   }, [tradeLog]);
 
   useEffect(() => {
