@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
-import { useAuth } from "./useAuth";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -58,9 +57,9 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null,
-  connected: boolean
+  connected: boolean,
+  user: any | null
 ) {
-  const { user } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
     const saved = localStorage.getItem('tradeLog');
     if (saved) {
@@ -649,6 +648,7 @@ export function useAutoTrader(
     if (!user?.id || !connected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
     const recoverPendingTrades = async () => {
+      if (!user?.id) return;
       try {
         console.log("[AutoTrader] Recovery: Checking for pending trades in database...");
         const { data: pendingTrades, error } = await supabase
