@@ -464,11 +464,9 @@ export function useAutoTrader(
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks, connected, fetchDerivProfitTable, wsRef]);
 
   const handleTradeMessage = useCallback((data: any) => {
-    if (!config.enabled) return;
-
     const state = sessionStateRef.current;
 
-    // Profit Table Response for Accurate Daily Stats
+    // Profit Table Response for Accurate Daily Stats - Process even if not enabled
     if (data.msg_type === "profit_table") {
       const transactions = data.profit_table?.transactions || [];
       let totalPL = 0;
@@ -477,6 +475,8 @@ export function useAutoTrader(
 
       transactions.forEach((tx: any) => {
         const profit = (Number(tx.sell_price) || 0) - (Number(tx.buy_price) || 0);
+        if (isNaN(profit)) return;
+        
         totalPL += profit;
         totalTrades++;
         if (profit > 0) totalWins++;
@@ -486,24 +486,28 @@ export function useAutoTrader(
           const contractIdStr = String(tx.contract_id);
           const resultStr = profit > 0 ? "won" : "lost";
           
-          // Background sync - no await to keep UI snappy
           supabase.from("trades")
             .update({ result: resultStr, profit_loss: profit })
             .eq("contract_id", contractIdStr)
             .eq("result", "pending")
-            .then(({ error, data }) => {
-              if (!error && data) console.log(`[AutoTrader] Synced pending trade ${contractIdStr} via profit_table`);
+            .then(({ error }) => {
+              if (!error) console.log(`[AutoTrader] Synced pending trade ${contractIdStr} via profit_table`);
             });
         }
       });
 
-      console.log(`[AutoTrader] Daily Stats from Deriv API: P/L=${totalPL.toFixed(2)}, Trades=${totalTrades}, Wins=${totalWins}`);
-      setDailyPL(Number(totalPL.toFixed(2)));
+      const finalPL = isNaN(totalPL) ? 0 : Number(totalPL.toFixed(2));
+      console.log(`[AutoTrader] Daily Stats from Deriv API: P/L=${finalPL}, Trades=${totalTrades}, Wins=${totalWins}`);
+      setDailyPL(finalPL);
       setDailyStats({
         total_trades: totalTrades,
         wins: totalWins
       });
+      return; // Handled
     }
+
+    // Guard for automated trading actions
+    if (!config.enabled) return;
     
     if (data.msg_type === "proposal" && data.proposal) {
       const reqId = String(data.req_id);
@@ -588,7 +592,7 @@ export function useAutoTrader(
         isExecutingRef.current = false;
       }
     }
-  }, [config.enabled, wsRef, handle_result, execute_trade]);
+  }, [config.enabled, wsRef, handle_result, execute_trade, user?.id]);
 
   useEffect(() => {
     if (!config.enabled || ticksToWait <= 0) return;
