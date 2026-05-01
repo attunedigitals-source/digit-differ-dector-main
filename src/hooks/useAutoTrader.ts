@@ -79,6 +79,9 @@ export function useAutoTrader(
   });
   const [dailyPL, setDailyPL] = useState<number>(0);
   const [dailyStats, setDailyStats] = useState({ total_trades: 0, wins: 0 });
+  const dailyStatsRef = useRef(dailyStats);
+  useEffect(() => { dailyStatsRef.current = dailyStats; }, [dailyStats]);
+
   const [ticksToWait, setTicksToWait] = useState(0);
   const [config, setConfig] = useState<AutoTraderConfig>(() => {
     const saved = localStorage.getItem('autoTraderConfig');
@@ -101,16 +104,17 @@ export function useAutoTrader(
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN || !connected) return;
 
-    // Fetch trades from the start of the day in local time
+    // Use UTC midnight for date_from to match Deriv's internal record keeping
     const now = new Date();
-    const localStartOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dateFrom = Math.floor(localStartOfDay.getTime() / 1000);
+    const utcStartOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    // Buffer by 1 hour to ensure we catch everything across slight clock drifts
+    const dateFrom = Math.floor(utcStartOfDay.getTime() / 1000) - 3600;
 
-    console.log(`[AutoTrader] Requesting profit_table from local start of day: ${localStartOfDay.toLocaleString()}`);
+    console.log(`[AutoTrader] Requesting profit_table from UTC: ${utcStartOfDay.toISOString()} (Epoch: ${dateFrom})`);
     ws.send(JSON.stringify({
       profit_table: 1,
       date_from: dateFrom,
-      limit: 1000, // Increase limit to capture full daily history
+      limit: 1000,
       sort: "DESC"
     }));
   }, [wsRef, connected]);
@@ -508,8 +512,9 @@ export function useAutoTrader(
     }
 
     // Refresh ground-truth stats from Deriv after each settlement
+    // Add 2s delay to ensure Deriv backend has processed the transaction
     if (connected && wsRef.current?.readyState === WebSocket.OPEN) {
-      fetchDerivProfitTable();
+      setTimeout(fetchDerivProfitTable, 2000);
     }
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks, connected, fetchDerivProfitTable, wsRef]);
 
@@ -547,12 +552,16 @@ export function useAutoTrader(
       });
 
       const finalPL = isNaN(totalPL) ? 0 : Number(totalPL.toFixed(2));
-      console.log(`[AutoTrader] Daily Stats from Deriv API: P/L=${finalPL}, Trades=${totalTrades}, Wins=${totalWins}`);
-      setDailyPL(finalPL);
-      setDailyStats({
-        total_trades: totalTrades,
-        wins: totalWins
-      });
+      console.log(`[AutoTrader] Profit Table sync: P/L=${finalPL}, Count=${totalTrades}`);
+      
+      // Safety: Only update if we have data or if the session has no trades yet
+      if (totalTrades > 0 || dailyStatsRef.current.total_trades === 0) {
+        setDailyPL(finalPL);
+        setDailyStats({
+          total_trades: totalTrades,
+          wins: totalWins
+        });
+      }
       return; // Handled
     }
 
