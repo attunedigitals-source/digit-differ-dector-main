@@ -231,19 +231,7 @@ export function useAutoTrader(
         seqStep = 0;
         pickRandomSequence();
       } else if (state.status === "LOSS") {
-        // Normalize the base stake if the last trade was a special one (U5/O4)
-        const lastResult = tradeLog[0];
-        const lastWasSpecial = lastResult && (
-          (lastResult.contract === "DIGITUNDER" && lastResult.barrier === 5) || 
-          (lastResult.contract === "DIGITOVER" && lastResult.barrier === 4)
-        );
-        
-        let baseStakeForMartingale = state.currentStake;
-        if (lastWasSpecial) {
-          baseStakeForMartingale = Number((state.currentStake / 1.26).toFixed(2));
-        }
-
-        nextStake = Number((baseStakeForMartingale * MARTINGALE_MULTIPLIER).toFixed(2));
+        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
         seqStep = state.sequenceStep + 1;
         stepIndexRef.current += 1;
