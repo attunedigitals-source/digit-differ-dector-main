@@ -33,7 +33,6 @@ const sequences = [
   { name: "SEQ_11_O5_WAVE", pattern: [O5, O5, O5, U4, U4, U4, O4, O4, O4, U5, U5, U5, O5, O5, O5, U4] },
   { name: "SEQ_12_INVERTED_SPIKE", pattern: [O5, U4, U4, O4, O4, U5, O5, U4, U4, O4, O4, U5, O5, U4, U4, O4] },
   { name: "SEQ_13_O5_BIAS", pattern: [O5, O5, O5, U4, O4, U5, O5, O5, O5, U4, O4, U5, O5, O5, O5, U4] },
-  { name: "SEQ_14_CLUSTER", pattern: [U4, U4, O5, O5, U5, U5, O4, O4, U4, U4, O5, O5, U5, U5, O4, O4] },
   { name: "SEQ_15_COMPRESSION", pattern: [O5, U4, O4, O5, U5, O4, O5, U4, O4, O5, U5, O4, O5, U4, O4, O5] },
   { name: "SEQ_16_WAVE_REVERSAL", pattern: [U4, O5, U5, O4, O4, O4, U5, U5, U4, U4, U4, O5, O5, O5, U5, O4] }
 ] as const;
