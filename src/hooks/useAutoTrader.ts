@@ -107,7 +107,6 @@ export function useAutoTrader(
     nextAction: "WAITING_TO_START",
   });
 
-  const [ticksToWait, setTicksToWait] = useState(0);
   const [martingaleCycles, setMartingaleCycles] = useState(0);
   const [windDownMode, setWindDownMode] = useState(false);
   const [continuousTradeStartAt, setContinuousTradeStartAt] = useState<number | null>(null);
