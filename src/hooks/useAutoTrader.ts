@@ -480,6 +480,21 @@ export function useAutoTrader(
         totalPL += profit;
         totalTrades++;
         if (profit > 0) totalWins++;
+
+        // Reconciliation: Sync this result to Supabase if it's currently pending
+        if (tx.contract_id && user?.id) {
+          const contractIdStr = String(tx.contract_id);
+          const resultStr = profit > 0 ? "won" : "lost";
+          
+          // Background sync - no await to keep UI snappy
+          supabase.from("trades")
+            .update({ result: resultStr, profit_loss: profit })
+            .eq("contract_id", contractIdStr)
+            .eq("result", "pending")
+            .then(({ error, data }) => {
+              if (!error && data) console.log(`[AutoTrader] Synced pending trade ${contractIdStr} via profit_table`);
+            });
+        }
       });
 
       console.log(`[AutoTrader] Daily Stats from Deriv API: P/L=${totalPL.toFixed(2)}, Trades=${totalTrades}, Wins=${totalWins}`);
