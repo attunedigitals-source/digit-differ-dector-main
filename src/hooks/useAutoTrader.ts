@@ -101,15 +101,16 @@ export function useAutoTrader(
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN || !connected) return;
 
-    // Fetch trades from the start of the day (UTC)
+    // Fetch trades from the start of the day in local time
     const now = new Date();
-    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const dateFrom = Math.floor(startOfDay.getTime() / 1000);
+    const localStartOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dateFrom = Math.floor(localStartOfDay.getTime() / 1000);
 
-    console.log(`[AutoTrader] Requesting profit_table from ${startOfDay.toISOString()}`);
+    console.log(`[AutoTrader] Requesting profit_table from local start of day: ${localStartOfDay.toLocaleString()}`);
     ws.send(JSON.stringify({
       profit_table: 1,
       date_from: dateFrom,
+      limit: 1000, // Increase limit to capture full daily history
       sort: "DESC"
     }));
   }, [wsRef, connected]);
