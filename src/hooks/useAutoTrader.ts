@@ -456,7 +456,12 @@ export function useAutoTrader(
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
       execute_trade();
     }
-  }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
+
+    // Refresh ground-truth stats from Deriv after each settlement
+    if (connected && wsRef.current?.readyState === WebSocket.OPEN) {
+      fetchDerivProfitTable();
+    }
+  }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks, connected, fetchDerivProfitTable, wsRef]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (!config.enabled) return;
