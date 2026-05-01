@@ -134,17 +134,16 @@ export function useAutoTrader(
       
       console.log(`[AutoTrader] Fetching daily stats from DB for ${user.id} (${tz})`);
       const { data, error } = await supabase.rpc('get_user_daily_stats', { 
-        p_user_id: user.id, 
-        p_timezone: tz 
+        p_user_id: user.id,
+        p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
 
-      if (error) throw error;
-      if (data) {
-        console.log(`[AutoTrader] DB Daily Stats: P/L=${data.total_pl}, Trades=${data.total_trades}`);
-        setDailyPL(Number(data.total_pl) || 0);
+      if (!error && data) {
+        console.log(`[AutoTrader] DB Daily Stats: P/L=${data.profit_loss}, Trades=${data.total_trades}`);
+        setDailyPL(Number(data.profit_loss) || 0);
         setDailyStats({
           total_trades: Number(data.total_trades) || 0,
-          wins: Number(data.total_wins) || 0
+          wins: Number(data.wins) || 0
         });
       }
     } catch (err) {

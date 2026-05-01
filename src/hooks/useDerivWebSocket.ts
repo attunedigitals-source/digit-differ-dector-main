@@ -76,7 +76,7 @@ export function useDerivWebSocket(apiToken?: string) {
 
   // Helper to subscribe to ticks and fetch history
   const subscribeTicks = useCallback((ws: WebSocket) => {
-    for (const { symbol } of DERIV_SYMBOLS) {
+    DERIV_SYMBOLS.forEach(({ symbol }, index) => {
       // 1. Fetch history first to prime the 1000-tick buffer
       ws.send(JSON.stringify({
         ticks_history: symbol,
@@ -85,12 +85,12 @@ export function useDerivWebSocket(apiToken?: string) {
         end: "latest",
         start: 1,
         style: "ticks",
-        req_id: `history_${symbol}`
+        req_id: 1000 + index
       }));
 
       // 2. Subscribe to live stream
       ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-    }
+    });
   }, []);
 
   const switchAccount = useCallback((loginid: string) => {
@@ -405,7 +405,7 @@ export function useDerivWebSocket(apiToken?: string) {
           end: "latest",
           start: 1,
           style: "ticks",
-          req_id: reqId
+          req_id: Math.floor(Math.random() * 1000000)
         }));
       });
     },
