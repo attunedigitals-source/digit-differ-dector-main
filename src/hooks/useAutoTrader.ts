@@ -15,25 +15,28 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-const U4 = "DIGITUNDER" as const;
-const O5 = "DIGITOVER" as const;
+const U4 = "U4" as const;
+const O5 = "O5" as const;
+const U5 = "U5" as const;
+const O4 = "O4" as const;
 
 const sequences = [
-  { name: "SEQ_01_STRICT_ALTERNATING", pattern: [U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5] },
-  { name: "SEQ_02_DOUBLE_BLOCK", pattern: [U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5] },
-  { name: "SEQ_03_TRIPLE_WAVE", pattern: [U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5] },
-  { name: "SEQ_04_SPIKE_REVERSAL", pattern: [U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4, U4, O5, U4, O5, O5, U4] },
-  { name: "SEQ_05_U4_BIAS", pattern: [U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5, U4, O5, U4, U4, U4, O5] },
-  { name: "SEQ_06_ZIGZAG_COMPRESSION", pattern: [U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4, O5, U4, U4] },
-  { name: "SEQ_08_MIRROR_CYCLE", pattern: [U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4] },
-  { name: "SEQ_09_REVERSE_ALTERNATING", pattern: [O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4, O5, U4] },
-  { name: "SEQ_10_O5_DOUBLE_BLOCK", pattern: [O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, U4] },
-  { name: "SEQ_11_O5_TRIPLE_WAVE", pattern: [O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4] },
-  { name: "SEQ_12_INVERTED_SPIKE", pattern: [O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5, O5, U4, O5, U4, U4, O5] },
-  { name: "SEQ_13_O5_BIAS", pattern: [O5, O5, O5, U4, O5, U4, O5, O5, O5, U4, O5, U4, O5, O5, O5, U4, O5, O5, O5, U4, O5, U4, O5, O5, O5, U4, O5, U4, O5, O5, O5, U4] },
-  { name: "SEQ_14_EXTENDED_CLUSTER", pattern: [U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5] },
-  { name: "SEQ_15_COMPRESSION_FLIP", pattern: [O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5, U4, O5, O5] },
-  { name: "SEQ_16_WAVE_REVERSAL", pattern: [U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5, U4, U4, U4, O5, O5, O5] }
+  { name: "SEQ_01_BALANCED_ALT", pattern: [U4, O5, U5, O4, U4, O5, U5, O4, U4, O5, U5, O4, U4, O5, U5, O4] },
+  { name: "SEQ_02_DOUBLE_BLOCK", pattern: [U4, U4, O5, O5, U5, U5, O4, O4, U4, U4, O5, O5, U5, U5, O4, O4] },
+  { name: "SEQ_03_TRIPLE_WAVE", pattern: [U4, U4, U4, O5, O5, O5, U5, U5, U5, O4, O4, O4, U4, U4, U4, O5] },
+  { name: "SEQ_04_SPIKE_REVERSAL", pattern: [U4, O5, O5, U5, U5, O4, U4, O5, O5, U5, U5, O4, U4, O5, O5, U5] },
+  { name: "SEQ_05_U4_BIAS", pattern: [U4, U4, U4, O5, U5, O4, U4, U4, U4, O5, U5, O4, U4, U4, U4, O5] },
+  { name: "SEQ_06_ZIGZAG", pattern: [U4, O5, U5, O4, U5, O4, U4, O5, U4, O5, U5, O4, U5, O4, U4, O5] },
+  { name: "SEQ_07_DELAYED_FLIP", pattern: [U4, U4, O5, U5, O4, O4, U4, U4, O5, U5, O4, O4, U4, U4, O5, U5] },
+  { name: "SEQ_08_MIRROR", pattern: [U4, O5, U5, O4, O4, U5, O5, U4, U4, O5, U5, O4, O4, U5, O5, U4] },
+  { name: "SEQ_09_REVERSE_ALT", pattern: [O5, U4, O4, U5, O5, U4, O4, U5, O5, U4, O4, U5, O5, U4, O4, U5] },
+  { name: "SEQ_10_O5_BLOCK", pattern: [O5, O5, U4, U4, O4, O4, U5, U5, O5, O5, U4, U4, O4, O4, U5, U5] },
+  { name: "SEQ_11_O5_WAVE", pattern: [O5, O5, O5, U4, U4, U4, O4, O4, O4, U5, U5, U5, O5, O5, O5, U4] },
+  { name: "SEQ_12_INVERTED_SPIKE", pattern: [O5, U4, U4, O4, O4, U5, O5, U4, U4, O4, O4, U5, O5, U4, U4, O4] },
+  { name: "SEQ_13_O5_BIAS", pattern: [O5, O5, O5, U4, O4, U5, O5, O5, O5, U4, O4, U5, O5, O5, O5, U4] },
+  { name: "SEQ_14_CLUSTER", pattern: [U4, U4, O5, O5, U5, U5, O4, O4, U4, U4, O5, O5, U5, U5, O4, O4] },
+  { name: "SEQ_15_COMPRESSION", pattern: [O5, U4, O4, O5, U5, O4, O5, U4, O4, O5, U5, O4, O5, U4, O4, O5] },
+  { name: "SEQ_16_WAVE_REVERSAL", pattern: [U4, O5, U5, O4, O4, O4, U5, U5, U4, U4, U4, O5, O5, O5, U5, O4] }
 ] as const;
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
@@ -228,7 +231,19 @@ export function useAutoTrader(
         seqStep = 0;
         pickRandomSequence();
       } else if (state.status === "LOSS") {
-        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+        // Normalize the base stake if the last trade was a special one (U5/O4)
+        const lastResult = tradeLog[0];
+        const lastWasSpecial = lastResult && (
+          (lastResult.contract === "DIGITUNDER" && lastResult.barrier === 5) || 
+          (lastResult.contract === "DIGITOVER" && lastResult.barrier === 4)
+        );
+        
+        let baseStakeForMartingale = state.currentStake;
+        if (lastWasSpecial) {
+          baseStakeForMartingale = Number((state.currentStake / 1.26).toFixed(2));
+        }
+
+        nextStake = Number((baseStakeForMartingale * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
         seqStep = state.sequenceStep + 1;
         stepIndexRef.current += 1;
@@ -240,9 +255,20 @@ export function useAutoTrader(
         return;
       }
 
-      const trade = activeSequenceRef.current.pattern[stepIndexRef.current % 32];
-      const type: "DIGITOVER" | "DIGITUNDER" = trade;
-      const barrier = type === "DIGITOVER" ? 5 : 4;
+      const trade = activeSequenceRef.current.pattern[stepIndexRef.current % activeSequenceRef.current.pattern.length];
+      let type: "DIGITOVER" | "DIGITUNDER";
+      let barrier: number;
+      let isSpecial = false;
+
+      if (trade === U4) { type = "DIGITUNDER"; barrier = 4; }
+      else if (trade === O5) { type = "DIGITOVER"; barrier = 5; }
+      else if (trade === U5) { type = "DIGITUNDER"; barrier = 5; isSpecial = true; }
+      else if (trade === O4) { type = "DIGITOVER"; barrier = 4; isSpecial = true; }
+      else { type = "DIGITOVER"; barrier = 5; }
+
+      if (isSpecial) {
+        nextStake = Number((nextStake * 1.26).toFixed(2));
+      }
 
       const symbol = select_random_symbol();
 
