@@ -462,6 +462,28 @@ export function useAutoTrader(
     if (!config.enabled) return;
 
     const state = sessionStateRef.current;
+
+    // Profit Table Response for Accurate Daily Stats
+    if (data.msg_type === "profit_table") {
+      const transactions = data.profit_table?.transactions || [];
+      let totalPL = 0;
+      let totalWins = 0;
+      let totalTrades = 0;
+
+      transactions.forEach((tx: any) => {
+        const profit = (Number(tx.sell_price) || 0) - (Number(tx.buy_price) || 0);
+        totalPL += profit;
+        totalTrades++;
+        if (profit > 0) totalWins++;
+      });
+
+      console.log(`[AutoTrader] Daily Stats from Deriv API: P/L=${totalPL.toFixed(2)}, Trades=${totalTrades}, Wins=${totalWins}`);
+      setDailyPL(Number(totalPL.toFixed(2)));
+      setDailyStats({
+        total_trades: totalTrades,
+        wins: totalWins
+      });
+    }
     
     if (data.msg_type === "proposal" && data.proposal) {
       const reqId = String(data.req_id);
@@ -557,7 +579,30 @@ export function useAutoTrader(
   }, [config.enabled, ticksToWait]);
 
 
+  const fetchDerivProfitTable = useCallback(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !connected) return;
+
+    // Get start of today in UTC epoch (Deriv API uses UTC for date_from)
+    const now = new Date();
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).getTime() / 1000;
+
+    console.log("[AutoTrader] Fetching profit table from Deriv for today...");
+    ws.send(JSON.stringify({
+      profit_table: 1,
+      date_from: Math.floor(startOfToday),
+      limit: 100, // Should cover most active days, but could be paginated if needed
+      description: 1
+    }));
+  }, [wsRef, connected]);
+
   const fetchDailyPL = useCallback(async () => {
+    // If connected to Deriv, prefer ground truth from API
+    if (connected && wsRef.current?.readyState === WebSocket.OPEN) {
+      fetchDerivProfitTable();
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -574,7 +619,7 @@ export function useAutoTrader(
     } catch (err) {
       console.error("Unexpected error in fetchDailyPL:", err);
     }
-  }, []);
+  }, [connected, fetchDerivProfitTable]);
 
   useEffect(() => {
     if (!user?.id || !connected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
