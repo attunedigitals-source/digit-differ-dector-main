@@ -97,6 +97,56 @@ export function useAutoTrader(
     });
   });
 
+  const fetchDerivProfitTable = useCallback(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !connected) return;
+
+    // Fetch trades from the start of the day (UTC)
+    const now = new Date();
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const dateFrom = Math.floor(startOfDay.getTime() / 1000);
+
+    console.log(`[AutoTrader] Requesting profit_table from ${startOfDay.toISOString()}`);
+    ws.send(JSON.stringify({
+      profit_table: 1,
+      date_from: dateFrom,
+      sort: "DESC"
+    }));
+  }, [wsRef, connected]);
+
+  const fetchDailyPL = useCallback(async () => {
+    if (!user?.id) return;
+    
+    if (connected && wsRef.current?.readyState === WebSocket.OPEN) {
+      fetchDerivProfitTable();
+      return;
+    }
+
+    try {
+      // Fallback to DB if socket not ready
+      const now = new Date();
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      
+      console.log(`[AutoTrader] Fetching daily stats from DB for ${user.id} (${tz})`);
+      const { data, error } = await supabase.rpc('get_user_daily_stats', { 
+        p_user_id: user.id, 
+        p_timezone: tz 
+      });
+
+      if (error) throw error;
+      if (data) {
+        console.log(`[AutoTrader] DB Daily Stats: P/L=${data.total_pl}, Trades=${data.total_trades}`);
+        setDailyPL(Number(data.total_pl) || 0);
+        setDailyStats({
+          total_trades: Number(data.total_trades) || 0,
+          wins: Number(data.total_wins) || 0
+        });
+      }
+    } catch (err) {
+      console.error("[AutoTrader] Error fetching daily stats:", err);
+    }
+  }, [connected, fetchDerivProfitTable, user?.id, wsRef]);
+
   const [sessionState, setSessionState] = useState({
     currentStake: 0.35,
     martingaleStep: 0,
@@ -602,47 +652,6 @@ export function useAutoTrader(
   }, [config.enabled, ticksToWait]);
 
 
-  const fetchDerivProfitTable = useCallback(() => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN || !connected) return;
-
-    // Get start of today in UTC epoch (Deriv API uses UTC for date_from)
-    const now = new Date();
-    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).getTime() / 1000;
-
-    console.log("[AutoTrader] Fetching profit table from Deriv for today...");
-    ws.send(JSON.stringify({
-      profit_table: 1,
-      date_from: Math.floor(startOfToday),
-      limit: 100, // Should cover most active days, but could be paginated if needed
-      description: 1
-    }));
-  }, [wsRef, connected]);
-
-  const fetchDailyPL = useCallback(async () => {
-    // If connected to Deriv, prefer ground truth from API
-    if (connected && wsRef.current?.readyState === WebSocket.OPEN) {
-      fetchDerivProfitTable();
-      return;
-    }
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profileData } = await supabase.from('profiles').select('timezone').eq('id', user.id).single();
-      const tz = profileData?.timezone || "UTC";
-      const { data, error } = await supabase.rpc('get_user_daily_stats', { p_user_id: user.id, p_timezone: tz });
-      if (!error && data) {
-        setDailyPL(Number(data.profit_loss));
-        setDailyStats({
-          total_trades: Number(data.total_trades),
-          wins: Number(data.wins)
-        });
-      }
-    } catch (err) {
-      console.error("Unexpected error in fetchDailyPL:", err);
-    }
-  }, [connected, fetchDerivProfitTable]);
 
   useEffect(() => {
     if (!user?.id || !connected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
