@@ -19,23 +19,7 @@ const O5 = "O5" as const;
 const U5 = "U5" as const;
 const O4 = "O4" as const;
 
-const sequences = [
-  { name: "SEQ_01_BALANCED_ALT", pattern: [U4, O5, U5, O4, U4, O5, U5, O4, U4, O5, U5, O4, U4, O5, U5, O4] },
-  { name: "SEQ_02_DOUBLE_BLOCK", pattern: [U4, U4, O5, O5, U5, U5, O4, O4, U4, U4, O5, O5, U5, U5, O4, O4] },
-  { name: "SEQ_03_TRIPLE_WAVE", pattern: [U4, U4, U4, O5, O5, O5, U5, U5, U5, O4, O4, O4, U4, U4, U4, O5] },
-  { name: "SEQ_04_SPIKE_REVERSAL", pattern: [U4, O5, O5, U5, U5, O4, U4, O5, O5, U5, U5, O4, U4, O5, O5, U5] },
-  { name: "SEQ_05_U4_BIAS", pattern: [U4, U4, U4, O5, U5, O4, U4, U4, U4, O5, U5, O4, U4, U4, U4, O5] },
-  { name: "SEQ_06_ZIGZAG", pattern: [U4, O5, U5, O4, U5, O4, U4, O5, U4, O5, U5, O4, U5, O4, U4, O5] },
-  { name: "SEQ_07_DELAYED_FLIP", pattern: [U4, U4, O5, U5, O4, O4, U4, U4, O5, U5, O4, O4, U4, U4, O5, U5] },
-  { name: "SEQ_08_MIRROR", pattern: [U4, O5, U5, O4, O4, U5, O5, U4, U4, O5, U5, O4, O4, U5, O5, U4] },
-  { name: "SEQ_09_REVERSE_ALT", pattern: [O5, U4, O4, U5, O5, U4, O4, U5, O5, U4, O4, U5, O5, U4, O4, U5] },
-  { name: "SEQ_10_O5_BLOCK", pattern: [O5, O5, U4, U4, O4, O4, U5, U5, O5, O5, U4, U4, O4, O4, U5, U5] },
-  { name: "SEQ_11_O5_WAVE", pattern: [O5, O5, O5, U4, U4, U4, O4, O4, O4, U5, U5, U5, O5, O5, O5, U4] },
-  { name: "SEQ_12_INVERTED_SPIKE", pattern: [O5, U4, U4, O4, O4, U5, O5, U4, U4, O4, O4, U5, O5, U4, U4, O4] },
-  { name: "SEQ_13_O5_BIAS", pattern: [O5, O5, O5, U4, O4, U5, O5, O5, O5, U4, O4, U5, O5, O5, O5, U4] },
-  { name: "SEQ_15_COMPRESSION", pattern: [O5, U4, O4, O5, U5, O4, O5, U4, O4, O5, U5, O4, O5, U4, O4, O5] },
-  { name: "SEQ_16_WAVE_REVERSAL", pattern: [U4, O5, U5, O4, O4, O4, U5, U5, U4, U4, U4, O5, O5, O5, U5, O4] }
-] as const;
+// Removed sequences as we are moving to advanced random selector
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Number(incoming?.baseStake ?? 0.35);
@@ -226,15 +210,8 @@ export function useAutoTrader(
   // Stores per-proposal timeout handles so they can be cancelled when a response arrives
   const proposalTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const activeSequenceRef = useRef<(typeof sequences)[number]>(sequences[0]);
-  const activeSequenceNameRef = useRef<string>(sequences[0].name);
+  const activeSequenceNameRef = useRef<string>("ADVANCED_RANDOM");
   const stepIndexRef = useRef<number>(0);
-  const pickRandomSequence = useCallback(() => {
-    const selected = sequences[Math.floor(Math.random() * sequences.length)];
-    activeSequenceRef.current = selected;
-    activeSequenceNameRef.current = selected.name;
-    stepIndexRef.current = 0;
-  }, []);
 
   const select_random_symbol = useCallback(() => {
     const symbols = [
@@ -281,7 +258,6 @@ export function useAutoTrader(
         nextStake = config.baseStake;
         nextStep = 0;
         seqStep = 0;
-        pickRandomSequence();
       } else if (state.status === "LOSS") {
         nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
@@ -295,7 +271,8 @@ export function useAutoTrader(
         return;
       }
 
-      const trade = activeSequenceRef.current.pattern[stepIndexRef.current % activeSequenceRef.current.pattern.length];
+      const ADVANCED_TRADES = [U4, O5, U5, O4];
+      const trade = ADVANCED_TRADES[Math.floor(Math.random() * ADVANCED_TRADES.length)];
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
       let isSpecial = false;
