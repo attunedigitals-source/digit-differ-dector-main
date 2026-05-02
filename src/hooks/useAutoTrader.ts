@@ -398,7 +398,7 @@ export function useAutoTrader(
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
-  }, [config, wsRef, accountInfo, pickRandomSequence, select_random_symbol]);
+  }, [config, wsRef, accountInfo, select_random_symbol]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
