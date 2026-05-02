@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
+import type { SymbolState } from "@/lib/signal-engine";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -41,7 +42,8 @@ export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null,
   connected: boolean,
-  user: any | null
+  user: any | null,
+  getSymbolState: (symbol: string) => SymbolState | undefined
 ) {
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
     const saved = localStorage.getItem('tradeLog');
@@ -271,8 +273,43 @@ export function useAutoTrader(
         return;
       }
 
-      const ADVANCED_TRADES = [U4, O5, U5, O4];
-      const trade = ADVANCED_TRADES[Math.floor(Math.random() * ADVANCED_TRADES.length)];
+      // We need to pick a symbol first to get its history
+      const symbol = select_random_symbol();
+      const stateObj = getSymbolState(symbol);
+
+      if (!stateObj || stateObj.digits.length < 16) {
+        console.warn(`[AutoTrader] Trade skipped: Not enough ticks (need 16) for ${symbol}`);
+        isExecutingRef.current = false;
+        return; // skip this cycle
+      }
+
+      const last16 = stateObj.digits.slice(-16);
+      let under4 = 0, over4 = 0, under5 = 0, over5 = 0;
+
+      for (const d of last16) {
+        if (d < 4) under4++;
+        if (d > 4) over4++;
+        if (d < 5) under5++;
+        if (d > 5) over5++;
+      }
+
+      const counts = { under4, over4, under5, over5 };
+      const maxCount = Math.max(under4, over4, under5, over5);
+
+      const topCategories: string[] = [];
+      if (under4 === maxCount) topCategories.push(U4);
+      if (over4 === maxCount) topCategories.push(O4);
+      if (under5 === maxCount) topCategories.push(U5);
+      if (over5 === maxCount) topCategories.push(O5);
+
+      const trade = topCategories[Math.floor(Math.random() * topCategories.length)];
+
+      console.log(JSON.stringify({
+        counts,
+        topCategories,
+        selectedTrade: trade
+      }, null, 2));
+
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
       let isSpecial = false;
@@ -286,9 +323,6 @@ export function useAutoTrader(
       if (isSpecial) {
         nextStake = Number((nextStake * 1.26).toFixed(2));
       }
-
-      const symbol = select_random_symbol();
-
       setSessionState(prev => ({
         ...prev,
         currentStake: nextStake,
@@ -398,7 +432,7 @@ export function useAutoTrader(
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
-  }, [config, wsRef, accountInfo, select_random_symbol]);
+  }, [config, wsRef, accountInfo, select_random_symbol, getSymbolState]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
