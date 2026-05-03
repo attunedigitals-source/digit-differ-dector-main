@@ -178,8 +178,15 @@ export function useAutoTrader(
       "1HZ10V", "1HZ15V", "1HZ25V", "1HZ30V", "1HZ50V", "1HZ75V", "1HZ90V", "1HZ100V",
       "R_10", "R_25", "R_50", "R_75", "R_100"
     ];
-    return symbols[Math.floor(Math.random() * symbols.length)];
-  }, []);
+
+    const symbolsWithHistory = symbols.filter((symbol) => {
+      const digits = getSymbolState(symbol)?.digits;
+      return Boolean(digits && digits.length >= 16);
+    });
+
+    const eligibleSymbols = symbolsWithHistory.length > 0 ? symbolsWithHistory : symbols;
+    return eligibleSymbols[Math.floor(Math.random() * eligibleSymbols.length)];
+  }, [getSymbolState]);
 
   const randomCooldownSeconds = useCallback(() => {
     return Math.floor(Math.random() * (COOLDOWN_WAIT_MAX_SECONDS - COOLDOWN_WAIT_MIN_SECONDS + 1)) + COOLDOWN_WAIT_MIN_SECONDS;
