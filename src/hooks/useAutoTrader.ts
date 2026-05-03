@@ -225,11 +225,9 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       if (state.status === "WIN" || state.status === "IDLE") {
-        nextStake = config.baseStake;
         nextStep = 0;
         seqStep = 0;
       } else if (state.status === "LOSS") {
-        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
         seqStep = state.sequenceStep + 1;
         stepIndexRef.current += 1;
@@ -258,6 +256,19 @@ export function useAutoTrader(
       else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
       else if (trade === "under5") { type = "DIGITUNDER"; barrier = 5; }
       else { type = "DIGITOVER"; barrier = 5; }
+
+      const isFirstTrade = state.status === "IDLE";
+      const isSpecialStakeTrade = trade === "under5" || trade === "over4";
+      if (isFirstTrade) {
+        nextStake = config.baseStake;
+      } else if (isSpecialStakeTrade) {
+        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2));
+      } else if (state.status === "LOSS") {
+        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+      } else {
+        nextStake = config.baseStake;
+      }
+
       console.log("[AutoTrader] Trade decision", decision);
 
       setSessionState(prev => ({
