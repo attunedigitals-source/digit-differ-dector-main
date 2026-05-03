@@ -259,12 +259,16 @@ export function useAutoTrader(
 
       const isFirstTrade = state.status === "IDLE";
       const isSpecialStakeTrade = trade === "under5" || trade === "over4";
-      if (isFirstTrade) {
+      const isWin = state.status === "WIN";
+
+      if (isFirstTrade || isWin) {
         nextStake = config.baseStake;
-      } else if (isSpecialStakeTrade) {
-        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2));
       } else if (state.status === "LOSS") {
-        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+        if (isSpecialStakeTrade) {
+          nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2));
+        } else {
+          nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+        }
       } else {
         nextStake = config.baseStake;
       }
