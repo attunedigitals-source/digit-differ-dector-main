@@ -15,10 +15,10 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-const U4 = "U4" as const;
-const O5 = "O5" as const;
-const U5 = "U5" as const;
-const O4 = "O4" as const;
+const U4 = "under4" as const;
+const O4 = "over4" as const;
+const U5 = "under5" as const;
+const O5 = "over5" as const;
 
 // Removed sequences as we are moving to advanced random selector
 
@@ -302,22 +302,22 @@ export function useAutoTrader(
       if (under5 === maxCount) topCategories.push(U5);
       if (over5 === maxCount) topCategories.push(O5);
 
-      const trade = topCategories[Math.floor(Math.random() * topCategories.length)];
-
-      console.log(JSON.stringify({
+      const selectedTrade = topCategories[Math.floor(Math.random() * topCategories.length)];
+      const decision = {
         counts,
         topCategories,
-        selectedTrade: trade
-      }, null, 2));
+        selectedTrade,
+      };
+
+      console.log(JSON.stringify(decision, null, 2));
 
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
       let isSpecial = false;
-
-      if (trade === U4) { type = "DIGITUNDER"; barrier = 4; }
-      else if (trade === O5) { type = "DIGITOVER"; barrier = 5; }
-      else if (trade === U5) { type = "DIGITUNDER"; barrier = 5; isSpecial = true; }
-      else if (trade === O4) { type = "DIGITOVER"; barrier = 4; isSpecial = true; }
+      if (selectedTrade === U4) { type = "DIGITUNDER"; barrier = 4; }
+      else if (selectedTrade === O5) { type = "DIGITOVER"; barrier = 5; }
+      else if (selectedTrade === U5) { type = "DIGITUNDER"; barrier = 5; isSpecial = true; }
+      else if (selectedTrade === O4) { type = "DIGITOVER"; barrier = 4; isSpecial = true; }
       else { type = "DIGITOVER"; barrier = 5; }
 
       if (isSpecial) {
