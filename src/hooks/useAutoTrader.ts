@@ -760,7 +760,10 @@ export function useAutoTrader(
 
     if (shouldTrade && !isExecutingRef.current && sessionState.status !== "PENDING" && openContracts.current.size === 0) {
       console.log("[AutoTrader] Loop trigger: executing trade");
-      execute_trade();
+      void execute_trade().catch((err) => {
+        console.error("[AutoTrader] execute_trade failed:", err);
+        isExecutingRef.current = false;
+      });
     }
   }, [config.enabled, sessionState.status, ticksToWait, execute_trade]);
 
