@@ -231,7 +231,7 @@ export function useAutoTrader(
         return;
       }
 
-      const symbol = state.currentSymbol || select_random_symbol();
+      const symbol = select_random_symbol();
       const symbolState = getSymbolState(symbol);
       const last16Digits = symbolState?.digits?.slice(-16) ?? [];
       if (last16Digits.length < 16) {
