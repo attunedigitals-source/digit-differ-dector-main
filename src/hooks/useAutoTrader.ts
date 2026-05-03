@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
+import type { SymbolState } from "@/lib/signal-engine";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -15,29 +16,23 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-const U4 = "U4" as const;
-const O5 = "O5" as const;
-const U5 = "U5" as const;
-const O4 = "O4" as const;
+type TradeCategory = "under4" | "over4" | "under5" | "over5";
 
-const sequences = [
-  { name: "SEQ_01_BALANCED_ALT", pattern: [U4, O5, U5, O4, U4, O5, U5, O4, U4, O5, U5, O4, U4, O5, U5, O4] },
-  { name: "SEQ_02_DOUBLE_BLOCK", pattern: [U4, U4, O5, O5, U5, U5, O4, O4, U4, U4, O5, O5, U5, U5, O4, O4] },
-  { name: "SEQ_03_TRIPLE_WAVE", pattern: [U4, U4, U4, O5, O5, O5, U5, U5, U5, O4, O4, O4, U4, U4, U4, O5] },
-  { name: "SEQ_04_SPIKE_REVERSAL", pattern: [U4, O5, O5, U5, U5, O4, U4, O5, O5, U5, U5, O4, U4, O5, O5, U5] },
-  { name: "SEQ_05_U4_BIAS", pattern: [U4, U4, U4, O5, U5, O4, U4, U4, U4, O5, U5, O4, U4, U4, U4, O5] },
-  { name: "SEQ_06_ZIGZAG", pattern: [U4, O5, U5, O4, U5, O4, U4, O5, U4, O5, U5, O4, U5, O4, U4, O5] },
-  { name: "SEQ_07_DELAYED_FLIP", pattern: [U4, U4, O5, U5, O4, O4, U4, U4, O5, U5, O4, O4, U4, U4, O5, U5] },
-  { name: "SEQ_08_MIRROR", pattern: [U4, O5, U5, O4, O4, U5, O5, U4, U4, O5, U5, O4, O4, U5, O5, U4] },
-  { name: "SEQ_09_REVERSE_ALT", pattern: [O5, U4, O4, U5, O5, U4, O4, U5, O5, U4, O4, U5, O5, U4, O4, U5] },
-  { name: "SEQ_10_O5_BLOCK", pattern: [O5, O5, U4, U4, O4, O4, U5, U5, O5, O5, U4, U4, O4, O4, U5, U5] },
-  { name: "SEQ_11_O5_WAVE", pattern: [O5, O5, O5, U4, U4, U4, O4, O4, O4, U5, U5, U5, O5, O5, O5, U4] },
-  { name: "SEQ_12_INVERTED_SPIKE", pattern: [O5, U4, U4, O4, O4, U5, O5, U4, U4, O4, O4, U5, O5, U4, U4, O4] },
-  { name: "SEQ_13_O5_BIAS", pattern: [O5, O5, O5, U4, O4, U5, O5, O5, O5, U4, O4, U5, O5, O5, O5, U4] },
-  { name: "SEQ_14_CLUSTER", pattern: [U4, U4, O5, O5, U5, U5, O4, O4, U4, U4, O5, O5, U5, U5, O4, O4] },
-  { name: "SEQ_15_COMPRESSION", pattern: [O5, U4, O4, O5, U5, O4, O5, U4, O4, O5, U5, O4, O5, U4, O4, O5] },
-  { name: "SEQ_16_WAVE_REVERSAL", pattern: [U4, O5, U5, O4, O4, O4, U5, U5, U4, U4, U4, O5, O5, O5, U5, O4] }
-] as const;
+const selectTradeFromLast16Digits = (digits: number[]) => {
+  const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
+  for (const digit of digits) {
+    if (digit < 4) counts.under4 += 1;
+    if (digit > 4) counts.over4 += 1;
+    if (digit < 5) counts.under5 += 1;
+    if (digit > 5) counts.over5 += 1;
+  }
+  const maxCount = Math.max(counts.under4, counts.over4, counts.under5, counts.over5);
+  const topCategories = (Object.entries(counts) as [TradeCategory, number][])
+    .filter(([, count]) => count === maxCount)
+    .map(([category]) => category);
+  const selectedTrade = topCategories[Math.floor(Math.random() * topCategories.length)];
+  return { counts, topCategories, selectedTrade };
+};
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Number(incoming?.baseStake ?? 0.35);
@@ -58,7 +53,8 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null,
-  connected: boolean
+  connected: boolean,
+  getSymbolState: (symbol: string) => SymbolState | undefined
 ) {
   const { user } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
@@ -174,15 +170,8 @@ export function useAutoTrader(
   // Stores per-proposal timeout handles so they can be cancelled when a response arrives
   const proposalTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const activeSequenceRef = useRef<(typeof sequences)[number]>(sequences[0]);
-  const activeSequenceNameRef = useRef<string>(sequences[0].name);
+  const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
-  const pickRandomSequence = useCallback(() => {
-    const selected = sequences[Math.floor(Math.random() * sequences.length)];
-    activeSequenceRef.current = selected;
-    activeSequenceNameRef.current = selected.name;
-    stepIndexRef.current = 0;
-  }, []);
 
   const select_random_symbol = useCallback(() => {
     const symbols = [
@@ -229,7 +218,6 @@ export function useAutoTrader(
         nextStake = config.baseStake;
         nextStep = 0;
         seqStep = 0;
-        pickRandomSequence();
       } else if (state.status === "LOSS") {
         nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         nextStep = state.martingaleStep + 1;
@@ -243,22 +231,24 @@ export function useAutoTrader(
         return;
       }
 
-      const trade = activeSequenceRef.current.pattern[stepIndexRef.current % activeSequenceRef.current.pattern.length];
+      const symbol = state.currentSymbol || select_random_symbol();
+      const symbolState = getSymbolState(symbol);
+      const last16Digits = symbolState?.digits?.slice(-16) ?? [];
+      if (last16Digits.length < 16) {
+        console.warn(`[AutoTrader] Trade skipped: insufficient tick history for ${symbol}. Need 16, got ${last16Digits.length}.`);
+        isExecutingRef.current = false;
+        return;
+      }
+      const decision = selectTradeFromLast16Digits(last16Digits);
+
+      const trade = decision.selectedTrade;
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
-      let isSpecial = false;
-
-      if (trade === U4) { type = "DIGITUNDER"; barrier = 4; }
-      else if (trade === O5) { type = "DIGITOVER"; barrier = 5; }
-      else if (trade === U5) { type = "DIGITUNDER"; barrier = 5; isSpecial = true; }
-      else if (trade === O4) { type = "DIGITOVER"; barrier = 4; isSpecial = true; }
+      if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
+      else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
+      else if (trade === "under5") { type = "DIGITUNDER"; barrier = 5; }
       else { type = "DIGITOVER"; barrier = 5; }
-
-      if (isSpecial) {
-        nextStake = Number((nextStake * 1.26).toFixed(2));
-      }
-
-      const symbol = select_random_symbol();
+      console.log("[AutoTrader] Trade decision", decision);
 
       setSessionState(prev => ({
         ...prev,
@@ -369,7 +359,7 @@ export function useAutoTrader(
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
-  }, [config, wsRef, accountInfo, pickRandomSequence, select_random_symbol]);
+  }, [config, wsRef, accountInfo, select_random_symbol, getSymbolState]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;

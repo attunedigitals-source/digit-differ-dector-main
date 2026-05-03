@@ -15,10 +15,10 @@ import { LogOut, Zap } from "lucide-react";
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const [apiToken, setApiToken] = useState<string>();
-  const {
+  const { 
     connected, connect, disconnect, signals, results,
     tickCounts, lastDigits, accounts, activeLoginId, switchAccount,
-    wsRef, onMessageRef, getAllStates
+    wsRef, onMessageRef, getAllStates, getSymbolState
   } = useDerivWebSocket(apiToken);
 
   const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? null;
@@ -26,7 +26,7 @@ export default function Dashboard() {
   const { 
     config, setConfig, tradeLog, setTradeLog, 
     dailyPL, dailyStats, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown
-  } = useAutoTrader(wsRef, activeAccount, connected);
+  } = useAutoTrader(wsRef, activeAccount, connected, getSymbolState);
 
   // Wire auto-trader message handler
   useEffect(() => {
