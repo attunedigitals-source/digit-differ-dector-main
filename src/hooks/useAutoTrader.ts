@@ -173,13 +173,23 @@ export function useAutoTrader(
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
 
-  const select_random_symbol = useCallback(() => {
+  const select_random_symbol_with_last16 = useCallback(() => {
     const symbols = [
       "1HZ10V", "1HZ15V", "1HZ25V", "1HZ30V", "1HZ50V", "1HZ75V", "1HZ90V", "1HZ100V",
-      "R_10", "R_25", "R_50", "R_75", "R_100"
+      "R_10", "R_25", "R_50", "R_75", "R_100",
     ];
-    return symbols[Math.floor(Math.random() * symbols.length)];
-  }, []);
+
+    const candidates = symbols
+      .map((symbol) => ({
+        symbol,
+        last16Digits: getSymbolState(symbol)?.digits?.slice(-16) ?? [],
+      }))
+      .filter(({ last16Digits }) => last16Digits.length >= 16);
+
+    if (candidates.length === 0) return null;
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }, [getSymbolState]);
 
   const randomCooldownSeconds = useCallback(() => {
     return Math.floor(Math.random() * (COOLDOWN_WAIT_MAX_SECONDS - COOLDOWN_WAIT_MIN_SECONDS + 1)) + COOLDOWN_WAIT_MIN_SECONDS;
@@ -231,14 +241,14 @@ export function useAutoTrader(
         return;
       }
 
-      const symbol = state.currentSymbol || select_random_symbol();
-      const symbolState = getSymbolState(symbol);
-      const last16Digits = symbolState?.digits?.slice(-16) ?? [];
-      if (last16Digits.length < 16) {
-        console.warn(`[AutoTrader] Trade skipped: insufficient tick history for ${symbol}. Need 16, got ${last16Digits.length}.`);
+      const selectedSymbolData = select_random_symbol_with_last16();
+      if (!selectedSymbolData) {
+        console.warn("[AutoTrader] Trade skipped: insufficient tick history across all configured volatilities. Need 16 digits per symbol.");
         isExecutingRef.current = false;
         return;
       }
+
+      const { symbol, last16Digits } = selectedSymbolData;
       const decision = selectTradeFromLast16Digits(last16Digits);
 
       const trade = decision.selectedTrade;
@@ -359,7 +369,7 @@ export function useAutoTrader(
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
-  }, [config, wsRef, accountInfo, select_random_symbol, getSymbolState]);
+  }, [config, wsRef, accountInfo, select_random_symbol_with_last16]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
