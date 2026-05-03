@@ -249,6 +249,36 @@ export function useAutoTrader(
       const { symbol, last16Digits } = selectedSymbolData;
       const decision = selectTradeFromLast16Digits(last16Digits);
 
+      const categoryLabels: Record<TradeCategory, string> = {
+        under4: "Under 4",
+        over4: "Over 4",
+        under5: "Under 5",
+        over5: "Over 5",
+      };
+      const topLabels = decision.topCategories.map((category) => categoryLabels[category]);
+
+      console.log("[AutoTrader] Volatility selection", {
+        symbol,
+        last16Digits: last16Digits.join(""),
+        last16DigitsArray: last16Digits,
+      });
+      console.log("[AutoTrader] Frequency of occurrence", {
+        "Under 4": decision.counts.under4,
+        "Over 4": decision.counts.over4,
+        "Under 5": decision.counts.under5,
+        "Over 5": decision.counts.over5,
+      });
+      if (topLabels.length > 1) {
+        console.log("[AutoTrader] Tie detected", {
+          tiedCategories: topLabels,
+          tieCount: decision.counts[decision.topCategories[0]],
+        });
+      }
+      console.log("[AutoTrader] Highest frequency selection", {
+        topCategories: topLabels,
+        selectedCategory: categoryLabels[decision.selectedTrade],
+      });
+
       const trade = decision.selectedTrade;
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
