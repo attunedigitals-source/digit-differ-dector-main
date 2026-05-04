@@ -10,6 +10,7 @@ const MARTINGALE_MULTIPLIER = 1.8;
 
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
 
+/* ===================== LAST-16 HYBRID ===================== */
 const selectTradeFromLast16Digits = (digits: number[]) => {
   const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
 
@@ -20,15 +21,15 @@ const selectTradeFromLast16Digits = (digits: number[]) => {
     if (digit > 5) counts.over5++;
   }
 
-  const maxCount = Math.max(...Object.values(counts));
+  const max = Math.max(...Object.values(counts));
   const top = (Object.entries(counts) as [TradeCategory, number][])
-    .filter(([, v]) => v === maxCount)
+    .filter(([, v]) => v === max)
     .map(([k]) => k);
 
-  const selectedTrade = top[Math.floor(Math.random() * top.length)];
-  return { counts, selectedTrade };
+  return top[Math.floor(Math.random() * top.length)];
 };
 
+/* ===================== MAIN HOOK ===================== */
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null,
@@ -56,30 +57,28 @@ export function useAutoTrader(
   });
 
   const sessionStateRef = useRef(sessionState);
-  useEffect(() => { sessionStateRef.current = sessionState; }, [sessionState]);
+  useEffect(() => {
+    sessionStateRef.current = sessionState;
+  }, [sessionState]);
 
   const isExecutingRef = useRef(false);
-  const openContracts = useRef<Map<string, any>>(new Map());
 
-  // ✅ FIX 1: Reliable last result tracker
+  // ✅ FIX 1: reliable last result (removes race condition)
   const lastResultRef = useRef<"WIN" | "LOSS" | null>(null);
 
-  // ✅ FIX 2: Symbol memory
+  // ✅ FIX 2: symbol memory for skip
   const lastTradePerSymbolRef = useRef<Map<string, TradeCategory>>(new Map());
 
-  const shouldSkipTrade = (symbol: string, trade: TradeCategory) => {
+  const shouldSkip = (symbol: string, trade: TradeCategory) => {
     return lastTradePerSymbolRef.current.get(symbol) === trade;
   };
 
-  const select_random_symbol = () => {
-    const symbols = ["1HZ10V","1HZ25V","1HZ50V","1HZ75V","1HZ100V","R_10","R_25","R_50","R_75","R_100"];
-    return symbols[Math.floor(Math.random() * symbols.length)];
-  };
+  const symbols = ["R_10", "R_25", "R_50", "R_75", "R_100"];
 
   const execute_trade = useCallback(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    if (isExecutingRef.current || openContracts.current.size > 0) return;
+    if (isExecutingRef.current) return;
 
     isExecutingRef.current = true;
 
@@ -88,21 +87,15 @@ export function useAutoTrader(
 
     let nextStake = state.currentStake;
     let nextStep = state.martingaleStep;
-    let nextSeq = state.sequenceStep;
 
-    // ✅ FIX 3: Martingale based on lastResult (NOT state.status)
+    // ✅ FIX 3: martingale uses lastResult (not state.status)
     if (lastResult === "WIN" || state.status === "IDLE") {
       nextStep = 0;
-      nextSeq = 0;
     } else if (lastResult === "LOSS") {
-      nextStep += 1;
-      nextSeq += 1;
-    } else if (state.status === "SKIP") {
-      nextStep = state.martingaleStep;
-      nextSeq = state.sequenceStep;
+      nextStep = state.martingaleStep + 1;
     }
 
-    const symbol = select_random_symbol();
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
     const digits = getSymbolState(symbol)?.digits?.slice(-16) || [];
 
     if (digits.length < 16) {
@@ -110,15 +103,14 @@ export function useAutoTrader(
       return;
     }
 
-    const decision = selectTradeFromLast16Digits(digits);
-    const trade = decision.selectedTrade;
+    const trade = selectTradeFromLast16Digits(digits);
 
-    // ✅ FIX 4: Clean skip
-    if (shouldSkipTrade(symbol, trade)) {
+    // ✅ FIX 4: skip without affecting martingale
+    if (shouldSkip(symbol, trade)) {
       setSessionState(prev => ({
         ...prev,
         status: "SKIP",
-        nextAction: `SKIP_${trade.toUpperCase()}`
+        nextAction: "SKIPPED_SAME_SIGNAL"
       }));
       isExecutingRef.current = false;
       return;
@@ -134,13 +126,13 @@ export function useAutoTrader(
 
     const isSpecial = trade === "under5" || trade === "over4";
 
-    // ✅ FIX 5: Stake uses lastResult (critical fix)
+    // ✅ FIX 5: stake reset ALWAYS after win
     if (lastResult === "WIN" || state.status === "IDLE") {
       nextStake = config.baseStake;
     } else if (lastResult === "LOSS") {
       nextStake = isSpecial
-        ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
-        : Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+        ? Number((state.currentStake * 1.8 * 1.26).toFixed(2))
+        : Number((state.currentStake * 1.8).toFixed(2));
     } else if (state.status === "SKIP") {
       nextStake = state.currentStake;
     }
@@ -149,14 +141,11 @@ export function useAutoTrader(
       ...prev,
       currentStake: nextStake,
       martingaleStep: nextStep,
-      sequenceStep: nextSeq,
       currentSymbol: symbol,
       currentContract: type,
       currentBarrier: barrier,
       status: "PENDING"
     }));
-
-    const reqId = Date.now();
 
     ws.send(JSON.stringify({
       proposal: 1,
@@ -168,10 +157,9 @@ export function useAutoTrader(
       duration_unit: "t",
       symbol,
       barrier: String(barrier),
-      req_id: reqId,
     }));
 
-    // ✅ Record executed trade only
+    // record trade
     lastTradePerSymbolRef.current.set(symbol, trade);
 
   }, [wsRef, getSymbolState, config.baseStake]);
@@ -179,7 +167,7 @@ export function useAutoTrader(
   const handle_result = (isWin: boolean) => {
     const state = sessionStateRef.current;
 
-    // ✅ FIX 6: update lastResult FIRST
+    // ✅ CRITICAL: update immediately (fix race condition)
     lastResultRef.current = isWin ? "WIN" : "LOSS";
 
     setSessionState(prev => ({
@@ -195,13 +183,12 @@ export function useAutoTrader(
   useEffect(() => {
     if (!config.enabled) return;
 
-    const shouldTrade =
+    if (
       sessionState.status === "IDLE" ||
       sessionState.status === "WIN" ||
       sessionState.status === "LOSS" ||
-      sessionState.status === "SKIP";
-
-    if (shouldTrade && !isExecutingRef.current) {
+      sessionState.status === "SKIP"
+    ) {
       execute_trade();
     }
   }, [sessionState.status, config.enabled, execute_trade]);
@@ -209,7 +196,7 @@ export function useAutoTrader(
   useEffect(() => {
     if (!config.enabled) {
       lastTradePerSymbolRef.current.clear();
-      lastResultRef.current = null; // ✅ reset
+      lastResultRef.current = null;
     }
   }, [config.enabled]);
 
