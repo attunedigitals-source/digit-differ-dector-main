@@ -526,7 +526,14 @@ export function useAutoTrader(
       toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
     }
 
-    const nextSessionState = { ...state, status: newStatus, nextAction };
+    const nextSessionState = {
+      ...state,
+      status: newStatus,
+      nextAction,
+      currentStake: isWin ? config.baseStake : state.currentStake,
+      martingaleStep: isWin ? 0 : state.martingaleStep,
+      sequenceStep: isWin ? 0 : state.sequenceStep,
+    };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
     setTicksToWait(ticksToWaitNext);
