@@ -510,7 +510,9 @@ export function useAutoTrader(
       toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
     }
 
-    setSessionState(prev => ({ ...prev, status: newStatus, nextAction }));
+    const nextSessionState = { ...state, status: newStatus, nextAction };
+    sessionStateRef.current = nextSessionState;
+    setSessionState(nextSessionState);
     setTicksToWait(ticksToWaitNext);
     
     // Crucial: Reset the execution lock only AFTER the result is processed
@@ -530,7 +532,7 @@ export function useAutoTrader(
     }, null, 2));
     
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
-      execute_trade();
+      setTimeout(() => execute_trade(), 0);
     }
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
