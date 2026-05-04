@@ -102,7 +102,7 @@ export function useAutoTrader(
     currentSymbol: "",
     currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER",
     currentBarrier: 5,
-    status: "IDLE" as "IDLE" | "WIN" | "LOSS" | "PENDING",
+    status: "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
     nextAction: "WAITING_TO_START",
   });
 
@@ -292,7 +292,7 @@ export function useAutoTrader(
         });
         setSessionState(prev => ({
           ...prev,
-          status: "LOSS",
+          status: "SKIP",
           nextAction: `SKIP_${categoryLabels[trade].replace(/\s+/g, "_").toUpperCase()}_AWAITING_DIRECTION_CHANGE`
         }));
         setTicksToWait(1);
@@ -321,6 +321,8 @@ export function useAutoTrader(
         } else {
           nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         }
+      } else if (state.status === "SKIP") {
+        nextStake = state.currentStake;
       } else {
         nextStake = config.baseStake;
       }
