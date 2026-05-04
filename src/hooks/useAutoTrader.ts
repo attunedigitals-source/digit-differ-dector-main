@@ -311,8 +311,10 @@ export function useAutoTrader(
       const isSpecialStakeTrade = trade === "under5" || trade === "over4";
       const isWin = state.status === "WIN";
 
-      if (isFirstTrade || isWin) {
+      if (isFirstTrade) {
         nextStake = config.baseStake;
+      } else if (isWin) {
+        nextStake = state.currentStake;
       } else if (state.status === "LOSS") {
         if (isSpecialStakeTrade) {
           nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2));
