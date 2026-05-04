@@ -172,6 +172,7 @@ export function useAutoTrader(
 
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
+  const symbolTradeStreakRef = useRef<Map<string, TradeCategory>>(new Map());
 
   const select_random_symbol_with_last16 = useCallback(() => {
     const symbols = [
@@ -280,6 +281,24 @@ export function useAutoTrader(
       });
 
       const trade = decision.selectedTrade;
+      const previousTrade = symbolTradeStreakRef.current.get(symbol);
+      if (previousTrade && previousTrade === trade) {
+        console.log("[AutoTrader] Trade skipped by back-to-back direction guard", {
+          symbol,
+          attemptedTrade: categoryLabels[trade],
+          previousTrade: categoryLabels[previousTrade],
+          reason: "Previous trade for this volatility used the same trade type. Waiting for a different trade type before trading again.",
+        });
+        setSessionState(prev => ({
+          ...prev,
+          status: "LOSS",
+          nextAction: `SKIP_${categoryLabels[trade].replace(/\s+/g, "_").toUpperCase()}_AWAITING_DIRECTION_CHANGE`
+        }));
+        setTicksToWait(1);
+        isExecutingRef.current = false;
+        return;
+      }
+
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
       if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
@@ -356,6 +375,12 @@ export function useAutoTrader(
         stake: nextStake,
         timestamp: Date.now(),
         supabaseId: undefined,
+      });
+      symbolTradeStreakRef.current.set(symbol, trade);
+      console.log("[AutoTrader] Back-to-back trade tracker updated", {
+        symbol,
+        lastTradeType: categoryLabels[trade],
+        note: "Next trade for this volatility must be a different trade type or it will be skipped.",
       });
 
       // Fix 1: Send WS proposal immediately — do NOT block on Supabase
@@ -717,6 +742,13 @@ export function useAutoTrader(
       setWindDownMode(false);
     }
   }, [config.enabled, windDownMode]);
+
+  useEffect(() => {
+    if (!config.enabled) {
+      symbolTradeStreakRef.current.clear();
+      console.log("[AutoTrader] Consecutive trade tracker reset (auto-trading disabled)");
+    }
+  }, [config.enabled]);
 
   useEffect(() => {
     if (!config.enabled) {
