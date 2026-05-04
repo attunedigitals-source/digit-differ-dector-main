@@ -172,7 +172,7 @@ export function useAutoTrader(
 
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
-  const symbolTradeStreakRef = useRef<Map<string, TradeCategory>>(new Map());
+  const symbolTradeStreakRef = useRef<Map<string, { trade: TradeCategory; count: number }>>(new Map());
 
   const select_random_symbol_with_last16 = useCallback(() => {
     const symbols = [
@@ -281,13 +281,14 @@ export function useAutoTrader(
       });
 
       const trade = decision.selectedTrade;
-      const previousTrade = symbolTradeStreakRef.current.get(symbol);
-      if (previousTrade && previousTrade === trade) {
-        console.log("[AutoTrader] Trade skipped by back-to-back direction guard", {
+      const streak = symbolTradeStreakRef.current.get(symbol);
+      if (streak && streak.trade === trade && streak.count >= 2) {
+        console.log("[AutoTrader] Trade skipped by consecutive-direction guard", {
           symbol,
           attemptedTrade: categoryLabels[trade],
-          previousTrade: categoryLabels[previousTrade],
-          reason: "Previous trade for this volatility used the same trade type. Waiting for a different trade type before trading again.",
+          trackedTrade: categoryLabels[streak.trade],
+          trackedCount: streak.count,
+          reason: "Two consecutive same-direction trades already taken for this volatility; waiting for a different trade type.",
         });
         setSessionState(prev => ({
           ...prev,
@@ -376,11 +377,16 @@ export function useAutoTrader(
         timestamp: Date.now(),
         supabaseId: undefined,
       });
-      symbolTradeStreakRef.current.set(symbol, trade);
-      console.log("[AutoTrader] Back-to-back trade tracker updated", {
+      if (!streak || streak.trade !== trade) {
+        symbolTradeStreakRef.current.set(symbol, { trade, count: 1 });
+      } else {
+        symbolTradeStreakRef.current.set(symbol, { trade, count: streak.count + 1 });
+      }
+      const updatedStreak = symbolTradeStreakRef.current.get(symbol);
+      console.log("[AutoTrader] Consecutive trade tracker updated", {
         symbol,
-        lastTradeType: categoryLabels[trade],
-        note: "Next trade for this volatility must be a different trade type or it will be skipped.",
+        tradeType: categoryLabels[trade],
+        consecutiveCount: updatedStreak?.count ?? 1,
       });
 
       // Fix 1: Send WS proposal immediately — do NOT block on Supabase
@@ -504,7 +510,9 @@ export function useAutoTrader(
       toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
     }
 
-    setSessionState(prev => ({ ...prev, status: newStatus, nextAction }));
+    const nextSessionState = { ...state, status: newStatus, nextAction };
+    sessionStateRef.current = nextSessionState;
+    setSessionState(nextSessionState);
     setTicksToWait(ticksToWaitNext);
     
     // Crucial: Reset the execution lock only AFTER the result is processed
@@ -524,7 +532,7 @@ export function useAutoTrader(
     }, null, 2));
     
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
-      execute_trade();
+      setTimeout(() => execute_trade(), 0);
     }
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
