@@ -292,7 +292,10 @@ export function useAutoTrader(
         });
         setSessionState(prev => ({
           ...prev,
-          status: "LOSS",
+          status: "IDLE",
+          currentStake: config.baseStake,
+          martingaleStep: 0,
+          sequenceStep: 0,
           nextAction: `SKIP_${categoryLabels[trade].replace(/\s+/g, "_").toUpperCase()}_AWAITING_DIRECTION_CHANGE`
         }));
         setTicksToWait(1);
