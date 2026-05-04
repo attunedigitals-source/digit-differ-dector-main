@@ -282,13 +282,13 @@ export function useAutoTrader(
 
       const trade = decision.selectedTrade;
       const streak = symbolTradeStreakRef.current.get(symbol);
-      if (streak && streak.trade === trade && streak.count >= 2) {
+      if (streak && streak.trade === trade && streak.count >= 1) {
         console.log("[AutoTrader] Trade skipped by consecutive-direction guard", {
           symbol,
           attemptedTrade: categoryLabels[trade],
           trackedTrade: categoryLabels[streak.trade],
           trackedCount: streak.count,
-          reason: "Two consecutive same-direction trades already taken for this volatility; waiting for a different trade type.",
+          reason: "Same trade type was already taken last for this volatility; waiting for a different trade type before allowing another of the same type.",
         });
         setSessionState(prev => ({
           ...prev,
@@ -379,7 +379,20 @@ export function useAutoTrader(
         timestamp: Date.now(),
         supabaseId: undefined,
       });
-      if (!streak || streak.trade !== trade) {
+      if (!streak) {
+        symbolTradeStreakRef.current.set(symbol, { trade, count: 1 });
+        console.log("[AutoTrader] Trade tracker initialized for volatility", {
+          symbol,
+          acceptedTrade: categoryLabels[trade],
+          trackerMode: "single-trade-memory",
+        });
+      } else if (streak.trade !== trade) {
+        console.log("[AutoTrader] Trade tracker reset on direction change", {
+          symbol,
+          previousTrade: categoryLabels[streak.trade],
+          acceptedTrade: categoryLabels[trade],
+          trackerMode: "single-trade-memory",
+        });
         symbolTradeStreakRef.current.set(symbol, { trade, count: 1 });
       } else {
         symbolTradeStreakRef.current.set(symbol, { trade, count: streak.count + 1 });
@@ -389,6 +402,7 @@ export function useAutoTrader(
         symbol,
         tradeType: categoryLabels[trade],
         consecutiveCount: updatedStreak?.count ?? 1,
+        trackerMode: "single-trade-memory",
       });
 
       // Fix 1: Send WS proposal immediately — do NOT block on Supabase
