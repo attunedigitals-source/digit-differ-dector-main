@@ -20,10 +20,9 @@ const selectTradeFromLast16Digits = (digits: number[]) => {
     if (digit > 5) counts.over5++;
   }
 
-  const max = Math.max(...Object.values(counts));
-
+  const maxCount = Math.max(...Object.values(counts));
   const top = (Object.entries(counts) as [TradeCategory, number][])
-    .filter(([, v]) => v === max)
+    .filter(([, v]) => v === maxCount)
     .map(([k]) => k);
 
   const selectedTrade = top[Math.floor(Math.random() * top.length)];
@@ -63,7 +62,7 @@ export function useAutoTrader(
   const isExecutingRef = useRef(false);
   const openContracts = useRef<Map<string, any>>(new Map());
 
-  // ✅ CLEAN SYMBOL MEMORY
+  // ✅ NEW: symbol-specific memory
   const lastTradePerSymbolRef = useRef<Map<string, TradeCategory>>(new Map());
 
   const shouldSkipTrade = (symbol: string, trade: TradeCategory) => {
@@ -71,7 +70,7 @@ export function useAutoTrader(
   };
 
   const select_random_symbol = () => {
-    const symbols = ["R_10","R_25","R_50","R_75","R_100"];
+    const symbols = ["1HZ10V","1HZ25V","1HZ50V","1HZ75V","1HZ100V","R_10","R_25","R_50","R_75","R_100"];
     return symbols[Math.floor(Math.random() * symbols.length)];
   };
 
@@ -89,7 +88,7 @@ export function useAutoTrader(
     let nextStep = state.martingaleStep;
     let nextSeq = state.sequenceStep;
 
-    // ✅ MARTINGALE CONTROL (SKIP SAFE)
+    // ✅ FIXED martingale logic (SKIP SAFE)
     if (state.status === "WIN" || state.status === "IDLE") {
       nextStep = 0;
       nextSeq = 0;
@@ -109,14 +108,15 @@ export function useAutoTrader(
       return;
     }
 
-    const { selectedTrade } = selectTradeFromLast16Digits(digits);
+    const decision = selectTradeFromLast16Digits(digits);
+    const trade = decision.selectedTrade;
 
-    // ✅ SKIP LOGIC (PURE)
-    if (shouldSkipTrade(symbol, selectedTrade)) {
+    // ✅ FIXED SKIP (NO RESET)
+    if (shouldSkipTrade(symbol, trade)) {
       setSessionState(prev => ({
         ...prev,
         status: "SKIP",
-        nextAction: `SKIP_${selectedTrade}`
+        nextAction: `SKIP_${trade.toUpperCase()}`
       }));
 
       isExecutingRef.current = false;
@@ -126,20 +126,20 @@ export function useAutoTrader(
     let type: "DIGITOVER" | "DIGITUNDER";
     let barrier: number;
 
-    if (selectedTrade === "under4") { type = "DIGITUNDER"; barrier = 4; }
-    else if (selectedTrade === "over4") { type = "DIGITOVER"; barrier = 4; }
-    else if (selectedTrade === "under5") { type = "DIGITUNDER"; barrier = 5; }
+    if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
+    else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
+    else if (trade === "under5") { type = "DIGITUNDER"; barrier = 5; }
     else { type = "DIGITOVER"; barrier = 5; }
 
-    const isSpecial = selectedTrade === "under5" || selectedTrade === "over4";
+    const isSpecial = trade === "under5" || trade === "over4";
 
-    // ✅ STAKE LOGIC
+    // ✅ FIXED stake logic
     if (state.status === "WIN") {
       nextStake = config.baseStake;
     } else if (state.status === "LOSS") {
       nextStake = isSpecial
-        ? state.currentStake * 1.8 * 1.26
-        : state.currentStake * 1.8;
+        ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
+        : Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
     } else if (state.status === "SKIP") {
       nextStake = state.currentStake;
     }
@@ -157,21 +157,23 @@ export function useAutoTrader(
 
     const reqId = Date.now();
 
-    ws.send(JSON.stringify({
+    const proposalReq = {
       proposal: 1,
       amount: nextStake,
+      basis: "stake",
       contract_type: type,
-      symbol,
-      barrier: String(barrier),
+      currency: "USD",
       duration: 1,
       duration_unit: "t",
-      basis: "stake",
-      currency: "USD",
-      req_id: reqId
-    }));
+      symbol,
+      barrier: String(barrier),
+      req_id: reqId,
+    };
 
-    // ✅ RECORD ONLY AFTER VALID TRADE
-    lastTradePerSymbolRef.current.set(symbol, selectedTrade);
+    ws.send(JSON.stringify(proposalReq));
+
+    // ✅ RECORD ONLY VALID TRADE
+    lastTradePerSymbolRef.current.set(symbol, trade);
 
   }, [wsRef, getSymbolState, config.baseStake]);
 
@@ -182,7 +184,7 @@ export function useAutoTrader(
       ...prev,
       status: isWin ? "WIN" : "LOSS",
       currentStake: isWin ? config.baseStake : state.currentStake,
-      martingaleStep: isWin ? 0 : state.martingaleStep
+      martingaleStep: isWin ? 0 : state.martingaleStep,
     }));
 
     isExecutingRef.current = false;
@@ -193,9 +195,9 @@ export function useAutoTrader(
 
     const shouldTrade =
       sessionState.status === "IDLE" ||
-      sessionState.status === "WIN" ||
-      sessionState.status === "LOSS" ||
-      sessionState.status === "SKIP";
+      (sessionState.status === "WIN" ||
+       sessionState.status === "LOSS" ||
+       sessionState.status === "SKIP");
 
     if (shouldTrade && !isExecutingRef.current) {
       execute_trade();
