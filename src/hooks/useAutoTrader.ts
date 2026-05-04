@@ -172,6 +172,7 @@ export function useAutoTrader(
 
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
+  const symbolTradeStreakRef = useRef<Map<string, { trade: TradeCategory; count: number }>>(new Map());
 
   const select_random_symbol_with_last16 = useCallback(() => {
     const symbols = [
@@ -280,6 +281,25 @@ export function useAutoTrader(
       });
 
       const trade = decision.selectedTrade;
+      const streak = symbolTradeStreakRef.current.get(symbol);
+      if (streak && streak.trade === trade && streak.count >= 2) {
+        console.log("[AutoTrader] Trade skipped by consecutive-direction guard", {
+          symbol,
+          attemptedTrade: categoryLabels[trade],
+          trackedTrade: categoryLabels[streak.trade],
+          trackedCount: streak.count,
+          reason: "Two consecutive same-direction trades already taken for this volatility; waiting for a different trade type.",
+        });
+        setSessionState(prev => ({
+          ...prev,
+          status: "LOSS",
+          nextAction: `SKIP_${categoryLabels[trade].replace(/\s+/g, "_").toUpperCase()}_AWAITING_DIRECTION_CHANGE`
+        }));
+        setTicksToWait(1);
+        isExecutingRef.current = false;
+        return;
+      }
+
       let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
       if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
@@ -356,6 +376,17 @@ export function useAutoTrader(
         stake: nextStake,
         timestamp: Date.now(),
         supabaseId: undefined,
+      });
+      if (!streak || streak.trade !== trade) {
+        symbolTradeStreakRef.current.set(symbol, { trade, count: 1 });
+      } else {
+        symbolTradeStreakRef.current.set(symbol, { trade, count: streak.count + 1 });
+      }
+      const updatedStreak = symbolTradeStreakRef.current.get(symbol);
+      console.log("[AutoTrader] Consecutive trade tracker updated", {
+        symbol,
+        tradeType: categoryLabels[trade],
+        consecutiveCount: updatedStreak?.count ?? 1,
       });
 
       // Fix 1: Send WS proposal immediately — do NOT block on Supabase
@@ -717,6 +748,13 @@ export function useAutoTrader(
       setWindDownMode(false);
     }
   }, [config.enabled, windDownMode]);
+
+  useEffect(() => {
+    if (!config.enabled) {
+      symbolTradeStreakRef.current.clear();
+      console.log("[AutoTrader] Consecutive trade tracker reset (auto-trading disabled)");
+    }
+  }, [config.enabled]);
 
   useEffect(() => {
     if (!config.enabled) {
