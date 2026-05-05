@@ -9,7 +9,6 @@ import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
 const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
-const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
 
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
 
@@ -33,13 +32,6 @@ const selectTradeFromLast16Digits = (digits: number[]) => {
   };
 };
 
-const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => ({
-  enabled: Boolean(incoming?.enabled),
-  baseStake: Number(incoming?.baseStake ?? 0.35),
-  maxMartingaleSteps: Number(incoming?.maxMartingaleSteps ?? 10),
-  cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
-});
-
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null,
@@ -48,14 +40,12 @@ export function useAutoTrader(
 ) {
   const { user } = useAuth();
 
-  const [config, setConfig] = useState<AutoTraderConfig>(() =>
-    sanitizeConfig({
-      enabled: false,
-      baseStake: 0.35,
-      maxMartingaleSteps: 10,
-      cooldownIntervalMinutes: 30,
-    })
-  );
+  const [config, setConfig] = useState<AutoTraderConfig>({
+    enabled: false,
+    baseStake: 0.35,
+    maxMartingaleSteps: 10,
+    cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
+  });
 
   const [sessionState, setSessionState] = useState({
     currentStake: 0.35,
@@ -75,7 +65,7 @@ export function useAutoTrader(
 
   const isExecutingRef = useRef(false);
 
-  // 🔥 FIX: Track last symbol
+  // ✅ FIX: track last symbol safely
   const lastTradedSymbolRef = useRef<string | null>(null);
 
   const select_random_symbol_with_last16 = useCallback(() => {
@@ -117,6 +107,7 @@ export function useAutoTrader(
       }
 
       if (nextStep >= config.maxMartingaleSteps) {
+        toast.error("Max martingale reached");
         setConfig(prev => ({ ...prev, enabled: false }));
         return;
       }
@@ -144,7 +135,7 @@ export function useAutoTrader(
 
       const isSpecial = trade === "under5" || trade === "over4";
 
-      // 🔥 FIXED LOGIC
+      // ✅ SAFE FIX
       if (isNewSymbol) {
         nextStake = config.baseStake;
         nextStep = 0;
@@ -168,8 +159,6 @@ export function useAutoTrader(
         status: "PENDING",
       }));
 
-      const req_id = Date.now();
-
       ws.send(JSON.stringify({
         proposal: 1,
         amount: nextStake,
@@ -180,14 +169,15 @@ export function useAutoTrader(
         duration_unit: "t",
         symbol,
         barrier: String(barrier),
-        req_id,
+        req_id: Date.now(),
       }));
 
-      // 🔥 update symbol AFTER placing trade
+      // ✅ update AFTER trade
       lastTradedSymbolRef.current = symbol;
 
     } catch (err) {
       console.error(err);
+    } finally {
       isExecutingRef.current = false;
     }
   }, [config, wsRef, select_random_symbol_with_last16]);
