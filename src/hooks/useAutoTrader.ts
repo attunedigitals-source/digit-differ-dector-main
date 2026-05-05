@@ -225,21 +225,6 @@ export function useAutoTrader(
       let nextStep = state.martingaleStep;
       let seqStep = state.sequenceStep;
 
-      if (state.status === "WIN" || state.status === "IDLE") {
-        nextStep = 0;
-        seqStep = 0;
-      } else if (state.status === "LOSS") {
-        nextStep = state.martingaleStep + 1;
-        seqStep = state.sequenceStep + 1;
-        stepIndexRef.current += 1;
-      }
-
-      if (nextStep >= config.maxMartingaleSteps) {
-        toast.error("Max Martingale Steps reached. Stopping trading.");
-        setConfig(prev => ({ ...prev, enabled: false }));
-        return;
-      }
-
       const selectedSymbolData = select_random_symbol_with_last16();
       if (!selectedSymbolData) {
         console.warn("[AutoTrader] Trade skipped: insufficient tick history across all configured volatilities. Need 16 digits per symbol.");
@@ -292,13 +277,25 @@ export function useAutoTrader(
         });
         setSessionState(prev => ({
           ...prev,
-          status: "IDLE",
-          currentStake: config.baseStake,
-          martingaleStep: 0,
-          sequenceStep: 0,
           nextAction: `SKIP_${categoryLabels[trade].replace(/\s+/g, "_").toUpperCase()}_AWAITING_DIRECTION_CHANGE`
         }));
         setTicksToWait(1);
+        isExecutingRef.current = false;
+        return;
+      }
+
+      if (state.status === "WIN" || state.status === "IDLE") {
+        nextStep = 0;
+        seqStep = 0;
+      } else if (state.status === "LOSS") {
+        nextStep = state.martingaleStep + 1;
+        seqStep = state.sequenceStep + 1;
+        stepIndexRef.current += 1;
+      }
+
+      if (nextStep >= config.maxMartingaleSteps) {
+        toast.error("Max Martingale Steps reached. Stopping trading.");
+        setConfig(prev => ({ ...prev, enabled: false }));
         isExecutingRef.current = false;
         return;
       }
@@ -324,8 +321,6 @@ export function useAutoTrader(
         } else {
           nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
         }
-      } else if (state.status === "SKIP") {
-        nextStake = state.currentStake;
       } else {
         nextStake = config.baseStake;
       }
