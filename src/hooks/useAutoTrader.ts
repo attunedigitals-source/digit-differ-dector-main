@@ -591,8 +591,8 @@ export function useAutoTrader(
 
       const buffer = (window as any)._dailyPLBuffer;
 
-      // If we got a full page and haven't hit a safety limit (e.g. 10,000 trades), fetch next
-      if (transactions.length === 500 && buffer.trades < 10000) {
+      // If we got a full page and haven't hit a safety limit (e.g. 1,000,000 trades), fetch next
+      if (transactions.length === 500 && buffer.trades < 1000000) {
         console.log(`[AutoTrader] Received 500 trades (Total: ${buffer.trades}), fetching next page...`);
         fetchDailyPL(buffer.trades);
       } else {
