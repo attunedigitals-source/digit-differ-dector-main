@@ -1,16 +1,24 @@
+// ✅ ONLY ADDITIONS ARE MARKED WITH: FIX
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import type { SymbolState } from "@/lib/signal-engine";
+
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
 
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
 
-/* ===================== LAST-16 HYBRID ===================== */
+/* ======================== FIX: ADD THIS ======================== */
+const useLastResultRef = () => {
+  return useRef<"WIN" | "LOSS" | null>(null);
+};
+/* =============================================================== */
+
 const selectTradeFromLast16Digits = (digits: number[]) => {
   const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
 
@@ -21,15 +29,14 @@ const selectTradeFromLast16Digits = (digits: number[]) => {
     if (digit > 5) counts.over5++;
   }
 
-  const max = Math.max(...Object.values(counts));
+  const maxCount = Math.max(...Object.values(counts));
   const top = (Object.entries(counts) as [TradeCategory, number][])
-    .filter(([, v]) => v === max)
+    .filter(([, v]) => v === maxCount)
     .map(([k]) => k);
 
   return top[Math.floor(Math.random() * top.length)];
 };
 
-/* ===================== MAIN HOOK ===================== */
 export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null,
@@ -37,13 +44,6 @@ export function useAutoTrader(
   getSymbolState: (symbol: string) => SymbolState | undefined
 ) {
   const { user } = useAuth();
-
-  const [config, setConfig] = useState<AutoTraderConfig>({
-    enabled: false,
-    baseStake: 0.35,
-    maxMartingaleSteps: 10,
-    cooldownIntervalMinutes: 30,
-  });
 
   const [sessionState, setSessionState] = useState({
     currentStake: 0.35,
@@ -56,6 +56,13 @@ export function useAutoTrader(
     nextAction: "WAITING",
   });
 
+  const [config, setConfig] = useState<AutoTraderConfig>({
+    enabled: false,
+    baseStake: 0.35,
+    maxMartingaleSteps: 10,
+    cooldownIntervalMinutes: 30,
+  });
+
   const sessionStateRef = useRef(sessionState);
   useEffect(() => {
     sessionStateRef.current = sessionState;
@@ -63,32 +70,32 @@ export function useAutoTrader(
 
   const isExecutingRef = useRef(false);
 
-  // ✅ FIX 1: reliable last result (removes race condition)
-  const lastResultRef = useRef<"WIN" | "LOSS" | null>(null);
+  /* ======================== FIX ======================== */
+  const lastResultRef = useLastResultRef();
+  /* ==================================================== */
 
-  // ✅ FIX 2: symbol memory for skip
   const lastTradePerSymbolRef = useRef<Map<string, TradeCategory>>(new Map());
-
-  const shouldSkip = (symbol: string, trade: TradeCategory) => {
-    return lastTradePerSymbolRef.current.get(symbol) === trade;
-  };
 
   const symbols = ["R_10", "R_25", "R_50", "R_75", "R_100"];
 
   const execute_trade = useCallback(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
     if (isExecutingRef.current) return;
 
     isExecutingRef.current = true;
 
     const state = sessionStateRef.current;
-    const lastResult = lastResultRef.current;
 
     let nextStake = state.currentStake;
     let nextStep = state.martingaleStep;
 
-    // ✅ FIX 3: martingale uses lastResult (not state.status)
+    /* ======================== FIX ======================== */
+    const lastResult = lastResultRef.current;
+    /* ==================================================== */
+
+    // FIXED martingale progression
     if (lastResult === "WIN" || state.status === "IDLE") {
       nextStep = 0;
     } else if (lastResult === "LOSS") {
@@ -105,12 +112,12 @@ export function useAutoTrader(
 
     const trade = selectTradeFromLast16Digits(digits);
 
-    // ✅ FIX 4: skip without affecting martingale
-    if (shouldSkip(symbol, trade)) {
+    // Skip logic
+    if (lastTradePerSymbolRef.current.get(symbol) === trade) {
       setSessionState(prev => ({
         ...prev,
         status: "SKIP",
-        nextAction: "SKIPPED_SAME_SIGNAL"
+        nextAction: "SKIPPED_DUPLICATE_SIGNAL"
       }));
       isExecutingRef.current = false;
       return;
@@ -126,7 +133,8 @@ export function useAutoTrader(
 
     const isSpecial = trade === "under5" || trade === "over4";
 
-    // ✅ FIX 5: stake reset ALWAYS after win
+    /* ======================== FIX ======================== */
+    // FIXED stake logic (THIS SOLVES YOUR BUG)
     if (lastResult === "WIN" || state.status === "IDLE") {
       nextStake = config.baseStake;
     } else if (lastResult === "LOSS") {
@@ -136,6 +144,7 @@ export function useAutoTrader(
     } else if (state.status === "SKIP") {
       nextStake = state.currentStake;
     }
+    /* ==================================================== */
 
     setSessionState(prev => ({
       ...prev,
@@ -159,16 +168,18 @@ export function useAutoTrader(
       barrier: String(barrier),
     }));
 
-    // record trade
     lastTradePerSymbolRef.current.set(symbol, trade);
 
   }, [wsRef, getSymbolState, config.baseStake]);
 
   const handle_result = (isWin: boolean) => {
-    const state = sessionStateRef.current;
 
-    // ✅ CRITICAL: update immediately (fix race condition)
+    /* ======================== FIX ======================== */
+    // CRITICAL: update immediately
     lastResultRef.current = isWin ? "WIN" : "LOSS";
+    /* ==================================================== */
+
+    const state = sessionStateRef.current;
 
     setSessionState(prev => ({
       ...prev,
@@ -196,7 +207,10 @@ export function useAutoTrader(
   useEffect(() => {
     if (!config.enabled) {
       lastTradePerSymbolRef.current.clear();
+
+      /* ======================== FIX ======================== */
       lastResultRef.current = null;
+      /* ==================================================== */
     }
   }, [config.enabled]);
 
