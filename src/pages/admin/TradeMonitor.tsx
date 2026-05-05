@@ -52,12 +52,17 @@ export default function TradeMonitor() {
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['admin-accounts'],
     queryFn: async () => {
+      console.log("[AdminMonitor] Fetching accounts summary from admin_user_performance...");
       const { data, error } = await supabase
         .from('admin_user_performance')
         .select('*, profiles(email, subscription_status)')
         .order('net_profit', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("[AdminMonitor] Fetch error:", error);
+        throw error;
+      }
+      console.log(`[AdminMonitor] Successfully fetched ${data?.length} accounts`);
       return data as AccountSummary[];
     },
     refetchInterval: 5000 // Poll every 5s as backup to subscription
@@ -71,6 +76,7 @@ export default function TradeMonitor() {
         { event: 'INSERT', schema: 'public', table: 'trades' }, 
         (payload) => {
           const newTrade = payload.new;
+          console.log(`[AdminMonitor] Real-time trade detected for ${newTrade.deriv_loginid}:`, newTrade);
           const profit = Number(newTrade.profit_loss) || 0;
           const isToday = new Date(newTrade.timestamp).toDateString() === new Date().toDateString();
 
@@ -80,6 +86,7 @@ export default function TradeMonitor() {
           queryClient.setQueryData(['admin-accounts'], (oldAccounts: AccountSummary[] | undefined) => {
             if (!oldAccounts) return oldAccounts;
 
+            console.log(`[AdminMonitor] Incrementally updating P/L for ${newTrade.deriv_loginid} (+$${profit})`);
             const accountExists = oldAccounts.some(a => a.deriv_loginid === newTrade.deriv_loginid);
             
             // If it's a completely new account we haven't seen, just refresh everything
