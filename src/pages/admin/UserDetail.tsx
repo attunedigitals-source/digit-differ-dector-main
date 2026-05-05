@@ -56,6 +56,7 @@ export default function UserDetail() {
           filter: `user_id=eq.${userId}` 
         },
         () => {
+          console.log(`[UserPerformance] Real-time trade detected for user ${userId}. Invalidating queries...`);
           // Invalidate performance and profit queries for instant update
           queryClient.invalidateQueries({ queryKey: ["admin-user-performance", userId] });
           queryClient.invalidateQueries({ queryKey: ["admin-user-trades", userId] });
@@ -88,11 +89,16 @@ export default function UserDetail() {
   const { data: performanceList } = useQuery({
     queryKey: ["admin-user-performance", userId],
     queryFn: async () => {
+      console.log(`[UserPerformance] Fetching performance stats for user ${userId}...`);
       const { data, error } = await supabase
         .from('admin_user_performance')
         .select('*')
         .eq('user_id', userId);
-      if (error) throw error;
+      if (error) {
+        console.error("[UserPerformance] Performance fetch error:", error);
+        throw error;
+      }
+      console.log(`[UserPerformance] Found ${data?.length || 0} account(s) for this user`);
       return data || [];
     },
     refetchInterval: 5000 // Faster polling for P/L cards
@@ -126,14 +132,21 @@ export default function UserDetail() {
     queryKey: ["admin-user-daily-history", userId],
     queryFn: async () => {
       try {
+        console.log(`[UserPerformance] Fetching daily history for user ${userId} via RPC...`);
         // [PRIMARY] Try high-speed RPC function first
         const { data, error: rpcError } = await supabase.rpc('get_admin_user_daily_summary', { 
           p_user_id: userId 
         });
         
-        if (!rpcError && data && data.length > 0) return data;
+        if (!rpcError && data && data.length > 0) {
+          console.log(`[UserPerformance] Successfully retrieved ${data.length} historical days via RPC (Priority Source)`);
+          return data;
+        }
+
+        if (rpcError) console.warn("[UserPerformance] RPC History Error, falling back to manual aggregation:", rpcError);
 
         // [FALLBACK] Direct table aggregation
+        console.log("[UserPerformance] Performing manual trade aggregation for history fallback...");
         const { data: rawTrades, error: tableError } = await supabase
           .from('trades')
           .select('timestamp, result, profit_loss, deriv_loginid')
@@ -172,6 +185,8 @@ export default function UserDetail() {
     queryFn: async () => {
       // Fetch using RPCs for accuracy and speed
       const localTZ = profile?.timezone || "UTC";
+      console.log(`[UserPerformance] Calculating Dual-P/L for ${selectedAccountId} (WAT vs ${localTZ})...`);
+      
       const { data: watPL, error: watError } = await supabase.rpc('get_user_account_daily_pl', {
         p_user_id: userId,
         p_account_id: selectedAccountId,
@@ -184,7 +199,12 @@ export default function UserDetail() {
         p_timezone: localTZ
       });
 
-      if (watError || localError) throw (watError || localError);
+      if (watError || localError) {
+        console.error("[UserPerformance] Dual-P/L error:", watError || localError);
+        throw (watError || localError);
+      }
+
+      console.log(`[UserPerformance] Dual-P/L results: WAT: +$${Number(watPL).toFixed(2)}, ${localTZ}: +$${Number(localPL).toFixed(2)}`);
 
       return {
         wat: Number(watPL || 0),
