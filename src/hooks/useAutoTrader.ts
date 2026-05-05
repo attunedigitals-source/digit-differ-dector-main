@@ -566,23 +566,44 @@ export function useAutoTrader(
 
     if (data.msg_type === "profit_table" && data.profit_table) {
       const transactions = data.profit_table.transactions || [];
-      console.log(`[AutoTrader] Received profit_table with ${transactions.length} transactions`);
-      let totalProfit = 0;
-      let wins = 0;
+      const isFirstPage = (data.echo_req.offset || 0) === 0;
+      
+      // Use a temporary calculation to avoid intermediate state flickers
+      let pageProfit = 0;
+      let pageWins = 0;
       
       transactions.forEach((t: any) => {
         const profit = (Number(t.sell_price) || 0) - (Number(t.buy_price) || 0);
-        totalProfit += profit;
-        if (profit > 0) wins++;
+        pageProfit += profit;
+        if (profit > 0) pageWins++;
       });
 
-      console.log(`[AutoTrader] Daily P/L Reconciled: $${totalProfit.toFixed(2)} (Wins: ${wins}, Total: ${transactions.length})`);
-      
-      setDailyPL(totalProfit);
-      setDailyStats({
-        total_trades: transactions.length,
-        wins
-      });
+      // Update our accumulation refs (using functional updates or refs to keep track across pages)
+      // For simplicity, we'll use the echo_req to know if we should reset
+      if (isFirstPage) {
+        (window as any)._dailyPLBuffer = { profit: pageProfit, trades: transactions.length, wins: pageWins };
+      } else {
+        const buffer = (window as any)._dailyPLBuffer || { profit: 0, trades: 0, wins: 0 };
+        buffer.profit += pageProfit;
+        buffer.trades += transactions.length;
+        buffer.wins += pageWins;
+      }
+
+      const buffer = (window as any)._dailyPLBuffer;
+
+      // If we got a full page and haven't hit a safety limit (e.g. 10,000 trades), fetch next
+      if (transactions.length === 500 && buffer.trades < 10000) {
+        console.log(`[AutoTrader] Received 500 trades (Total: ${buffer.trades}), fetching next page...`);
+        fetchDailyPL(buffer.trades);
+      } else {
+        console.log(`[AutoTrader] Daily P/L Reconciled: $${buffer.profit.toFixed(2)} (Wins: ${buffer.wins}, Total: ${buffer.trades})`);
+        setDailyPL(buffer.profit);
+        setDailyStats({
+          total_trades: buffer.trades,
+          wins: buffer.wins
+        });
+      }
+      return;
     }
 
     if (!config.enabled) return;
@@ -688,7 +709,7 @@ export function useAutoTrader(
   }, [config.enabled, ticksToWait]);
 
 
-  const fetchDailyPL = useCallback(async () => {
+  const fetchDailyPL = useCallback(async (offset = 0) => {
     try {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -701,12 +722,15 @@ export function useAutoTrader(
       const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
       const epoch = Math.floor(startOfToday.getTime() / 1000);
 
-      console.log(`[AutoTrader] Requesting profit_table from Deriv since ${startOfToday.toISOString()} (Epoch: ${epoch})`);
+      if (offset === 0) {
+        console.log(`[AutoTrader] Requesting profit_table from Deriv since ${startOfToday.toISOString()} (UTC)`);
+      }
 
       ws.send(JSON.stringify({
         profit_table: 1,
-        date_from: epoch, // Send as number
-        limit: 500,       // Stick to API maximum of 500
+        date_from: epoch,
+        limit: 500,
+        offset: offset,
         sort: "ASC"
       }));
     } catch (err) {
