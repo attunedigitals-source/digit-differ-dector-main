@@ -742,10 +742,16 @@ export function useAutoTrader(
   }, [user?.id, connected, requestContractStatus, wsRef]);
 
   useEffect(() => {
-    fetchDailyPL();
-    const interval = setInterval(fetchDailyPL, 60000);
+    if (connected && accountInfo?.loginid) {
+      fetchDailyPL();
+    }
+    const interval = setInterval(() => {
+      if (connected && accountInfo?.loginid) {
+        fetchDailyPL();
+      }
+    }, 60000);
     return () => clearInterval(interval);
-  }, [fetchDailyPL, user?.id]);
+  }, [fetchDailyPL, user?.id, connected, accountInfo?.loginid]);
 
   useEffect(() => {
     localStorage.setItem('autoTraderConfig', JSON.stringify(config));
