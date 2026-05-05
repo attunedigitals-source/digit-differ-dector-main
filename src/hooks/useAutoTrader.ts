@@ -621,6 +621,28 @@ export function useAutoTrader(
       }
     }
 
+    if (data.msg_type === "profit_table" && data.profit_table) {
+      const transactions = data.profit_table.transactions || [];
+      let totalProfit = 0;
+      let wins = 0;
+      
+      transactions.forEach((t: any) => {
+        // Profit = Payout - Buy Price (standard Deriv profit_table logic)
+        // Or Sell Price - Buy Price
+        const profit = (Number(t.sell_price) || 0) - (Number(t.buy_price) || 0);
+        totalProfit += profit;
+        if (profit > 0) wins++;
+      });
+
+      console.log(`[AutoTrader] Accurate P/L Reconciled: $${totalProfit.toFixed(2)} across ${transactions.length} trades today.`);
+      
+      setDailyPL(totalProfit);
+      setDailyStats({
+        total_trades: transactions.length,
+        wins
+      });
+    }
+
     if (data.error) {
       const reqId = String(data.req_id);
       console.error(`[AutoTrader] API Error (req_id: ${reqId}):`, data.error);
@@ -660,22 +682,24 @@ export function useAutoTrader(
 
   const fetchDailyPL = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profileData } = await supabase.from('profiles').select('timezone').eq('id', user.id).single();
-      const tz = profileData?.timezone || "UTC";
-      const { data, error } = await supabase.rpc('get_user_daily_stats', { p_user_id: user.id, p_timezone: tz });
-      if (!error && data) {
-        setDailyPL(Number(data.profit_loss));
-        setDailyStats({
-          total_trades: Number(data.total_trades),
-          wins: Number(data.wins)
-        });
-      }
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      const now = new Date();
+      // Get start of today in UTC (00:00:00 UTC)
+      const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+      const epoch = Math.floor(startOfToday.getTime() / 1000);
+
+      ws.send(JSON.stringify({
+        profit_table: 1,
+        date_from: String(epoch),
+        limit: 1000000,
+        sort: "ASC"
+      }));
     } catch (err) {
       console.error("Unexpected error in fetchDailyPL:", err);
     }
-  }, []);
+  }, [wsRef]);
 
   useEffect(() => {
     if (!user?.id || !connected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
