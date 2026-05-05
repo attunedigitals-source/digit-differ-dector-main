@@ -161,6 +161,51 @@ export function useAutoTrader(
     continuousTradeStartAtRef.current = continuousTradeStartAt;
   }, [continuousTradeStartAt]);
 
+  const lastSyncedRef = useRef({ pl: 0, trades: 0 });
+  const statsRef = useRef({ pl: dailyPL, stats: dailyStats });
+
+  // Keep statsRef updated for the sync loop
+  useEffect(() => {
+    statsRef.current = { pl: dailyPL, stats: dailyStats };
+  }, [dailyPL, dailyStats]);
+
+  useEffect(() => {
+    if (!user?.id || !accountInfo?.loginid) return;
+
+    const syncToSupabase = async () => {
+      try {
+        const { pl, stats } = statsRef.current;
+        
+        // Skip if nothing changed since last successful sync
+        if (pl === lastSyncedRef.current.pl && stats.total_trades === lastSyncedRef.current.trades) return;
+
+        // Current UTC date for grouping
+        const utcDate = new Date().toISOString().split('T')[0];
+        
+        const { error } = await supabase
+          .from('daily_reports')
+          .upsert({
+            user_id: user.id,
+            deriv_loginid: accountInfo.loginid,
+            trade_date: utcDate,
+            reported_profit: pl,
+            reported_trades: stats.total_trades,
+            reported_wins: stats.wins,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id,deriv_loginid,trade_date' });
+
+        if (!error) {
+          lastSyncedRef.current = { pl, trades: stats.total_trades };
+        }
+      } catch (err) {
+        // Silent fail for background sync
+      }
+    };
+
+    const interval = setInterval(syncToSupabase, 2000);
+    return () => clearInterval(interval);
+  }, [user?.id, accountInfo?.loginid]);
+
   const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const settledContracts = useRef<Set<string>>(new Set());
