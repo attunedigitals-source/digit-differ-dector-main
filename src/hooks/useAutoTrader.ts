@@ -623,18 +623,17 @@ export function useAutoTrader(
 
     if (data.msg_type === "profit_table" && data.profit_table) {
       const transactions = data.profit_table.transactions || [];
+      console.log(`[AutoTrader] Received profit_table with ${transactions.length} transactions`);
       let totalProfit = 0;
       let wins = 0;
       
       transactions.forEach((t: any) => {
-        // Profit = Payout - Buy Price (standard Deriv profit_table logic)
-        // Or Sell Price - Buy Price
         const profit = (Number(t.sell_price) || 0) - (Number(t.buy_price) || 0);
         totalProfit += profit;
         if (profit > 0) wins++;
       });
 
-      console.log(`[AutoTrader] Accurate P/L Reconciled: $${totalProfit.toFixed(2)} across ${transactions.length} trades today.`);
+      console.log(`[AutoTrader] Daily P/L Reconciled: $${totalProfit.toFixed(2)} (Wins: ${wins}, Total: ${transactions.length})`);
       
       setDailyPL(totalProfit);
       setDailyStats({
@@ -683,12 +682,17 @@ export function useAutoTrader(
   const fetchDailyPL = useCallback(async () => {
     try {
       const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn("[AutoTrader] fetchDailyPL: WebSocket not ready");
+        return;
+      }
 
       const now = new Date();
       // Get start of today in UTC (00:00:00 UTC)
       const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
       const epoch = Math.floor(startOfToday.getTime() / 1000);
+
+      console.log(`[AutoTrader] Requesting profit_table from Deriv since ${startOfToday.toISOString()} (Epoch: ${epoch})`);
 
       ws.send(JSON.stringify({
         profit_table: 1,
