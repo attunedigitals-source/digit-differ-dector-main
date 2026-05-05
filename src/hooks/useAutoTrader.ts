@@ -560,6 +560,31 @@ export function useAutoTrader(
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
   const handleTradeMessage = useCallback((data: any) => {
+    if (data.msg_type !== "tick") {
+      console.log(`[AutoTrader] Received message type: ${data.msg_type}`, data);
+    }
+
+    if (data.msg_type === "profit_table" && data.profit_table) {
+      const transactions = data.profit_table.transactions || [];
+      console.log(`[AutoTrader] Received profit_table with ${transactions.length} transactions`);
+      let totalProfit = 0;
+      let wins = 0;
+      
+      transactions.forEach((t: any) => {
+        const profit = (Number(t.sell_price) || 0) - (Number(t.buy_price) || 0);
+        totalProfit += profit;
+        if (profit > 0) wins++;
+      });
+
+      console.log(`[AutoTrader] Daily P/L Reconciled: $${totalProfit.toFixed(2)} (Wins: ${wins}, Total: ${transactions.length})`);
+      
+      setDailyPL(totalProfit);
+      setDailyStats({
+        total_trades: transactions.length,
+        wins
+      });
+    }
+
     if (!config.enabled) return;
 
     const state = sessionStateRef.current;
@@ -622,24 +647,8 @@ export function useAutoTrader(
     }
 
     if (data.msg_type === "profit_table" && data.profit_table) {
-      const transactions = data.profit_table.transactions || [];
-      console.log(`[AutoTrader] Received profit_table with ${transactions.length} transactions`);
-      let totalProfit = 0;
-      let wins = 0;
-      
-      transactions.forEach((t: any) => {
-        const profit = (Number(t.sell_price) || 0) - (Number(t.buy_price) || 0);
-        totalProfit += profit;
-        if (profit > 0) wins++;
-      });
-
-      console.log(`[AutoTrader] Daily P/L Reconciled: $${totalProfit.toFixed(2)} (Wins: ${wins}, Total: ${transactions.length})`);
-      
-      setDailyPL(totalProfit);
-      setDailyStats({
-        total_trades: transactions.length,
-        wins
-      });
+      // Handled above the enabled check
+      return;
     }
 
     if (data.error) {
@@ -696,8 +705,8 @@ export function useAutoTrader(
 
       ws.send(JSON.stringify({
         profit_table: 1,
-        date_from: String(epoch),
-        limit: 1000000,
+        date_from: epoch, // Send as number
+        limit: 500,       // Stick to API maximum of 500
         sort: "ASC"
       }));
     } catch (err) {
