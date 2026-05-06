@@ -103,7 +103,7 @@ export function useAutoTrader(
     currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER",
     currentBarrier: 5,
     status: "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
-    nextAction: "WAITING_TO_START",
+    nextAction: "IDLE_RDY",
   });
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
@@ -146,7 +146,7 @@ export function useAutoTrader(
         setSessionState(prev => ({
           ...prev,
           status: "LOSS",
-          nextAction: "WATCHDOG_RECOVERY_LOCK_RESET"
+          nextAction: "WDT_RST"
         }));
       }
     }, 5000);
@@ -325,7 +325,7 @@ export function useAutoTrader(
         });
         setSessionState(prev => ({
           ...prev,
-          nextAction: `SKIP_${categoryLabels[trade].replace(/\s+/g, "_").toUpperCase()}_AWAITING_DIRECTION_CHANGE`
+          nextAction: "SKP_DIR"
         }));
         setTicksToWait(1);
         isExecutingRef.current = false;
@@ -385,7 +385,7 @@ export function useAutoTrader(
         currentContract: type,
         currentBarrier: barrier,
         status: "PENDING",
-        nextAction: "WAITING_FOR_RESULT"
+        nextAction: "TRD_LIV",
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -476,7 +476,7 @@ export function useAutoTrader(
           proposalTimeouts.current.delete(String(reqId));
           isExecutingRef.current = false;
           setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
-          setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "PROPOSAL_TIMEOUT_RETRY" }));
+          setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "PRP_TMO" }));
           setTicksToWait(30);
         }
       }, 15000);
@@ -516,8 +516,8 @@ export function useAutoTrader(
     const newStatus = isWin ? "WIN" : "LOSS";
     let ticksToWaitNext = randomTradeCooldownTicks(isWin);
     let nextAction = isWin
-      ? `WIN_COOLDOWN_${ticksToWaitNext}T_CONTINUE_TRADING`
-      : `LOSS_COOLDOWN_${ticksToWaitNext}T_CONTINUE_MARTINGALE`;
+      ? `P_CD_${ticksToWaitNext}T`
+      : `L_CD_${ticksToWaitNext}T`;
 
     const newRecord: TradeRecord = {
       id: Math.random().toString(36).substring(2, 11),
@@ -555,7 +555,7 @@ export function useAutoTrader(
     if (now - effectiveStartAt >= cooldownDurationMs) {
       const intervalPauseSeconds = randomCooldownSeconds();
       ticksToWaitNext = Math.max(ticksToWaitNext, intervalPauseSeconds);
-      nextAction = `${nextAction}_AND_TIME_INTERVAL_${config.cooldownIntervalMinutes}M_PAUSING_${Math.ceil(intervalPauseSeconds / 60)}M`;
+      nextAction = `${nextAction}_B_CD_${config.cooldownIntervalMinutes}M`;
       setContinuousTradeStartAt(now);
       setMartingaleCycles(0);
     }
@@ -567,7 +567,7 @@ export function useAutoTrader(
     }
 
     if (windDownMode && isWin) {
-      nextAction = "WIND_DOWN_COMPLETED_LAST_TRADE_PROFIT";
+      nextAction = "WD_CMP";
       ticksToWaitNext = 0;
       setConfig(prev => ({ ...prev, enabled: false }));
       setWindDownMode(false);
@@ -727,7 +727,7 @@ export function useAutoTrader(
       // Reset execution lock if this error belongs to a pending trade attempt
       if (pendingProposals.current.has(reqId) || Array.from(pendingBuys.current.keys()).includes(reqId)) {
         toast.error(`Trade error: ${data.error.message}`);
-        setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERROR_RETRY" }));
+        setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERR_RTY" }));
         setTicksToWait(30);
         isExecutingRef.current = false;
         
@@ -924,7 +924,7 @@ export function useAutoTrader(
       currentContract: "DIGITOVER",
       currentBarrier: 5,
       status: "IDLE",
-      nextAction: "WAITING_FOR_TICK",
+      nextAction: "W8_TCK",
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
