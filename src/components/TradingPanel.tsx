@@ -119,7 +119,7 @@ export function TradingPanel({
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Bot pauses for a random 5–8 minutes after every interval. Setting locks while running.
+          Tool pauses between 5–8 minutes after every interval. Setting locks while running.
         </p>
       </div>
 
