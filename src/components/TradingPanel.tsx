@@ -93,59 +93,35 @@ export function TradingPanel({
         </div>
       </div>
 
-      {/* Risk Tolerance Calculator */}
-      {(() => {
-        const MULTIPLIER = 1.8;
-        let total = 0;
-        let stake = config.baseStake;
-        for (let i = 0; i < config.maxMartingaleSteps; i++) {
-          total += Number(stake.toFixed(2));
-          stake = stake * MULTIPLIER;
-        }
-
-        return (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-destructive/80 font-bold flex items-center gap-1">
-                <TrendingUp className="w-3 h-3 text-destructive" />
-                Risk Tolerance
-              </span>
-              <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full border bg-destructive/10 text-destructive border-destructive/30">
-                ${total.toFixed(2)}
-              </span>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Cooldown Interval (Minutes)
-              </label>
-              <Select
-                value={String(config.cooldownIntervalMinutes)}
-                disabled={config.enabled}
-                onValueChange={(value) =>
-                  onConfigChange({
-                    ...config,
-                    cooldownIntervalMinutes: Number(value) as AutoTraderConfig["cooldownIntervalMinutes"],
-                  })
-                }
-              >
-                <SelectTrigger className="bg-muted border-border font-mono text-sm h-8">
-                  <SelectValue placeholder="Select cooldown interval" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 Minutes</SelectItem>
-                  <SelectItem value="40">40 Minutes</SelectItem>
-                  <SelectItem value="50">50 Minutes</SelectItem>
-                  <SelectItem value="60">60 Minutes</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[9px] text-muted-foreground">
-                After continuous trading for the selected time, bot pauses for a random 5–8 minutes. This setting locks while auto-trading is on.
-              </p>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Cooldown Configuration */}
+      <div className="space-y-1.5 bg-muted/20 p-3 rounded-md border border-border/50">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+          <Clock className="w-3 h-3" /> Cooldown Interval (Minutes)
+        </label>
+        <Select
+          value={String(config.cooldownIntervalMinutes)}
+          disabled={config.enabled}
+          onValueChange={(value) =>
+            onConfigChange({
+              ...config,
+              cooldownIntervalMinutes: Number(value) as AutoTraderConfig["cooldownIntervalMinutes"],
+            })
+          }
+        >
+          <SelectTrigger className="bg-muted border-border font-mono text-sm h-8">
+            <SelectValue placeholder="Select cooldown interval" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="30">30 Minutes</SelectItem>
+            <SelectItem value="40">40 Minutes</SelectItem>
+            <SelectItem value="50">50 Minutes</SelectItem>
+            <SelectItem value="60">60 Minutes</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[9px] text-muted-foreground">
+          Bot pauses for a random 5–8 minutes after every interval. Setting locks while running.
+        </p>
+      </div>
 
       {/* Stats & Current Session */}
       <div className="grid grid-cols-3 gap-2 bg-muted/30 p-3 rounded-md border border-border/50">
