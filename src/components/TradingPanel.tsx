@@ -170,14 +170,22 @@ export function TradingPanel({
       </div>
 
       {/* Bot Control */}
-      <div className="flex items-center justify-between p-3 bg-primary/5 rounded-md border border-primary/20">
+      <div className={`flex items-center justify-between p-3 rounded-md border transition-all duration-300 ${
+        config.enabled 
+          ? "bg-primary/5 border-primary/20" 
+          : "bg-destructive/5 border-destructive/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
+      }`}>
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-full ${config.enabled ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+          <div className={`p-2 rounded-full transition-colors ${
+            config.enabled 
+              ? "bg-primary/20 text-primary" 
+              : "bg-destructive/20 text-destructive"
+          }`}>
             <Shuffle className={`w-4 h-4 ${config.enabled ? "animate-spin-slow" : ""}`} />
           </div>
           <div>
-            <div className="text-xs font-semibold">Auto-Trading Loop</div>
-            <div className="text-[10px] text-muted-foreground">
+            <div className={`text-xs font-bold uppercase tracking-tight ${!config.enabled ? "text-destructive" : ""}`}>Auto-Trading Loop</div>
+            <div className="text-[10px] text-muted-foreground font-medium">
               {config.enabled ? "Running Strategy..." : "Bot is Paused"}
             </div>
           </div>
@@ -186,17 +194,22 @@ export function TradingPanel({
           checked={config.enabled}
           onCheckedChange={(enabled) => onConfigChange({ ...config, enabled })}
           disabled={!canTrade}
+          className="data-[state=unchecked]:bg-destructive"
         />
       </div>
       <Button
         type="button"
-        variant={windDownMode ? "secondary" : "outline"}
+        variant="outline"
         size="sm"
-        className="w-full"
+        className={`w-full transition-all duration-300 font-bold uppercase text-[10px] tracking-widest h-9 ${
+          windDownMode 
+            ? "bg-orange-500 text-white hover:bg-orange-600 border-none shadow-lg animate-pulse" 
+            : "bg-orange-500/10 text-orange-500 border-orange-500/30 hover:bg-orange-500/20"
+        }`}
         onClick={onActivateWindDown}
         disabled={!config.enabled || windDownMode}
       >
-        <Flag className="w-4 h-4 mr-2" />
+        <Flag className={`w-4 h-4 mr-2 ${windDownMode ? "fill-current" : ""}`} />
         {windDownMode ? "Wind Down Armed (Waiting Profit)" : "Wind Down On Next Profit"}
       </Button>
 
