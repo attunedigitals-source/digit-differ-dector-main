@@ -202,7 +202,10 @@ export function useAutoTrader(
       }
     };
 
-    const interval = setInterval(syncToSupabase, 2000);
+    // Initial sync
+    syncToSupabase();
+
+    const interval = setInterval(syncToSupabase, 60000);
     return () => clearInterval(interval);
   }, [user?.id, accountInfo?.loginid]);
 
