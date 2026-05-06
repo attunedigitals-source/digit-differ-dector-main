@@ -49,7 +49,7 @@ export function TradingPanel({
       <div className="flex items-center justify-between border-b border-border pb-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Bot className="w-5 h-5 text-primary animate-pulse" />
-          Randomized Over/Under Bot
+          Digits AI Engine
         </div>
         <Badge variant={connected ? "default" : "destructive"} className="text-[10px]">
           {connected ? "CONNECTED" : "DISCONNECTED"}
