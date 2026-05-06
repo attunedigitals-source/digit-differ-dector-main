@@ -160,9 +160,9 @@ export function TradingPanel({
             <Shuffle className={`w-4 h-4 ${config.enabled ? "animate-spin-slow" : ""}`} />
           </div>
           <div>
-            <div className={`text-xs font-bold uppercase tracking-tight ${!config.enabled ? "text-destructive" : ""}`}>Auto-Trading Loop</div>
+            <div className={`text-xs font-bold uppercase tracking-tight ${!config.enabled ? "text-destructive" : ""}`}>AI-Trading Loop</div>
             <div className="text-[10px] text-muted-foreground font-medium">
-              {config.enabled ? "Running Strategy..." : "Bot is Paused"}
+              {config.enabled ? "Running AI..." : "AI is Paused"}
             </div>
           </div>
         </div>
