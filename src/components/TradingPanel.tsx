@@ -234,9 +234,7 @@ export function TradingPanel({
               >
                 <div className="flex flex-col">
                   <span className="font-semibold">{getSymbolName(trade.symbol)}</span>
-                  {trade.sequence_name && (
-                    <span className="text-[8px] opacity-70">SEQ: {trade.sequence_name}</span>
-                  )}
+                  {/* Sequence name removed as it is common to all trades */}
                   <span className="text-[8px] opacity-70">{trade.contract} B:{trade.barrier}</span>
                 </div>
                 <div className="flex items-center gap-2 text-right">
