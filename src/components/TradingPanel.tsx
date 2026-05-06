@@ -79,7 +79,7 @@ export function TradingPanel({
         </div>
         <div className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <Target className="w-3 h-3" /> Max Martingale
+            <Target className="w-3 h-3" /> Max Step
           </label>
           <Input
             type="number"
