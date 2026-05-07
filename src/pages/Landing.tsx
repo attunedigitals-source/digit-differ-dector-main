@@ -3,17 +3,29 @@ import { Card } from "@/components/ui/card";
 import { ArrowRight, Shield, Zap, Brain, Lock, CheckCircle2, Menu } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { getOAuthUrl, getActiveAccount } from "@/lib/deriv-oauth";
+import { useNavigate } from "react-router-dom";
 
 const Landing = () => {
   const [isScrolled, setIsScrolled] = useState(false);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
+    // If already logged in to Deriv, redirect to dashboard automatically
+    if (getActiveAccount()) {
+      navigate("/auth"); // /auth is the dashboard route
+    }
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [navigate]);
+
+  const handleLogin = () => {
+    window.location.href = getOAuthUrl();
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30">
@@ -38,14 +50,12 @@ const Landing = () => {
           </nav>
 
           <div className="flex items-center gap-4">
-            <Link to="/auth">
-              <Button variant="ghost" className="hidden md:flex hover:text-primary">Login</Button>
-            </Link>
-            <Link to="/auth?signup=true">
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 shadow-lg shadow-primary/20">
-                Get Started
-              </Button>
-            </Link>
+            <Button variant="ghost" onClick={handleLogin} className="hidden md:flex hover:text-primary">
+              Login
+            </Button>
+            <Button onClick={handleLogin} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 shadow-lg shadow-primary/20">
+              Get Started
+            </Button>
             <Button variant="ghost" size="icon" className="md:hidden">
               <Menu className="w-6 h-6" />
             </Button>
@@ -80,11 +90,9 @@ const Landing = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
-            <Link to="/auth?signup=true">
-              <Button size="lg" className="h-14 px-10 text-lg font-bold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 group">
-                Launch Tool <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
+            <Button onClick={handleLogin} size="lg" className="h-14 px-10 text-lg font-bold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 group">
+              Launch Tool <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </Button>
             <Link to="/documentation">
               <Button size="lg" variant="outline" className="h-14 px-10 text-lg font-semibold border-border hover:bg-secondary">
                 View Guide
@@ -233,11 +241,9 @@ const Landing = () => {
             <div className="flex-1 text-center">
               <div className="text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">100%</div>
               <div className="text-xl font-medium text-muted-foreground mb-8">Client-Side Execution</div>
-              <Link to="/auth?signup=true">
-                <Button size="lg" className="h-14 px-12 text-lg font-bold bg-white text-black hover:bg-white/90">
-                  Start free
-                </Button>
-              </Link>
+              <Button onClick={handleLogin} size="lg" className="h-14 px-12 text-lg font-bold bg-white text-black hover:bg-white/90">
+                Start free
+              </Button>
             </div>
           </div>
         </div>

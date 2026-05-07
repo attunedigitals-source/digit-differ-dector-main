@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parseOAuthCallback, saveAccounts } from "@/lib/deriv-oauth";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const search = window.location.search;
+    const handleAuth = async () => {
+      try {
+        const search = window.location.search;
       // If there's no search string, maybe they came here by mistake
       if (!search || search.length <= 1) {
         setError("Invalid callback URL: missing parameters.");
@@ -22,12 +24,46 @@ export default function AuthCallback() {
         return;
       }
       
+      const activeAccount = accounts[0].loginid;
+      const email = `${activeAccount.toLowerCase()}@deriv-user.local`;
+      const password = `${activeAccount}_digitbot_auth`; // deterministic, pseudo-secure password for shadow account
+      
+      // Step 1: Try to sign in to Supabase using shadow account
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (signInError) {
+        // Step 2: If sign in fails (likely user doesn't exist), create the shadow account
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: `Deriv User ${activeAccount}`,
+              deriv_loginid: activeAccount
+            }
+          }
+        });
+
+        if (signUpError) {
+          setError(`Supabase Shadow Account creation failed: ${signUpError.message}`);
+          return;
+        }
+      }
+
+      // Step 3: Supabase session is established, now save Deriv accounts locally
       saveAccounts(accounts);
+      
       // Redirect to the dashboard
       navigate("/auth", { replace: true });
     } catch (e: any) {
       setError(e.message || "OAuth callback failed");
     }
+  };
+  
+  handleAuth();
   }, [navigate]);
 
   return (

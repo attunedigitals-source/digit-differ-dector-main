@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Key, LogOut } from "lucide-react";
 import { getOAuthUrl, getActiveAccount, clearDerivAuth } from "@/lib/deriv-oauth";
+import { supabase } from "@/integrations/supabase/client";
 
 export function TokenSettings() {
   const [connected, setConnected] = useState(false);
@@ -19,11 +20,12 @@ export function TokenSettings() {
     window.location.href = getOAuthUrl();
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     clearDerivAuth();
     setConnected(false);
     setAccountId("");
-    window.location.reload(); // Reload to clear states and disconnect WS
+    await supabase.auth.signOut();
+    window.location.href = "/"; // Redirect to landing page
   };
 
   return (
@@ -45,15 +47,6 @@ export function TokenSettings() {
           <Button onClick={handleDisconnect} variant="destructive" className="w-full h-9" size="sm">
             <LogOut className="w-4 h-4 mr-2" />
             Disconnect
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            Connect your Deriv account securely using OAuth. You do not need to manually create an API token.
-          </p>
-          <Button onClick={handleConnect} className="w-full h-9 bg-[#ff444f] hover:bg-[#ff444f]/90 text-white" size="sm">
-            Connect with Deriv
           </Button>
         </div>
       )}
