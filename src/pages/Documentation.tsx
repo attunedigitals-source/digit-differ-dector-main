@@ -20,7 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const sections = [
   { id: "overview", title: "Overview" },
-  { id: "register", title: "1. Create Account" },
+  { id: "register", title: "1. Getting Started" },
   { id: "connect-deriv", title: "2. Connect Deriv API" },
   { id: "setup-strategy", title: "3. Configure AI Engine" },
   { id: "start-trading", title: "4. Use the App" },
@@ -150,11 +150,11 @@ const Documentation = () => {
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <UserPlus className="h-6 w-6" />
                   </div>
-                  <h2 className="text-3xl font-bold">1. Create Your Account</h2>
+                  <h2 className="text-3xl font-bold">1. Getting Started & Registration</h2>
                 </div>
-                <p className="text-muted-foreground mb-8 text-lg">Secure your access to the Digit Bot Pro dashboard. We support secure email registration to keep your configuration private.</p>
+                <p className="text-muted-foreground mb-8 text-lg">Begin by visiting the Digit Bot Pro homepage and creating your secure account. We support both Google and email registration to keep your configuration private.</p>
                 <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                  <img src="/docs/doc-register.png" alt="Registration Guide" className="w-full h-auto" />
+                  <img src="/docs/doc-registration-guide.png" alt="Getting Started and Registration Guide" className="w-full h-auto" />
                 </div>
               </div>
             </section>
