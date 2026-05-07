@@ -210,10 +210,10 @@ const Documentation = () => {
                 </div>
 
                 <div>
-                  <p className="text-muted-foreground mb-8 text-lg">Once you've created your token, copy it carefully and update the settings in your Digit Bot Pro panel.</p>
                   <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
                     <img src="/docs/doc-deriv-setup.png" alt="Deriv API Token Creation" className="w-full h-auto" />
                   </div>
+                  <p className="text-muted-foreground mt-8 text-lg">Once you've created your token, copy it carefully and update the settings in your Digit Bot Pro panel.</p>
                 </div>
               </div>
             </section>
