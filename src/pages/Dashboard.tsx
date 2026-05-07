@@ -12,12 +12,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Zap } from "lucide-react";
 import { isPatToken } from "@/lib/deriv-auth";
+import { getActiveAccount, DERIV_APP_ID } from "@/lib/deriv-oauth";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
-  const [apiToken, setApiToken] = useState<string>();
-  const [appId, setAppId] = useState<string>();
-  const [accountId, setAccountId] = useState<string>();
+  
+  // Read the active account from localStorage (set by AuthCallback)
+  const activeOAuthAccount = getActiveAccount();
+  const apiToken = activeOAuthAccount?.token;
+  const appId = DERIV_APP_ID;
+  const accountId = undefined; // Not required for standard OAuth tokens
+
 
   const { 
     connected, connect, disconnect, signals, results,
@@ -45,11 +50,8 @@ export default function Dashboard() {
     };
   }, [handleTradeMessage, onMessageRef]);
 
-  const handleSettingsSaved = useCallback((token: string, app_id?: string, account_id?: string) => {
-    setApiToken(token);
-    if (app_id) setAppId(app_id);
-    if (account_id) setAccountId(account_id);
-  }, []);
+  // handleSettingsSaved is no longer needed with OAuth
+
 
   if (!user) return null;
 
@@ -73,7 +75,8 @@ export default function Dashboard() {
               connected={connected}
               onConnect={connect}
               onDisconnect={disconnect}
-              hasToken={!!apiToken && (!isPatToken(apiToken || "") || !!accountId)}
+              hasToken={!!apiToken}
+
             />
             <Button variant="ghost" size="icon" onClick={signOut} className="hover:bg-destructive/10 hover:text-destructive transition-colors">
               <LogOut className="w-5 h-5" />
@@ -88,7 +91,7 @@ export default function Dashboard() {
           
           {/* Left Column: Config & Control */}
           <div className="lg:col-span-4 space-y-6">
-            <TokenSettings userId={user.id} onTokenSaved={handleSettingsSaved} />
+            <TokenSettings />
             
             {connected && accounts.length > 0 && (
               <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
@@ -107,7 +110,7 @@ export default function Dashboard() {
               ticksToWait={ticksToWait}
               tradeLog={tradeLog}
               connected={connected}
-              hasToken={!!apiToken && (!isPatToken(apiToken || "") || !!accountId)}
+              hasToken={!!apiToken}
               dailyPL={dailyPL}
               windDownMode={windDownMode}
               onActivateWindDown={activateWindDown}

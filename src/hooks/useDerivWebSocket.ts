@@ -16,6 +16,7 @@ import {
   isAuthLikeError, 
   type DerivAuthMethod 
 } from "@/lib/deriv-auth";
+import { getAccounts, getActiveAccount, setActiveAccount } from "@/lib/deriv-oauth";
 
 const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
@@ -131,6 +132,8 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
       
       setAccounts(accountList);
       setActiveLoginId(auth.loginid);
+      setActiveAccount(auth.loginid); // Sync to local storage
+
       
       // NOW subscribe to continuous balance and ticks
       subscribeBalance(ws);
@@ -144,22 +147,12 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const targetAccount = accounts.find(a => a.loginid === loginid);
-    
-    if (!targetAccount?.token && apiToken) {
-      const currentAccount = accounts.find(a => a.loginid === activeLoginId);
-      if (currentAccount && currentAccount.is_virtual !== targetAccount?.is_virtual) {
-        toast.warning(
-          `Trading on ${targetAccount?.is_virtual ? 'Demo' : 'Real'} requires its specific API Token. Please update your token in Settings.`,
-          { duration: 6000 }
-        );
-        return;
-      }
-    }
+    const targetOAuth = getAccounts().find(a => a.loginid === loginid);
+    const tokenToUse = targetOAuth?.token || apiToken;
 
-    const tokenToUse = targetAccount?.token || apiToken;
     if (tokenToUse) {
       authorizedRef.current = false;
+      setActiveAccount(loginid); // Update local storage
       ws.send(JSON.stringify({ authorize: tokenToUse }));
     }
   }, [accounts, activeLoginId, apiToken]);
@@ -197,39 +190,18 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     }
 
     try {
-      // Get preferred auth method from DB
-      let preferredAuthMethod: DerivAuthMethod | undefined;
-      if (userId) {
-        const { data } = await supabase
-          .from("user_deriv_tokens")
-          .select("deriv_auth_method")
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (data?.deriv_auth_method) {
-          preferredAuthMethod = data.deriv_auth_method as DerivAuthMethod;
-        }
-      }
-
       const result = await connectDerivClient({
         appId: appId || "1089",
         token: apiToken,
         accountId: accountId,
-        preferredAuthMethod
+        preferredAuthMethod: "legacy_authorize" // OAuth uses standard authorize
       });
 
       const { ws, method, authorizeData } = result;
       wsRef.current = ws;
       setAuthMethod(method);
-      authorizedRef.current = true; // For PAT, we consider it authorized upon open
+      authorizedRef.current = true;
       
-      // Save working auth method
-      if (userId && method !== preferredAuthMethod) {
-        await supabase
-          .from("user_deriv_tokens")
-          .update({ deriv_auth_method: method })
-          .eq("user_id", userId);
-      }
-
       setConnected(true);
 
       // Setup keepalive and message handling
