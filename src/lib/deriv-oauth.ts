@@ -12,11 +12,7 @@ const STORAGE_KEY = "deriv.accounts";
 const ACTIVE_KEY = "deriv.activeLoginid";
 
 export function getOAuthUrl(): string {
-  // Use the exact redirect URL requested by the user, but fallback to current origin if needed in dev
-  const redirect = window.location.origin.includes("localhost") 
-    ? window.location.origin + "/auth/callback"
-    : "https://digitbotpro.com/auth/callback";
-    
+  const redirect = window.location.origin + "/auth/callback";
   return `https://oauth.deriv.com/oauth2/authorize?app_id=${DERIV_APP_ID}&l=EN&redirect_uri=${encodeURIComponent(redirect)}`;
 }
 
