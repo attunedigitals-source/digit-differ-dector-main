@@ -229,7 +229,7 @@ const Documentation = () => {
                 </div>
                 <p className="text-muted-foreground mb-8 text-lg">Set your base stake, maximum steps (Martingale), and cooldown intervals. The AI engine uses these parameters to manage your trading session automatically.</p>
                 <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                  <img src="/docs/doc-trading-setup.jpg" alt="AI Engine Configuration" className="w-full h-auto" />
+                  <img src="/docs/doc-app-setup.png" alt="AI Engine Configuration" className="w-full h-auto" />
                 </div>
               </div>
             </section>
@@ -245,7 +245,7 @@ const Documentation = () => {
                 </div>
                 <p className="text-muted-foreground mb-8 text-lg">With your account connected and strategy configured, you can initiate the AI-Trading Loop. Monitor performance in real-time on your dashboard.</p>
                 <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                  <img src="/docs/doc-app-setup.png" alt="How to Start Trading" className="w-full h-auto" />
+                  <img src="/docs/doc-trading-setup.jpg" alt="How to Start Trading" className="w-full h-auto" />
                 </div>
               </div>
             </section>
