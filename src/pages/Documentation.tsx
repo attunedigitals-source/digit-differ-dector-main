@@ -21,7 +21,6 @@ import { Card, CardContent } from "@/components/ui/card";
 const sections = [
   { id: "overview", title: "Overview" },
   { id: "quick-start", title: "Quick Start" },
-  { id: "visual-guide", title: "Visual Guide" },
   { id: "register", title: "Create Account" },
   { id: "subscribe", title: "Subscribe" },
   { id: "connect-deriv", title: "Connect Deriv API" },
@@ -47,27 +46,6 @@ const highlights = [
     title: "Built-in discipline",
     description: "Use daily limits, profit targets, pauses, and manual stop controls to reduce emotional trading.",
     icon: ShieldCheck,
-  },
-];
-
-const documentationImages = [
-  {
-    src: "/docs/dashboard-overview.svg",
-    alt: "Digit Bot Pro dashboard overview with account status, signals, and performance panels",
-    title: "Dashboard overview",
-    description: "Use the dashboard as your command center: confirm connection health, review signals, and monitor session performance before and during automation.",
-  },
-  {
-    src: "/docs/api-token-connection.svg",
-    alt: "Deriv API token connection panel showing saved token and connected status",
-    title: "API token connection",
-    description: "Paste your Deriv API token, save it, and wait for a connected status before selecting an account or starting a strategy.",
-  },
-  {
-    src: "/docs/risk-controls.svg",
-    alt: "Risk controls panel showing daily loss, profit target, and pause settings",
-    title: "Risk controls",
-    description: "Set daily loss, profit target, and pause controls first so every session has clear stop conditions.",
   },
 ];
 
@@ -191,30 +169,16 @@ const Documentation = () => {
 
       <main className="container mx-auto px-6 py-10 md:py-14">
         <section id="overview" className="mb-10 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-secondary/80 via-card to-background p-8 shadow-2xl md:p-12">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
-            <div>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
-                <BookOpen className="h-4 w-4" /> Complete setup walkthrough
-              </div>
-              <h1 className="mb-5 text-4xl font-bold tracking-tight md:text-6xl">
-                Learn Digit Bot Pro from setup to safer daily operation.
-              </h1>
-              <p className="text-lg leading-relaxed text-muted-foreground md:text-xl">
-                Digit Bot Pro is a client-side trading assistant for Deriv digit strategies. Use this guide to create your account, connect your Deriv API token, configure a strategy, apply risk controls, and troubleshoot common issues.
-              </p>
+          <div className="max-w-3xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+              <BookOpen className="h-4 w-4" /> Complete setup walkthrough
             </div>
-
-            <figure className="rounded-3xl border border-primary/20 bg-background/40 p-3 shadow-2xl shadow-primary/10">
-              <img
-                src="/landing-hero.png"
-                alt="Digit Bot Pro interface preview"
-                className="aspect-[4/3] w-full rounded-2xl object-cover"
-                loading="eager"
-              />
-              <figcaption className="px-2 pt-3 text-sm text-muted-foreground">
-                A visual preview helps you match each setup step with the app screens you will use.
-              </figcaption>
-            </figure>
+            <h1 className="mb-5 text-4xl font-bold tracking-tight md:text-6xl">
+              Learn Digit Bot Pro from setup to safer daily operation.
+            </h1>
+            <p className="text-lg leading-relaxed text-muted-foreground md:text-xl">
+              Digit Bot Pro is a client-side trading assistant for Deriv digit strategies. Use this guide to create your account, connect your Deriv API token, configure a strategy, apply risk controls, and troubleshoot common issues.
+            </p>
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -274,31 +238,6 @@ const Documentation = () => {
                   </li>
                 ))}
               </ol>
-            </section>
-
-            <section id="visual-guide" className="rounded-2xl border border-border bg-card p-6 md:p-8">
-              <div className="mb-6 max-w-3xl">
-                <h2 className="mb-3 text-2xl font-bold">Visual Guide</h2>
-                <p className="text-muted-foreground">
-                  These documentation images show the key screens and checkpoints to review as you move from setup to a live monitored session.
-                </p>
-              </div>
-              <div className="grid gap-5 xl:grid-cols-3">
-                {documentationImages.map((image) => (
-                  <figure key={image.src} className="overflow-hidden rounded-2xl border border-border bg-background/50">
-                    <img
-                      src={image.src}
-                      alt={image.alt}
-                      className="aspect-[16/10] w-full object-cover"
-                      loading="lazy"
-                    />
-                    <figcaption className="space-y-2 p-5">
-                      <h3 className="font-semibold text-foreground">{image.title}</h3>
-                      <p className="text-sm leading-relaxed text-muted-foreground">{image.description}</p>
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
             </section>
 
             <div className="grid gap-6">
