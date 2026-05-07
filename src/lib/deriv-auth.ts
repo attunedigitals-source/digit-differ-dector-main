@@ -33,7 +33,11 @@ export function isAuthLikeError(error: unknown): boolean {
     message.includes("invalid app") ||
     message.includes("websocket closed before authentication") ||
     message.includes("websocket connection timeout") ||
-    message.includes("websocket connection error")
+    message.includes("websocket connection error") ||
+    message.includes("failed to fetch") ||
+    message.includes("429") ||
+    message.includes("too many requests") ||
+    message.includes("cors")
   );
 }
 
