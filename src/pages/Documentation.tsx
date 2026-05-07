@@ -171,7 +171,7 @@ const Documentation = () => {
                   </div>
                   <p className="text-muted-foreground mb-8 text-lg">To enable trading, you need to link your Deriv account. Follow these steps to navigate to the API Token section in your Deriv Trader's Hub.</p>
                   <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                    <img src="/docs/doc-deriv-nav.png" alt="Deriv Navigation Guide" className="w-full h-auto" />
+                    <img src="/docs/doc-deriv-nav-guide.png" alt="Deriv Navigation Guide" className="w-full h-auto" />
                   </div>
                 </div>
 
