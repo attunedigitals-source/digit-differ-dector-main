@@ -1,0 +1,21 @@
+<svg width="960" height="600" viewBox="0 0 960 600" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Deriv API token connection guide</title>
+  <desc id="desc">Stylized panel showing where to paste a Deriv API token and verify connected status.</desc>
+  <rect width="960" height="600" rx="36" fill="#07111F"/>
+  <rect x="94" y="74" width="772" height="452" rx="30" fill="#0F172A" stroke="#1E293B" stroke-width="2"/>
+  <rect x="138" y="124" width="240" height="24" rx="12" fill="#E2E8F0"/>
+  <rect x="138" y="174" width="684" height="86" rx="20" fill="#111827" stroke="#334155"/>
+  <rect x="174" y="206" width="430" height="20" rx="10" fill="#334155"/>
+  <circle cx="770" cy="217" r="18" fill="#22C55E"/>
+  <path d="M761 217L768 224L781 210" stroke="#052E16" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="138" y="302" width="440" height="64" rx="18" fill="#020617" stroke="#334155"/>
+  <rect x="166" y="326" width="310" height="16" rx="8" fill="#64748B"/>
+  <rect x="602" y="302" width="220" height="64" rx="18" fill="#2563EB"/>
+  <rect x="664" y="326" width="96" height="16" rx="8" fill="#DBEAFE"/>
+  <rect x="138" y="408" width="684" height="66" rx="18" fill="#052E16" stroke="#16A34A"/>
+  <circle cx="177" cy="441" r="13" fill="#22C55E"/>
+  <rect x="208" y="430" width="276" height="20" rx="10" fill="#BBF7D0"/>
+  <path d="M478 134C530 74 634 72 684 142" stroke="#60A5FA" stroke-width="10" stroke-linecap="round" stroke-dasharray="1 24"/>
+  <circle cx="704" cy="166" r="42" fill="#1D4ED8"/>
+  <path d="M691 166H717M704 153V179" stroke="#DBEAFE" stroke-width="8" stroke-linecap="round"/>
+</svg>
