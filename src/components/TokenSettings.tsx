@@ -35,7 +35,7 @@ export function TokenSettings() {
         Deriv Connection
       </div>
       
-      {connected ? (
+      {connected && (
         <div className="space-y-4">
           <div className="p-3 bg-muted rounded-md border border-border flex items-center justify-between">
             <div className="flex flex-col">
