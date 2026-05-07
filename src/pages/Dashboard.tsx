@@ -11,15 +11,24 @@ import { TradingPanel } from "@/components/TradingPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Zap } from "lucide-react";
+import { isPatToken } from "@/lib/deriv-auth";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const [apiToken, setApiToken] = useState<string>();
+  const [appId, setAppId] = useState<string>();
+  const [accountId, setAccountId] = useState<string>();
+
   const { 
     connected, connect, disconnect, signals, results,
     tickCounts, lastDigits, accounts, activeLoginId, switchAccount,
     wsRef, onMessageRef, getAllStates, getSymbolState
-  } = useDerivWebSocket(apiToken);
+  } = useDerivWebSocket({
+    apiToken,
+    appId,
+    accountId,
+    userId: user?.id
+  });
 
   const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? null;
 
@@ -36,8 +45,10 @@ export default function Dashboard() {
     };
   }, [handleTradeMessage, onMessageRef]);
 
-  const handleTokenSaved = useCallback((token: string) => {
+  const handleSettingsSaved = useCallback((token: string, app_id?: string, account_id?: string) => {
     setApiToken(token);
+    if (app_id) setAppId(app_id);
+    if (account_id) setAccountId(account_id);
   }, []);
 
   if (!user) return null;
@@ -62,7 +73,7 @@ export default function Dashboard() {
               connected={connected}
               onConnect={connect}
               onDisconnect={disconnect}
-              hasToken={!!apiToken}
+              hasToken={!!apiToken && (!isPatToken(apiToken || "") || !!accountId)}
             />
             <Button variant="ghost" size="icon" onClick={signOut} className="hover:bg-destructive/10 hover:text-destructive transition-colors">
               <LogOut className="w-5 h-5" />
@@ -77,7 +88,7 @@ export default function Dashboard() {
           
           {/* Left Column: Config & Control */}
           <div className="lg:col-span-4 space-y-6">
-            <TokenSettings userId={user.id} onTokenSaved={handleTokenSaved} />
+            <TokenSettings userId={user.id} onTokenSaved={handleSettingsSaved} />
             
             {connected && accounts.length > 0 && (
               <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
@@ -96,7 +107,7 @@ export default function Dashboard() {
               ticksToWait={ticksToWait}
               tradeLog={tradeLog}
               connected={connected}
-              hasToken={!!apiToken}
+              hasToken={!!apiToken && (!isPatToken(apiToken || "") || !!accountId)}
               dailyPL={dailyPL}
               windDownMode={windDownMode}
               onActivateWindDown={activateWindDown}
