@@ -22,7 +22,7 @@ const sections = [
   { id: "overview", title: "Overview" },
   { id: "register", title: "1. Getting Started" },
   { id: "connect-deriv", title: "2. Connect Deriv API" },
-  { id: "setup-strategy", title: "3. Configure AI Engine" },
+  { id: "setup-strategy", title: "3. Paste API & Setup Engine" },
   { id: "start-trading", title: "4. Use the App" },
   { id: "risk-controls", title: "5. Risk & Safety" },
   { id: "best-practices", title: "Best Practices" },
@@ -225,7 +225,7 @@ const Documentation = () => {
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Settings2 className="h-6 w-6" />
                   </div>
-                  <h2 className="text-3xl font-bold">3. Configure AI Engine</h2>
+                  <h2 className="text-3xl font-bold">3. Paste API, Update and Configure AI Engine</h2>
                 </div>
                 <p className="text-muted-foreground mb-8 text-lg">Set your base stake, maximum steps (Martingale), and cooldown intervals. The AI engine uses these parameters to manage your trading session automatically.</p>
                 <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
