@@ -86,7 +86,7 @@ export default function AuthCallback() {
         clearPKCEData();
 
         // Helper: decode JWT payload without a library
-        const decodeJwt = (token: string): Record<string, any> => {
+        const decodeJwt = (token: string): Record<string, unknown> => {
           try {
             const payload = token.split(".")[1];
             return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
@@ -97,7 +97,7 @@ export default function AuthCallback() {
 
         // Extract a stable user ID from the JWT (sub claim) as reliable fallback
         const jwtPayload = decodeJwt(tokenData.access_token);
-        const jwtSub = jwtPayload.sub || jwtPayload.client_id || "";
+        const jwtSub = String(jwtPayload.sub || jwtPayload.client_id || "");
 
         // Step 4: Fetch accounts from the new REST API
         setStep("Fetching your accounts...");
@@ -115,14 +115,33 @@ export default function AuthCallback() {
           console.log("[AuthCallback] Accounts API response:", accountsData);
 
           if (accountsRes.ok) {
-            // Try multiple known response shapes from Deriv's REST API
-            const rawAccounts = accountsData.accounts || accountsData.data?.accounts || [];
-            accounts = rawAccounts.map((acc: any) => ({
-              loginid: acc.account_id || acc.loginid || acc.login_id || "",
-              currency: acc.currency || "USD",
-              is_virtual: Boolean(acc.is_virtual || acc.account_type === "demo" || acc.type === "virtual"),
-              balance: Number(acc.balance) || 0,
-            })).filter((a: DerivAccount) => a.loginid !== "");
+            // Deriv has returned both `{ data: [...] }` and `{ data: { accounts: [...] } }`
+            // from this endpoint. Accept every known shape so the saved OAuth
+            // session contains real login IDs that can be used to request the
+            // WebSocket OTP after the user clicks Start.
+            const rawAccounts = Array.isArray(accountsData)
+              ? accountsData
+              : Array.isArray(accountsData.accounts)
+                ? accountsData.accounts
+                : Array.isArray(accountsData.data)
+                  ? accountsData.data
+                  : Array.isArray(accountsData.data?.accounts)
+                    ? accountsData.data.accounts
+                    : [];
+
+            accounts = rawAccounts
+              .map((acc: Record<string, unknown>) => ({
+                loginid: String(acc.account_id || acc.loginid || acc.login_id || ""),
+                currency: String(acc.currency || "USD"),
+                is_virtual: Boolean(
+                  acc.is_virtual ||
+                  acc.account_type === "demo" ||
+                  acc.type === "virtual" ||
+                  String(acc.account_id || acc.loginid || acc.login_id || "").startsWith("VR")
+                ),
+                balance: Number(acc.balance) || 0,
+              }))
+              .filter((a: DerivAccount) => a.loginid !== "");
           } else {
             console.warn("[AuthCallback] Accounts API failed:", accountsData);
           }
@@ -178,8 +197,8 @@ export default function AuthCallback() {
 
         // Done — go to dashboard
         navigate("/auth", { replace: true });
-      } catch (e: any) {
-        setError(e.message || "OAuth callback failed unexpectedly.");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "OAuth callback failed unexpectedly.");
       }
     };
 
