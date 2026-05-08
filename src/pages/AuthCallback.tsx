@@ -85,26 +85,59 @@ export default function AuthCallback() {
         // Step 3: Clear PKCE data immediately after successful exchange
         clearPKCEData();
 
+        // Helper: decode JWT payload without a library
+        const decodeJwt = (token: string): Record<string, any> => {
+          try {
+            const payload = token.split(".")[1];
+            return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+          } catch {
+            return {};
+          }
+        };
+
+        // Extract a stable user ID from the JWT (sub claim) as reliable fallback
+        const jwtPayload = decodeJwt(tokenData.access_token);
+        const jwtSub = jwtPayload.sub || jwtPayload.client_id || "";
+
         // Step 4: Fetch accounts from the new REST API
         setStep("Fetching your accounts...");
-        const accountsRes = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
-          headers: {
-            "Authorization": `Bearer ${tokenData.access_token}`,
-            "Deriv-App-ID": DERIV_APP_ID,
-          },
-        });
-
         let accounts: DerivAccount[] = [];
 
-        if (accountsRes.ok) {
+        try {
+          const accountsRes = await fetch("https://api.derivws.com/trading/v1/options/accounts", {
+            headers: {
+              "Authorization": `Bearer ${tokenData.access_token}`,
+              "Deriv-App-ID": DERIV_APP_ID,
+            },
+          });
+
           const accountsData = await accountsRes.json();
-          // Map the new API structure to our internal format
-          accounts = (accountsData.accounts || []).map((acc: any) => ({
-            loginid: acc.account_id || acc.loginid,
-            currency: acc.currency || "USD",
-            is_virtual: Boolean(acc.is_virtual || acc.account_type === "demo"),
-            balance: acc.balance ?? 0,
-          }));
+          console.log("[AuthCallback] Accounts API response:", accountsData);
+
+          if (accountsRes.ok) {
+            // Try multiple known response shapes from Deriv's REST API
+            const rawAccounts = accountsData.accounts || accountsData.data?.accounts || [];
+            accounts = rawAccounts.map((acc: any) => ({
+              loginid: acc.account_id || acc.loginid || acc.login_id || "",
+              currency: acc.currency || "USD",
+              is_virtual: Boolean(acc.is_virtual || acc.account_type === "demo" || acc.type === "virtual"),
+              balance: Number(acc.balance) || 0,
+            })).filter((a: DerivAccount) => a.loginid !== "");
+          } else {
+            console.warn("[AuthCallback] Accounts API failed:", accountsData);
+          }
+        } catch (accountsErr) {
+          console.warn("[AuthCallback] Accounts fetch failed (non-fatal):", accountsErr);
+        }
+
+        // If accounts still empty, create a placeholder using JWT subject
+        if (accounts.length === 0 && jwtSub) {
+          accounts = [{
+            loginid: jwtSub,
+            currency: "USD",
+            is_virtual: false,
+            balance: 0,
+          }];
         }
 
         // Save the session to localStorage
@@ -112,7 +145,7 @@ export default function AuthCallback() {
           access_token: tokenData.access_token,
           expires_at: Date.now() + (tokenData.expires_in || 3600) * 1000,
           accounts,
-          active_loginid: accounts[0]?.loginid ?? "",
+          active_loginid: accounts[0]?.loginid ?? jwtSub,
         };
         saveSession(session);
 

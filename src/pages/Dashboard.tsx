@@ -104,7 +104,7 @@ export default function Dashboard() {
               ticksToWait={ticksToWait}
               tradeLog={tradeLog}
               connected={connected}
-              hasToken={!!apiToken}
+              hasToken={!!activeOAuthAccount}
               dailyPL={dailyPL}
               windDownMode={windDownMode}
               onActivateWindDown={activateWindDown}
