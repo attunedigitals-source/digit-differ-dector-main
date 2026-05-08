@@ -71,6 +71,9 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   // Callback refs for external message handlers (auto-trader)
   const onSignalRef = useRef<((signal: SignalWithStatus) => void) | null>(null);
   const onMessageRef = useRef<((data: any) => void) | null>(null);
+  
+  // Use a ref for connect to avoid stale closure issues in reconnect timers
+  const connectRef = useRef<() => Promise<void>>();
 
   const saveSignal = useCallback(async (signal: Signal) => {
     // Disabled to stop 400 errors during overhaul
@@ -151,11 +154,12 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     const tokenToUse = targetOAuth?.token || apiToken;
 
     if (tokenToUse) {
+      console.log(`[WebSocket] Switching account to ${loginid}`);
       authorizedRef.current = false;
-      setActiveAccount(loginid); // Update local storage
+      setActiveAccount(loginid); // Update local storage immediately
       ws.send(JSON.stringify({ authorize: tokenToUse }));
     }
-  }, [accounts, activeLoginId, apiToken]);
+  }, [activeLoginId, apiToken]);
 
   const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -184,15 +188,20 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
       };
       ws.onclose = () => {
         setConnected(false);
-        reconnectTimer.current = setTimeout(connect, 3000);
+        reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
       };
       return;
     }
 
     try {
+      // Always fetch the most recent token from local storage to avoid stale tokens
+      // during reconnection if the user switched accounts
+      const currentActive = getActiveAccount();
+      const tokenToUse = currentActive?.token || apiToken;
+
       const result = await connectDerivClient({
         appId: appId || "1089",
-        token: apiToken,
+        token: tokenToUse,
         accountId: accountId,
         preferredAuthMethod: "legacy_authorize" // OAuth uses standard authorize
       });
@@ -367,7 +376,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         if (pingTimer.current) clearInterval(pingTimer.current);
         if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
         if (watchdogTimer.current) clearInterval(watchdogTimer.current);
-        reconnectTimer.current = setTimeout(connect, 3000);
+        reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
       };
 
       ws.onerror = (error) => {
@@ -379,7 +388,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
       console.error("Connection failed:", error);
       const message = getErrorMessage(error);
       toast.error(message);
-      reconnectTimer.current = setTimeout(connect, 5000);
+      reconnectTimer.current = setTimeout(() => connectRef.current?.(), 5000);
     }
   }, [appId, apiToken, accountId, userId, handleAuthorizeResponse, saveSignal, saveResult, subscribeTicks]);
 
@@ -396,6 +405,10 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     setActiveLoginId(null);
     setAuthMethod(null);
   }, []);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     return () => {
