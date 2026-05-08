@@ -20,11 +20,11 @@ const Landing = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [navigate]);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (getActiveAccount()) {
       navigate("/auth");
     } else {
-      window.location.href = getOAuthUrl();
+      window.location.href = await getOAuthUrl();
     }
   };
 

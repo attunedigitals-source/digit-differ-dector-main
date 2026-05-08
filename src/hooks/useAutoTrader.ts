@@ -414,7 +414,7 @@ export function useAutoTrader(
         currency: "USD",
         duration: 1,
         duration_unit: "t",
-        symbol: symbol,
+        underlying_symbol: symbol, // V4 API: renamed from 'symbol'
         barrier: String(barrier),
         req_id: reqId,
       };

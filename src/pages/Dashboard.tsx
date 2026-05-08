@@ -10,16 +10,12 @@ import { TradingPanel } from "@/components/TradingPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Zap } from "lucide-react";
-import { isPatToken } from "@/lib/deriv-auth";
-import { getActiveAccount, DERIV_APP_ID, clearDerivAuth } from "@/lib/deriv-oauth";
+import { getActiveAccount, clearDerivAuth } from "@/lib/deriv-oauth";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   
   const activeOAuthAccount = getActiveAccount();
-  const apiToken = activeOAuthAccount?.token;
-  const appId = DERIV_APP_ID;
-  const accountId = undefined; // Not required for standard OAuth tokens
 
   const handleLogout = async () => {
     clearDerivAuth();
@@ -30,9 +26,7 @@ export default function Dashboard() {
     tickCounts, lastDigits, accounts, activeLoginId, switchAccount,
     wsRef, onMessageRef, getAllStates, getSymbolState
   } = useDerivWebSocket({
-    apiToken,
-    appId,
-    accountId,
+    accountId: activeOAuthAccount?.loginid,
     userId: user?.id
   });
 
@@ -76,7 +70,7 @@ export default function Dashboard() {
               connected={connected}
               onConnect={connect}
               onDisconnect={disconnect}
-              hasToken={!!apiToken}
+              hasToken={!!activeOAuthAccount}
 
             />
             <Button variant="ghost" size="icon" onClick={handleLogout} className="hover:bg-destructive/10 hover:text-destructive transition-colors">

@@ -3,8 +3,8 @@ import { Zap, ShieldCheck } from "lucide-react";
 import { getOAuthUrl } from "@/lib/deriv-oauth";
 
 export function AuthForm() {
-  const handleLogin = () => {
-    window.location.href = getOAuthUrl();
+  const handleLogin = async () => {
+    window.location.href = await getOAuthUrl();
   };
 
   return (

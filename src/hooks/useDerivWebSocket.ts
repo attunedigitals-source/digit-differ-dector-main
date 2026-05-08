@@ -1,4 +1,4 @@
-// Digit Bot Pro - Last Sync: 2026-05-08
+// Digit Bot Pro - Last Sync: 2026-05-08 (V4 API - OTP Auth)
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DERIV_SYMBOLS } from "@/lib/deriv-symbols";
 import {
@@ -11,23 +11,20 @@ import {
 } from "@/lib/signal-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { 
-  connectDerivClient, 
-  getErrorMessage, 
-  isAuthLikeError, 
-  type DerivAuthMethod 
-} from "@/lib/deriv-auth";
-import { getAccounts, getActiveAccount, setActiveAccount } from "@/lib/deriv-oauth";
+import {
+  getAccessToken,
+  getAccounts,
+  getActiveAccount,
+  setActiveAccount,
+  DERIV_APP_ID,
+  type DerivAccount,
+} from "@/lib/deriv-oauth";
 
-const WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
-
-export interface DerivAccount {
-  loginid: string;
-  currency: string;
-  is_virtual: boolean;
-  balance: number;
-  token?: string; // Deriv sometimes includes target tokens in the authorize response
-}
+// The new V4 WebSocket base URL — does NOT include app_id in URL
+// Authentication is done via OTP query parameter
+const V4_WS_BASE = "wss://api.derivws.com/websockets/v4";
+// Fallback for unauthenticated tick-only connections
+const PUBLIC_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
 export interface SignalWithStatus extends Signal {
   id?: string;
@@ -49,6 +46,36 @@ export interface DerivWebSocketOptions {
   userId?: string;
 }
 
+async function fetchOTP(accessToken: string, accountId: string): Promise<string> {
+  const res = await fetch(
+    `https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Deriv-App-ID": DERIV_APP_ID,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.message || `OTP request failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  // The response contains either an otp field or a websocket_url
+  if (data.otp) return data.otp;
+  if (data.websocket_url) {
+    // If they give us a full URL, extract OTP from it
+    const url = new URL(data.websocket_url);
+    const otp = url.searchParams.get("otp");
+    if (otp) return otp;
+  }
+  throw new Error("OTP not found in response");
+}
+
 export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const statesRef = useRef<Map<string, SymbolState>>(new Map());
@@ -60,43 +87,22 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   const [lastDigits, setLastDigits] = useState<Record<string, number>>({});
   const [accounts, setAccounts] = useState<DerivAccount[]>([]);
   const [activeLoginId, setActiveLoginId] = useState<string | null>(null);
-  const [authMethod, setAuthMethod] = useState<DerivAuthMethod | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const activeSignalsRef = useRef<SignalWithStatus[]>([]);
   const pingTimer = useRef<ReturnType<typeof setInterval>>();
-  const balanceFallbackTimer = useRef<ReturnType<typeof setInterval>>();
   const watchdogTimer = useRef<ReturnType<typeof setInterval>>();
   const lastMessageAt = useRef<number>(Date.now());
-  const authorizedRef = useRef(false);
-
-  // Callback refs for external message handlers (auto-trader)
-  const onSignalRef = useRef<((signal: SignalWithStatus) => void) | null>(null);
-  const onMessageRef = useRef<((data: any) => void) | null>(null);
-  
-  // Use a ref for connect to avoid stale closure issues in reconnect timers
   const connectRef = useRef<() => Promise<void>>();
 
-  const saveSignal = useCallback(async (signal: Signal) => {
-    // Disabled to stop 400 errors during overhaul
-    return;
-  }, []);
+  const onSignalRef = useRef<((signal: SignalWithStatus) => void) | null>(null);
+  const onMessageRef = useRef<((data: any) => void) | null>(null);
 
-  const saveResult = useCallback(async (result: SignalResult) => {
-    // Disabled to stop 400 errors during overhaul
-    return;
-  }, []);
+  const saveSignal = useCallback(async (_signal: Signal) => { return; }, []);
+  const saveResult = useCallback(async (_result: SignalResult) => { return; }, []);
 
-  // Helper to subscribe to balance after authorization
-  const subscribeBalance = useCallback((ws: WebSocket) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-    }
-  }, []);
-
-  // Helper to subscribe to ticks and fetch history
-  const subscribeTicks = useCallback((ws: WebSocket) => {
+  const subscribeTicksV4 = useCallback((ws: WebSocket) => {
     for (const { symbol } of DERIV_SYMBOLS) {
-      // 1. Fetch history first to prime the 1000-tick buffer
+      // V4: ticks_history uses same format as V3 (minor field changes, same JSON-RPC)
       ws.send(JSON.stringify({
         ticks_history: symbol,
         adjust_start_time: 1,
@@ -104,88 +110,42 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         end: "latest",
         start: 1,
         style: "ticks",
-        req_id: `history_${symbol}`
+        req_id: `history_${symbol}`,
       }));
-
-      // 2. Subscribe to live stream
+      // V4: subscribe to live tick stream
       ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
     }
   }, []);
 
-  const handleAuthorizeResponse = useCallback((data: any, ws: WebSocket) => {
-    if (data.msg_type === "authorize" && data.authorize) {
-      authorizedRef.current = true;
-      const auth = data.authorize;
-      
-      const accountList: DerivAccount[] = (auth.account_list || []).map(
-        (acc: any) => ({
-          loginid: acc.loginid,
-          currency: acc.currency || "USD",
-          is_virtual: Boolean(acc.is_virtual),
-          balance: 0,
-          token: acc.token,
-        })
-      );
-      
-      // Populate the authorized account balance immediately
-      const currentIdx = accountList.findIndex((a) => a.loginid === auth.loginid);
-      if (currentIdx >= 0) {
-        accountList[currentIdx].balance = Number(auth.balance) || 0;
-        accountList[currentIdx].currency = auth.currency || accountList[currentIdx].currency;
-      }
-      
-      setAccounts(accountList);
-      setActiveLoginId(auth.loginid);
-      setActiveAccount(auth.loginid); // Sync to local storage
-
-      
-      // NOW subscribe to continuous balance and ticks
-      subscribeBalance(ws);
-      subscribeTicks(ws);
-    }
-  }, [subscribeBalance, subscribeTicks]);
-
-  const switchAccount = useCallback((loginid: string) => {
-    if (loginid === activeLoginId) return;
-    
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-    const targetOAuth = getAccounts().find(a => a.loginid === loginid);
-    const tokenToUse = targetOAuth?.token || apiToken;
-
-    if (tokenToUse) {
-      console.log(`[WebSocket] Switching account to ${loginid}`);
-      authorizedRef.current = false;
-      setActiveAccount(loginid); // Update local storage immediately
-      ws.send(JSON.stringify({ authorize: tokenToUse }));
-    }
-  }, [activeLoginId, apiToken]);
-
   const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    // Initialize symbol states if not already present
+    // Initialize symbol states
     for (const { symbol } of DERIV_SYMBOLS) {
       if (!statesRef.current.has(symbol)) {
         statesRef.current.set(symbol, createSymbolState(symbol));
       }
     }
 
-    if (!apiToken) {
-      // Fallback for unauthorized viewing (ticks only)
-      const ws = new WebSocket(WS_URL);
+    const accessToken = getAccessToken();
+    const activeAccount = getActiveAccount();
+    const loginIdToUse = activeAccount?.loginid || accountId;
+
+    if (!accessToken || !loginIdToUse) {
+      // Unauthenticated mode: ticks only via legacy public WebSocket
+      console.log("[WebSocket] No session found — connecting in public (ticks-only) mode");
+      const ws = new WebSocket(PUBLIC_WS_URL);
       wsRef.current = ws;
       ws.onopen = () => {
         setConnected(true);
-        subscribeTicks(ws);
+        subscribeTicksV4(ws);
       };
-      // ... minimal message handling for ticks ...
       ws.onmessage = (event) => {
+        lastMessageAt.current = Date.now();
         const data = JSON.parse(event.data);
-        if (data.msg_type === "tick") {
-          // ... handle ticks ...
-        }
+        onMessageRef.current?.(data);
+        if (data.msg_type === "tick") handleTickMessage(data);
+        if (data.msg_type === "history") handleHistoryMessage(data);
       };
       ws.onclose = () => {
         setConnected(false);
@@ -195,78 +155,52 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     }
 
     try {
-      // Always fetch the most recent token from local storage to avoid stale tokens
-      // during reconnection if the user switched accounts
-      const currentActive = getActiveAccount();
-      const tokenToUse = currentActive?.token || apiToken;
+      // Step 1: Get a one-time password for WebSocket authentication
+      console.log(`[WebSocket] Requesting OTP for account ${loginIdToUse}...`);
+      const otp = await fetchOTP(accessToken, loginIdToUse);
+      console.log("[WebSocket] OTP received, connecting...");
 
-      const result = await connectDerivClient({
-        appId: appId || "1089",
-        token: tokenToUse,
-        accountId: accountId,
-        preferredAuthMethod: "legacy_authorize" // OAuth uses standard authorize
-      });
-
-      const { ws, method, authorizeData } = result;
+      // Step 2: Connect using the OTP URL
+      const wsUrl = `${V4_WS_BASE}?otp=${otp}`;
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
-      setAuthMethod(method);
-      authorizedRef.current = true;
-      
-      setConnected(true);
 
-      // Setup keepalive and message handling
-      if (pingTimer.current) clearInterval(pingTimer.current);
-      pingTimer.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ ping: 1 }));
-        }
-      }, 30000);
+      ws.onopen = () => {
+        setConnected(true);
+        console.log("[WebSocket] V4 connection established (authenticated)");
 
-      lastMessageAt.current = Date.now();
-      if (watchdogTimer.current) clearInterval(watchdogTimer.current);
-      watchdogTimer.current = setInterval(() => {
-        if (Date.now() - lastMessageAt.current > 25000) {
-          console.warn("WebSocket watchdog triggered: No messages for 25s. Reconnecting...");
-          ws.close();
-        }
-      }, 5000);
+        // Immediately load accounts from session storage
+        const sessionAccounts = getAccounts();
+        setAccounts(sessionAccounts);
+        setActiveLoginId(loginIdToUse);
 
-      if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
-      balanceFallbackTimer.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN && authorizedRef.current) {
-          ws.send(JSON.stringify({ balance: 1 }));
-        }
-      }, 10000);
+        // Start ping keepalive
+        if (pingTimer.current) clearInterval(pingTimer.current);
+        pingTimer.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
+        }, 30000);
 
-      // Handle initial auth data if returned (legacy)
-      if (authorizeData) {
-        handleAuthorizeResponse(authorizeData, ws);
-      } else if (method === "pat_otp" && accountId) {
-        // For PAT, we are already authenticated for a specific account.
-        // We still send authorize to get the full account list/info if possible,
-        // but if it fails, we at least set up the current account.
-        ws.send(JSON.stringify({ authorize: apiToken }));
-        
-        // Ensure we have at least the current account in the list if authorize hasn't responded yet
-        setAccounts([{
-          loginid: accountId,
-          currency: "USD", // Will be updated by balance call
-          is_virtual: accountId.startsWith("VRTC"),
-          balance: 0,
-          token: apiToken
-        }]);
-        setActiveLoginId(accountId);
-      }
+        // Watchdog
+        lastMessageAt.current = Date.now();
+        if (watchdogTimer.current) clearInterval(watchdogTimer.current);
+        watchdogTimer.current = setInterval(() => {
+          if (Date.now() - lastMessageAt.current > 25000) {
+            console.warn("[WebSocket] Watchdog triggered: no messages for 25s, reconnecting...");
+            ws.close();
+          }
+        }, 5000);
+
+        // Subscribe to ticks
+        subscribeTicksV4(ws);
+
+        // Request balance for the active account via V4 WebSocket
+        ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+      };
 
       ws.onmessage = (event) => {
         lastMessageAt.current = Date.now();
         const data = JSON.parse(event.data);
         onMessageRef.current?.(data);
-
-        // Standard message processing
-        if (data.msg_type === "authorize") {
-          handleAuthorizeResponse(data, ws);
-        }
 
         if (data.msg_type === "balance" && data.balance) {
           const bal = data.balance;
@@ -282,129 +216,140 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
           }
         }
 
-        if (data.msg_type === "history") {
-          const reqId = data.req_id;
-          const symbol = data.echo_req.ticks_history;
-          const history = data.history;
-          
-          if (reqId && pendingRequestsRef.current.has(reqId)) {
-            pendingRequestsRef.current.get(reqId)!(data);
-            pendingRequestsRef.current.delete(reqId);
-          }
+        if (data.msg_type === "history") handleHistoryMessage(data);
+        if (data.msg_type === "tick") handleTickMessage(data);
 
-          if (history && history.prices) {
-            const prices = history.prices;
-            let state = statesRef.current.get(symbol);
-            if (state) {
-              const historicalDigits = prices.map((p: any) => extractLastDigit(p));
-              state.digits = historicalDigits.slice(-1000);
-              state.tickCount = historicalDigits.length;
-              statesRef.current.set(symbol, state);
-              setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
-              if (historicalDigits.length > 0) {
-                setLastDigits((prev) => ({ ...prev, [symbol]: historicalDigits[historicalDigits.length - 1] }));
-              }
-            }
-          }
-        }
-
-        if (data.msg_type === "tick") {
-          const tick = data.tick;
-          const symbol = tick.symbol as string;
-          const quote = tick.quote as number;
-          const digit = extractLastDigit(quote);
-
-          let state = statesRef.current.get(symbol);
-          if (!state) return;
-
-          state = addTick(state, digit);
-          statesRef.current.set(symbol, state);
-
-          setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
-          setLastDigits((prev) => ({ ...prev, [symbol]: digit }));
-
-          const active = activeSignalsRef.current;
-          const expiring: SignalWithStatus[] = [];
-          const stillActive: SignalWithStatus[] = [];
-
-          for (const sig of active) {
-            if (sig.symbol === symbol && state.tickCount > sig.validUntilTick) {
-              sig.status = "expired";
-              expiring.push(sig);
-              const win = digit !== sig.dangerDigit;
-              const result: SignalResult = {
-                symbol: sig.symbol,
-                dangerDigit: sig.dangerDigit,
-                actualDigit: digit,
-                win,
-                createdAt: new Date(),
-              };
-              setResults((prev) => [result, ...prev].slice(0, 100));
-              saveResult(result);
-            } else {
-              stillActive.push(sig);
-            }
-          }
-          activeSignalsRef.current = stillActive;
-
-          if (expiring.length > 0) {
-            setSignals((prev) =>
-              prev.map((s) => {
-                const exp = expiring.find(
-                  (e) => e.symbol === s.symbol && e.tickCount === s.tickCount
-                );
-                return exp ? { ...s, status: "expired" as const } : s;
-              })
-            );
-          }
-
-          const signal = generateSignal(state);
-          if (signal) {
-            state.lastSignalTick = state.tickCount;
-            statesRef.current.set(symbol, state);
-            const signalWithStatus: SignalWithStatus = { ...signal, status: "active" };
-            activeSignalsRef.current.push(signalWithStatus);
-            setSignals((prev) => [signalWithStatus, ...prev].slice(0, 50));
-            saveSignal(signal);
-            onSignalRef.current?.(signalWithStatus);
-          }
+        if (data.error) {
+          console.error("[WebSocket] Server error:", data.error);
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setConnected(false);
-        authorizedRef.current = false;
         if (pingTimer.current) clearInterval(pingTimer.current);
-        if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
         if (watchdogTimer.current) clearInterval(watchdogTimer.current);
+        console.log(`[WebSocket] Connection closed (code=${event.code}). Reconnecting in 3s...`);
         reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
       };
 
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
+      ws.onerror = (err) => {
+        console.error("[WebSocket] Error:", err);
         ws.close();
       };
 
-    } catch (error) {
-      console.error("Connection failed:", error);
-      const message = getErrorMessage(error);
-      toast.error(message);
+    } catch (error: any) {
+      console.error("[WebSocket] Connection failed:", error);
+      toast.error(`Deriv connection failed: ${error.message}. Retrying in 5s...`);
       reconnectTimer.current = setTimeout(() => connectRef.current?.(), 5000);
     }
-  }, [appId, apiToken, accountId, userId, handleAuthorizeResponse, saveSignal, saveResult, subscribeTicks]);
+  }, [accountId, subscribeTicksV4]);
+
+  // --- Message handlers (defined outside ws.onmessage to avoid stale closures) ---
+
+  function handleHistoryMessage(data: any) {
+    const reqId = data.req_id;
+    const symbol = data.echo_req?.ticks_history;
+    const history = data.history;
+
+    if (reqId && pendingRequestsRef.current.has(reqId)) {
+      pendingRequestsRef.current.get(reqId)!(data);
+      pendingRequestsRef.current.delete(reqId);
+    }
+
+    if (history?.prices && symbol) {
+      const prices = history.prices;
+      let state = statesRef.current.get(symbol);
+      if (state) {
+        const historicalDigits = prices.map((p: any) => extractLastDigit(p));
+        state.digits = historicalDigits.slice(-1000);
+        state.tickCount = historicalDigits.length;
+        statesRef.current.set(symbol, state);
+        setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
+        if (historicalDigits.length > 0) {
+          setLastDigits((prev) => ({ ...prev, [symbol]: historicalDigits[historicalDigits.length - 1] }));
+        }
+      }
+    }
+  }
+
+  function handleTickMessage(data: any) {
+    const tick = data.tick;
+    const symbol = tick?.symbol as string;
+    const quote = tick?.quote as number;
+    if (!symbol || quote === undefined) return;
+
+    const digit = extractLastDigit(quote);
+    let state = statesRef.current.get(symbol);
+    if (!state) return;
+
+    state = addTick(state, digit);
+    statesRef.current.set(symbol, state);
+
+    setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
+    setLastDigits((prev) => ({ ...prev, [symbol]: digit }));
+
+    const active = activeSignalsRef.current;
+    const expiring: SignalWithStatus[] = [];
+    const stillActive: SignalWithStatus[] = [];
+
+    for (const sig of active) {
+      if (sig.symbol === symbol && state.tickCount > sig.validUntilTick) {
+        sig.status = "expired";
+        expiring.push(sig);
+        const win = digit !== sig.dangerDigit;
+        const result: SignalResult = {
+          symbol: sig.symbol,
+          dangerDigit: sig.dangerDigit,
+          actualDigit: digit,
+          win,
+          createdAt: new Date(),
+        };
+        setResults((prev) => [result, ...prev].slice(0, 100));
+        saveResult(result);
+      } else {
+        stillActive.push(sig);
+      }
+    }
+    activeSignalsRef.current = stillActive;
+
+    if (expiring.length > 0) {
+      setSignals((prev) =>
+        prev.map((s) => {
+          const exp = expiring.find((e) => e.symbol === s.symbol && e.tickCount === s.tickCount);
+          return exp ? { ...s, status: "expired" as const } : s;
+        })
+      );
+    }
+
+    const signal = generateSignal(state);
+    if (signal) {
+      state.lastSignalTick = state.tickCount;
+      statesRef.current.set(symbol, state);
+      const signalWithStatus: SignalWithStatus = { ...signal, status: "active" };
+      activeSignalsRef.current.push(signalWithStatus);
+      setSignals((prev) => [signalWithStatus, ...prev].slice(0, 50));
+      saveSignal(signal);
+      onSignalRef.current?.(signalWithStatus);
+    }
+  }
+
+  const switchAccount = useCallback((loginid: string) => {
+    if (loginid === activeLoginId) return;
+    console.log(`[WebSocket] Switching to account ${loginid} — reconnecting with new OTP`);
+    setActiveAccount(loginid);
+    // Close and reconnect — the connect fn will fetch a new OTP for the new account
+    wsRef.current?.close();
+  }, [activeLoginId]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     if (pingTimer.current) clearInterval(pingTimer.current);
-    if (balanceFallbackTimer.current) clearInterval(balanceFallbackTimer.current);
     if (watchdogTimer.current) clearInterval(watchdogTimer.current);
-    authorizedRef.current = false;
     wsRef.current?.close();
     wsRef.current = null;
     setConnected(false);
     setAccounts([]);
     setActiveLoginId(null);
-    setAuthMethod(null);
   }, []);
 
   useEffect(() => {
@@ -412,9 +357,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   }, [connect]);
 
   useEffect(() => {
-    return () => {
-      disconnect();
-    };
+    return () => { disconnect(); };
   }, [disconnect]);
 
   return {
@@ -437,14 +380,11 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         throw new Error("WebSocket not connected");
       }
-      
       const reqId = `adhoc_${symbol}_${Date.now()}`;
       return new Promise<number[]>((resolve, reject) => {
-        // Set a timeout to prevent hanging
         const timeout = setTimeout(() => {
           if (pendingRequestsRef.current.has(reqId)) {
             pendingRequestsRef.current.delete(reqId);
-            console.warn(`[WebSocket] requestHistory timed out for ${symbol}`);
             reject(new Error("Request history timed out"));
           }
         }, 5000);
@@ -465,7 +405,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
           end: "latest",
           start: 1,
           style: "ticks",
-          req_id: reqId
+          req_id: reqId,
         }));
       });
     },
