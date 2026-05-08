@@ -1,6 +1,6 @@
 // Deriv OAuth helpers
 
-export const DERIV_APP_ID = import.meta.env.VITE_DERIV_APP_ID || "33cLEpErKviQMzxGeRncH";
+export const DERIV_APP_ID = import.meta.env.VITE_DERIV_APP_ID || "117322";
 
 export type DerivAccount = {
   token: string;
