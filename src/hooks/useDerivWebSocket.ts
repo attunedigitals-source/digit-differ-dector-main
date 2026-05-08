@@ -1,3 +1,4 @@
+// Digit Bot Pro - Last Sync: 2026-05-08
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DERIV_SYMBOLS } from "@/lib/deriv-symbols";
 import {
