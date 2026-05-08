@@ -1,4 +1,4 @@
-// Digit Bot Pro - Last Sync: 2026-05-08 (V4 API - OTP Auth)
+// Digit Bot Pro - Last Sync: 2026-05-08 (V4 API - OTP WebSocket URL Auth)
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DERIV_SYMBOLS } from "@/lib/deriv-symbols";
 import {
@@ -20,11 +20,9 @@ import {
   type DerivAccount,
 } from "@/lib/deriv-oauth";
 
-// The new V4 WebSocket base URL — does NOT include app_id in URL
-// Authentication is done via OTP query parameter
-const V4_WS_BASE = "wss://api.derivws.com/websockets/v4";
-// Fallback for unauthenticated tick-only connections
-const PUBLIC_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+// Authenticated Options WebSocket URLs are returned by the OTP REST endpoint.
+// Fallback for unauthenticated tick-only connections.
+const PUBLIC_WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
 
 export interface SignalWithStatus extends Signal {
   id?: string;
@@ -46,14 +44,70 @@ export interface DerivWebSocketOptions {
   userId?: string;
 }
 
-async function fetchOTP(accessToken: string, accountId: string): Promise<string> {
+type JsonObject = Record<string, unknown>;
+
+function asObject(value: unknown): JsonObject | null {
+  return value && typeof value === "object" ? (value as JsonObject) : null;
+}
+
+function getObjectValue(value: unknown, key: string): JsonObject | null {
+  const obj = asObject(value);
+  return obj ? asObject(obj[key]) : null;
+}
+
+function getStringValue(value: unknown, key: string): string | undefined {
+  const obj = asObject(value);
+  const field = obj?.[key];
+  return typeof field === "string" ? field : undefined;
+}
+
+function getErrorMessageFromBody(body: unknown, fallback: string): string {
+  const topLevelMessage = getStringValue(body, "message");
+  const errorMessage = getStringValue(getObjectValue(body, "error"), "message");
+  const errors = asObject(body)?.errors;
+  const firstError = Array.isArray(errors) ? asObject(errors[0]) : null;
+
+  return (
+    topLevelMessage ||
+    errorMessage ||
+    getStringValue(firstError, "message") ||
+    getStringValue(firstError, "code") ||
+    fallback
+  );
+}
+
+function extractWebSocketUrl(data: unknown): string | null {
+  const nestedData = getObjectValue(data, "data");
+  const wsUrl =
+    getStringValue(data, "url") ||
+    getStringValue(data, "websocket_url") ||
+    getStringValue(data, "ws_url") ||
+    getStringValue(nestedData, "url") ||
+    getStringValue(nestedData, "websocket_url") ||
+    getStringValue(nestedData, "ws_url");
+
+  if (typeof wsUrl === "string" && wsUrl.startsWith("wss://")) {
+    return wsUrl;
+  }
+
+  const otp = getStringValue(data, "otp") || getStringValue(nestedData, "otp");
+  const accountType = getStringValue(data, "account_type") || getStringValue(nestedData, "account_type");
+  if (typeof otp === "string" && otp.length > 0) {
+    const endpoint = accountType === "real" ? "real" : "demo";
+    return `wss://api.derivws.com/trading/v1/options/ws/${endpoint}?otp=${encodeURIComponent(otp)}`;
+  }
+
+  return null;
+}
+
+async function fetchWebSocketUrl(accessToken: string, accountId: string, appId: string): Promise<string> {
   const res = await fetch(
     `https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        "Deriv-App-ID": DERIV_APP_ID,
+        "Deriv-App-ID": appId,
         "Content-Type": "application/json",
       },
     }
@@ -61,25 +115,20 @@ async function fetchOTP(accessToken: string, accountId: string): Promise<string>
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body?.message || `OTP request failed: ${res.status}`);
+    throw new Error(getErrorMessageFromBody(body, `OTP request failed: ${res.status}`));
   }
 
   const data = await res.json();
-  // The response contains either an otp field or a websocket_url
-  if (data.otp) return data.otp;
-  if (data.websocket_url) {
-    // If they give us a full URL, extract OTP from it
-    const url = new URL(data.websocket_url);
-    const otp = url.searchParams.get("otp");
-    if (otp) return otp;
-  }
-  throw new Error("OTP not found in response");
+  const wsUrl = extractWebSocketUrl(data);
+  if (wsUrl) return wsUrl;
+
+  throw new Error("OTP response did not include an authenticated WebSocket URL");
 }
 
 export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const statesRef = useRef<Map<string, SymbolState>>(new Map());
-  const pendingRequestsRef = useRef<Map<string, (data: any) => void>>(new Map());
+  const pendingRequestsRef = useRef<Map<string, (data: JsonObject) => void>>(new Map());
   const [connected, setConnected] = useState(false);
   const [signals, setSignals] = useState<SignalWithStatus[]>([]);
   const [results, setResults] = useState<SignalResult[]>([]);
@@ -95,7 +144,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   const connectRef = useRef<() => Promise<void>>();
 
   const onSignalRef = useRef<((signal: SignalWithStatus) => void) | null>(null);
-  const onMessageRef = useRef<((data: any) => void) | null>(null);
+  const onMessageRef = useRef<((data: JsonObject) => void) | null>(null);
 
   const saveSignal = useCallback(async (_signal: Signal) => { return; }, []);
   const saveResult = useCallback(async (_result: SignalResult) => { return; }, []);
@@ -155,19 +204,18 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     }
 
     try {
-      // Step 1: Get a one-time password for WebSocket authentication
-      console.log(`[WebSocket] Requesting OTP for account ${loginIdToUse}...`);
-      const otp = await fetchOTP(accessToken, loginIdToUse);
-      console.log("[WebSocket] OTP received, connecting...");
+      // Step 1: Get a ready-to-use authenticated WebSocket URL.
+      console.log(`[WebSocket] Requesting authenticated WebSocket URL for account ${loginIdToUse}...`);
+      const wsUrl = await fetchWebSocketUrl(accessToken, loginIdToUse, appId || DERIV_APP_ID);
+      console.log("[WebSocket] Authenticated WebSocket URL received, connecting...");
 
-      // Step 2: Connect using the OTP URL
-      const wsUrl = `${V4_WS_BASE}?otp=${otp}`;
+      // Step 2: Connect using the exact URL returned by the OTP endpoint.
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         setConnected(true);
-        console.log("[WebSocket] V4 connection established (authenticated)");
+        console.log("[WebSocket] Options WebSocket connection established (authenticated)");
 
         // Immediately load accounts from session storage
         const sessionAccounts = getAccounts();
@@ -237,30 +285,31 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         ws.close();
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[WebSocket] Connection failed:", error);
-      toast.error(`Deriv connection failed: ${error.message}. Retrying in 5s...`);
+      toast.error(`Deriv connection failed: ${error instanceof Error ? error.message : String(error)}. Retrying in 5s...`);
       reconnectTimer.current = setTimeout(() => connectRef.current?.(), 5000);
     }
   }, [accountId, subscribeTicksV4]);
 
   // --- Message handlers (defined outside ws.onmessage to avoid stale closures) ---
 
-  function handleHistoryMessage(data: any) {
-    const reqId = data.req_id;
-    const symbol = data.echo_req?.ticks_history;
-    const history = data.history;
+  function handleHistoryMessage(data: JsonObject) {
+    const reqId = typeof data.req_id === "string" ? data.req_id : undefined;
+    const echoReq = asObject(data.echo_req);
+    const symbol = typeof echoReq?.ticks_history === "string" ? echoReq.ticks_history : undefined;
+    const history = asObject(data.history);
 
     if (reqId && pendingRequestsRef.current.has(reqId)) {
       pendingRequestsRef.current.get(reqId)!(data);
       pendingRequestsRef.current.delete(reqId);
     }
 
-    if (history?.prices && symbol) {
+    if (Array.isArray(history?.prices) && symbol) {
       const prices = history.prices;
-      let state = statesRef.current.get(symbol);
+      const state = statesRef.current.get(symbol);
       if (state) {
-        const historicalDigits = prices.map((p: any) => extractLastDigit(p));
+        const historicalDigits = prices.map((p) => extractLastDigit(p as number | string));
         state.digits = historicalDigits.slice(-1000);
         state.tickCount = historicalDigits.length;
         statesRef.current.set(symbol, state);
@@ -272,10 +321,10 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     }
   }
 
-  function handleTickMessage(data: any) {
-    const tick = data.tick;
-    const symbol = tick?.symbol as string;
-    const quote = tick?.quote as number;
+  function handleTickMessage(data: JsonObject) {
+    const tick = asObject(data.tick);
+    const symbol = typeof tick?.symbol === "string" ? tick.symbol : undefined;
+    const quote = typeof tick?.quote === "number" || typeof tick?.quote === "string" ? tick.quote : undefined;
     if (!symbol || quote === undefined) return;
 
     const digit = extractLastDigit(quote);
