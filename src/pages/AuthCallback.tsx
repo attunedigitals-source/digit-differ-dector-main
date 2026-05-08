@@ -9,8 +9,10 @@ import {
   type DerivSession,
 } from "@/lib/deriv-oauth";
 
-const SUPABASE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/deriv-token-exchange`;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Function URL — using the same Supabase URL as the client
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/deriv-token-exchange`;
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -61,8 +63,8 @@ export default function AuthCallback() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            // anon key required by Supabase gateway even for public functions
             "apikey": SUPABASE_ANON_KEY,
-            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
             code,
