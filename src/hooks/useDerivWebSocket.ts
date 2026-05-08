@@ -142,12 +142,15 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   const watchdogTimer = useRef<ReturnType<typeof setInterval>>();
   const lastMessageAt = useRef<number>(Date.now());
   const connectRef = useRef<() => Promise<void>>();
+  const requestIdRef = useRef(1);
 
   const onSignalRef = useRef<((signal: SignalWithStatus) => void) | null>(null);
   const onMessageRef = useRef<((data: JsonObject) => void) | null>(null);
 
   const saveSignal = useCallback(async (_signal: Signal) => { return; }, []);
   const saveResult = useCallback(async (_result: SignalResult) => { return; }, []);
+
+  const getNextRequestId = useCallback(() => requestIdRef.current++, []);
 
   const subscribeTicksV4 = useCallback((ws: WebSocket) => {
     for (const { symbol } of DERIV_SYMBOLS) {
@@ -159,12 +162,12 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         end: "latest",
         start: 1,
         style: "ticks",
-        req_id: `history_${symbol}`,
+        req_id: getNextRequestId(),
       }));
       // V4: subscribe to live tick stream
       ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
     }
-  }, []);
+  }, [getNextRequestId]);
 
   const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -295,7 +298,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   // --- Message handlers (defined outside ws.onmessage to avoid stale closures) ---
 
   function handleHistoryMessage(data: JsonObject) {
-    const reqId = typeof data.req_id === "string" ? data.req_id : undefined;
+    const reqId = data.req_id === undefined || data.req_id === null ? undefined : String(data.req_id);
     const echoReq = asObject(data.echo_req);
     const symbol = typeof echoReq?.ticks_history === "string" ? echoReq.ticks_history : undefined;
     const history = asObject(data.history);
@@ -429,16 +432,17 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         throw new Error("WebSocket not connected");
       }
-      const reqId = `adhoc_${symbol}_${Date.now()}`;
+      const reqId = getNextRequestId();
+      const requestKey = String(reqId);
       return new Promise<number[]>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          if (pendingRequestsRef.current.has(reqId)) {
-            pendingRequestsRef.current.delete(reqId);
+          if (pendingRequestsRef.current.has(requestKey)) {
+            pendingRequestsRef.current.delete(requestKey);
             reject(new Error("Request history timed out"));
           }
         }, 5000);
 
-        pendingRequestsRef.current.set(reqId, (data) => {
+        pendingRequestsRef.current.set(requestKey, (data) => {
           clearTimeout(timeout);
           if (data.error) {
             reject(new Error(data.error.message || "Unknown error fetching history"));
