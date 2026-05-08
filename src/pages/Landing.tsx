@@ -227,7 +227,7 @@ const Landing = () => {
               <ul className="space-y-4">
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
-                  <span>Official Deviv API Integration</span>
+                  <span>Official Deriv API Integration</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
@@ -257,7 +257,7 @@ const Landing = () => {
             <div className="max-w-xs">
               <div className="flex items-center gap-2 mb-6">
                 <Zap className="text-primary w-6 h-6" />
-                <span className="text-xl font-bold tracking-tight text-white">DigitBotPro</span>
+                <span className="text-xl font-bold tracking-tight text-white">Digit Bot Pro</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Digit Bot Pro is a trading tool for Deriv synthetic indices, built to support disciplined and data-driven execution.
