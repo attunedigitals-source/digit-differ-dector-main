@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useDerivWebSocket } from "@/hooks/useDerivWebSocket";
 import { useAutoTrader } from "@/hooks/useAutoTrader";
-import { TokenSettings } from "@/components/TokenSettings";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { PerformancePanel } from "@/components/PerformancePanel";
 import { LiveTicker } from "@/components/LiveTicker";
@@ -12,18 +11,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Zap } from "lucide-react";
 import { isPatToken } from "@/lib/deriv-auth";
-import { getActiveAccount, DERIV_APP_ID } from "@/lib/deriv-oauth";
+import { getActiveAccount, DERIV_APP_ID, clearDerivAuth } from "@/lib/deriv-oauth";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   
-  // Read the active account from localStorage (set by AuthCallback)
   const activeOAuthAccount = getActiveAccount();
   const apiToken = activeOAuthAccount?.token;
   const appId = DERIV_APP_ID;
   const accountId = undefined; // Not required for standard OAuth tokens
 
-
+  const handleLogout = async () => {
+    clearDerivAuth();
+    await signOut();
+  };
   const { 
     connected, connect, disconnect, signals, results,
     tickCounts, lastDigits, accounts, activeLoginId, switchAccount,
@@ -78,7 +79,7 @@ export default function Dashboard() {
               hasToken={!!apiToken}
 
             />
-            <Button variant="ghost" size="icon" onClick={signOut} className="hover:bg-destructive/10 hover:text-destructive transition-colors">
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="hover:bg-destructive/10 hover:text-destructive transition-colors">
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
@@ -91,7 +92,6 @@ export default function Dashboard() {
           
           {/* Left Column: Config & Control */}
           <div className="lg:col-span-4 space-y-6">
-            <TokenSettings />
             
             {connected && accounts.length > 0 && (
               <div className="bg-card border border-border rounded-xl p-5 shadow-sm">

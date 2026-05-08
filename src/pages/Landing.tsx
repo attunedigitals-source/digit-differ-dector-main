@@ -12,10 +12,7 @@ const Landing = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If already logged in to Deriv, redirect to dashboard automatically
-    if (getActiveAccount()) {
-      navigate("/auth"); // /auth is the dashboard route
-    }
+
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
@@ -24,7 +21,11 @@ const Landing = () => {
   }, [navigate]);
 
   const handleLogin = () => {
-    window.location.href = getOAuthUrl();
+    if (getActiveAccount()) {
+      navigate("/auth");
+    } else {
+      window.location.href = getOAuthUrl();
+    }
   };
 
   return (
