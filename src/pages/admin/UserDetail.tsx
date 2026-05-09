@@ -240,6 +240,10 @@ export default function UserDetail() {
   const filteredRecentTrades = trades?.filter(t => !selectedAccountId || t.deriv_loginid === selectedAccountId) || [];
   const performance = performanceList?.find((p: any) => p.deriv_loginid === selectedAccountId) || performanceList?.[0];
 
+  // Calculate summary stats from history for consistency (as requested: addition of all days profit)
+  const totalNetProfit = filteredDailyHistory.reduce((acc, curr) => acc + (Number(curr.daily_profit) || 0), 0);
+  const totalTradesCount = filteredDailyHistory.reduce((acc, curr) => acc + (Number(curr.total_trades) || 0), 0);
+
   return (
     <AdminLayout title="User Performance Dashboard">
       <div className="space-y-6">
@@ -280,8 +284,14 @@ export default function UserDetail() {
           />
           <SummaryCard title="Today (WAT)" value={`${(dualPL?.wat || 0) >= 0 ? "+" : ""}${(dualPL?.wat || 0).toFixed(2)}`} subtitle="Africa/Lagos" icon={<TrendingUp className="w-5 h-5 text-green-500" />} isPositive={(dualPL?.wat || 0) >= 0} />
           <SummaryCard title="Today (Local)" value={`${(dualPL?.local || 0) >= 0 ? "+" : ""}${(dualPL?.local || 0).toFixed(2)}`} subtitle="Client Timeframe" icon={<TrendingUp className="w-5 h-5 text-blue-500" />} isPositive={(dualPL?.local || 0) >= 0} />
-          <SummaryCard title="Total Volume" value={`${performance?.total_trades || 0}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-slate-500" />} />
-          <SummaryCard title="Net Profit" value={`$${(Number(performance?.net_profit) || 0).toFixed(2)}`} subtitle="Lifetime" icon={(Number(performance?.net_profit) || 0) >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} isPositive={(Number(performance?.net_profit) || 0) >= 0} />
+          <SummaryCard title="Total Volume" value={`${totalTradesCount}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-slate-500" />} />
+          <SummaryCard 
+            title="Net Profit" 
+            value={`${totalNetProfit >= 0 ? "+" : ""}$${totalNetProfit.toFixed(2)}`} 
+            subtitle="Aggregated Lifetime" 
+            icon={totalNetProfit >= 0 ? <TrendingUp className="w-5 h-5 text-green-500" /> : <TrendingDown className="w-5 h-5 text-destructive" />} 
+            isPositive={totalNetProfit >= 0} 
+          />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
