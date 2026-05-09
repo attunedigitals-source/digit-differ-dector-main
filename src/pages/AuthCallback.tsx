@@ -93,7 +93,8 @@ export default function AuthCallback() {
             }
 
             // Done — go to dashboard
-            navigate("/auth", { replace: true });
+        // Done — go to dashboard
+        window.location.href = "/auth";
             return;
           }
         }

@@ -15,7 +15,35 @@ import { getActiveAccount, clearDerivAuth } from "@/lib/deriv-oauth";
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   
-  const activeOAuthAccount = getActiveAccount();
+  const [activeOAuthAccount, setActiveOAuthAccount] = useState<any>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  // Reactive account detection
+  useEffect(() => {
+    const checkAccount = () => {
+      const acc = getActiveAccount();
+      if (acc) {
+        setActiveOAuthAccount(acc);
+        setSessionLoading(false);
+        return true;
+      }
+      return false;
+    };
+
+    // Initial check
+    if (!checkAccount()) {
+      // Retry for up to 2 seconds if not found immediately (helps on slow mobile devices)
+      let retries = 0;
+      const interval = setInterval(() => {
+        retries++;
+        if (checkAccount() || retries > 10) {
+          clearInterval(interval);
+          setSessionLoading(false);
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, []);
 
   const handleLogout = async () => {
     clearDerivAuth();
@@ -70,7 +98,7 @@ export default function Dashboard() {
               connected={connected}
               onConnect={connect}
               onDisconnect={disconnect}
-              hasToken={!!activeOAuthAccount}
+              hasToken={!!activeOAuthAccount || accounts.length > 0}
             />
             <Button variant="ghost" size="icon" onClick={handleLogout} className="hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0">
               <LogOut className="w-5 h-5" />
