@@ -1085,7 +1085,7 @@ export function useAutoTrader(
     ticksToWait,
     handleTradeMessage,
     execute_trade,
-    windDownMode,
+    windDownMode: config.windDownMode,
     activateWindDown,
   };
 }
