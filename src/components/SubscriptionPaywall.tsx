@@ -14,7 +14,7 @@ const PLANS = [
     name: "1 Month",
     price: 500,
     description: "Perfect for testing the strategy",
-    features: ["Real Account Trading", "All Volatilities", "24/7 Support", "1 Device Limit"],
+    features: ["Real Account Trading", "All Volatilities", "24/7 Support"],
     icon: Zap,
   },
   {
@@ -22,7 +22,7 @@ const PLANS = [
     name: "6 Months",
     price: 2400,
     description: "Best for consistent traders",
-    features: ["Real Account Trading", "All Volatilities", "Priority Support", "2 Device Limit", "Save $600"],
+    features: ["Real Account Trading", "All Volatilities", "Priority Support", "Save $600"],
     icon: ShieldCheck,
     popular: true,
   },
@@ -31,7 +31,7 @@ const PLANS = [
     name: "12 Months",
     price: 4000,
     description: "The ultimate trading setup",
-    features: ["Real Account Trading", "All Volatilities", "VIP Direct Support", "3 Device Limit", "Save $2,000"],
+    features: ["Real Account Trading", "All Volatilities", "VIP Direct Support", "Save $2,000"],
     icon: Sparkles,
   },
 ];
