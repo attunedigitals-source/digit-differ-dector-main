@@ -51,6 +51,7 @@ export async function getOAuthUrl(action: "login" | "signup" = "login"): Promise
     state,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
+    app_id: "117322",
   });
 
   if (action === "signup") {
