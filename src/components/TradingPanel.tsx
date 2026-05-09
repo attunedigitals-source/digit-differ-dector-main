@@ -58,7 +58,12 @@ export function TradingPanel({
     const val = parseInt(localSteps);
     onConfigChange({ ...config, maxMartingaleSteps: isNaN(val) ? 12 : val });
   };
-  const canTrade = connected && hasToken && config.baseStake >= 0.35;
+  const stakeVal = parseFloat(localStake);
+  const stepsVal = parseInt(localSteps);
+  const isStakeValid = !isNaN(stakeVal) && stakeVal >= 0.35;
+  const isStepsValid = !isNaN(stepsVal) && stepsVal >= 12;
+
+  const canTrade = connected && hasToken && isStakeValid && isStepsValid;
   const formatCooldown = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -96,8 +101,11 @@ export function TradingPanel({
             value={localStake}
             onChange={(e) => setLocalStake(e.target.value)}
             onBlur={handleStakeBlur}
-            className="bg-muted border-border font-mono text-sm h-8"
+            className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeValid && localStake !== "" ? "border-destructive text-destructive" : ""}`}
           />
+          {!isStakeValid && localStake !== "" && (
+            <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
+          )}
         </div>
         <div className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -111,8 +119,11 @@ export function TradingPanel({
             value={localSteps}
             onChange={(e) => setLocalSteps(e.target.value)}
             onBlur={handleStepsBlur}
-            className="bg-muted border-border font-mono text-sm h-8"
+            className={`bg-muted border-border font-mono text-sm h-8 ${!isStepsValid && localSteps !== "" ? "border-destructive text-destructive" : ""}`}
           />
+          {!isStepsValid && localSteps !== "" && (
+            <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min 12 Steps</p>
+          )}
         </div>
       </div>
 
@@ -201,8 +212,14 @@ export function TradingPanel({
         </div>
         <Switch
           checked={config.enabled}
-          onCheckedChange={(enabled) => onConfigChange({ ...config, enabled })}
-          disabled={!canTrade}
+          onCheckedChange={(enabled) => {
+            if (enabled && !canTrade) {
+              toast.error("Requirements not met: Stake ≥ 0.35 and Steps ≥ 12");
+              return;
+            }
+            onConfigChange({ ...config, enabled });
+          }}
+          disabled={!canTrade && !config.enabled}
           className={`${!config.enabled ? "data-[state=unchecked]:bg-destructive" : windDownMode ? "data-[state=checked]:bg-orange-500" : ""}`}
         />
       </div>
