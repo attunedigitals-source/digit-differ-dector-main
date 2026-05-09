@@ -54,26 +54,25 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
       {/* Premium Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="container max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/20 shadow-inner">
-              <Zap className="w-5 h-5 text-primary animate-pulse" />
-              <span className="font-bold tracking-tighter text-lg text-primary">DIGIT BOT PRO</span>
+        <div className="container max-w-7xl mx-auto px-2 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 rounded-full bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/20 shadow-inner">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary animate-pulse" />
+              <span className="font-bold tracking-tighter text-base sm:text-lg text-primary whitespace-nowrap">DIGIT BOT PRO</span>
             </div>
-            <div className="hidden md:flex items-center gap-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+            <div className="hidden lg:flex items-center gap-2 text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
               Live Digits Engine
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
             <ConnectionStatus
               connected={connected}
               onConnect={connect}
               onDisconnect={disconnect}
               hasToken={!!activeOAuthAccount}
-
             />
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="hover:bg-destructive/10 hover:text-destructive transition-colors">
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0">
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
