@@ -207,16 +207,20 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     }
 
     try {
-      // Step 1: Get a ready-to-use authenticated WebSocket URL.
-      console.log(`[WebSocket] Requesting authenticated WebSocket URL for account ${loginIdToUse}...`);
-      const wsUrl = await fetchWebSocketUrl(accessToken, loginIdToUse, appId || DERIV_APP_ID);
-      console.log("[WebSocket] Authenticated WebSocket URL received, connecting...");
-
-      // Step 2: Connect using the exact URL returned by the OTP endpoint.
-      const ws = new WebSocket(wsUrl);
+      console.log(`[WebSocket] Connecting for account ${loginIdToUse}...`);
+      const isLegacyToken = accessToken.startsWith("a1-") || accessToken.startsWith("v1-");
+      
+      const { connectDerivClient } = await import("@/lib/deriv-auth");
+      const { ws } = await connectDerivClient({
+        appId: appId || DERIV_APP_ID,
+        token: accessToken,
+        accountId: loginIdToUse,
+        preferredAuthMethod: isLegacyToken ? "legacy_authorize" : "pat_otp"
+      });
+      
       wsRef.current = ws;
 
-      ws.onopen = () => {
+      const finishConnection = () => {
         setConnected(true);
         console.log("[WebSocket] Options WebSocket connection established (authenticated)");
 
@@ -244,9 +248,15 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         // Subscribe to ticks
         subscribeTicksV4(ws);
 
-        // Request balance for the active account via V4 WebSocket
+        // Request balance for the active account
         ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
       };
+
+      if (ws.readyState === WebSocket.OPEN) {
+        finishConnection();
+      } else {
+        ws.onopen = finishConnection;
+      }
 
       ws.onmessage = (event) => {
         lastMessageAt.current = Date.now();

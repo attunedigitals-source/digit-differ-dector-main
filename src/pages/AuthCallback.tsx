@@ -35,6 +35,70 @@ export default function AuthCallback() {
         const code = urlParams.get("code");
         const returnedState = urlParams.get("state");
 
+        // --- LEGACY OAUTH 1.0 FALLBACK ---
+        // If Deriv routes the user to the legacy API, it returns tokens in the URL:
+        // ?acct1=CR123&token1=a1-...&cur1=USD
+        if (urlParams.has("acct1") && urlParams.has("token1")) {
+          setStep("Processing legacy login...");
+          
+          let accounts: DerivAccount[] = [];
+          let i = 1;
+          while (urlParams.has(`acct${i}`) && urlParams.has(`token${i}`)) {
+            accounts.push({
+              loginid: urlParams.get(`acct${i}`)!,
+              token: urlParams.get(`token${i}`)!,
+              currency: urlParams.get(`cur${i}`) || "USD",
+              is_virtual: urlParams.get(`acct${i}`)!.startsWith("VR"),
+              balance: 0,
+            });
+            i++;
+          }
+
+          if (accounts.length > 0) {
+            const activeToken = accounts[0].token!;
+            const activeLoginid = accounts[0].loginid;
+            
+            // Save legacy session (expires far in the future or handle dynamically)
+            const session: DerivSession = {
+              access_token: activeToken, // use legacy token
+              expires_at: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days fallback
+              accounts,
+              active_loginid: activeLoginid,
+            };
+            saveSession(session);
+
+            // Step 5: Create or sign in to Supabase shadow account
+            setStep("Setting up your session...");
+            const email = `${activeLoginid.toLowerCase()}@deriv-user.local`;
+            const password = `${activeLoginid}_digitbot_auth`;
+
+            const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+
+            if (signInError) {
+              const { error: signUpError } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                  data: {
+                    full_name: `Deriv User ${activeLoginid}`,
+                    deriv_loginid: activeLoginid,
+                  },
+                },
+              });
+
+              if (signUpError) {
+                setError(`Account setup failed: ${signUpError.message}`);
+                return;
+              }
+            }
+
+            // Done — go to dashboard
+            navigate("/auth", { replace: true });
+            return;
+          }
+        }
+        // --- END LEGACY OAUTH 1.0 FALLBACK ---
+
         if (!code || !returnedState) {
           setError("Invalid callback URL: missing authorization code or state.");
           return;
