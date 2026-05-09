@@ -77,6 +77,8 @@ export function getSession(): DerivSession | null {
 }
 
 export function getAccessToken(): string | null {
+  const activeAccount = getActiveAccount();
+  if (activeAccount?.token) return activeAccount.token;
   return getSession()?.access_token ?? null;
 }
 
