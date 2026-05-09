@@ -1003,6 +1003,24 @@ export function useAutoTrader(
       setConfig(prev => {
         nextConfig = val(prev);
         
+        // Handle Graceful Stop (Stop Button = Wind Down)
+        if (prev.enabled === true && nextConfig.enabled === false) {
+          const state = sessionStateRef.current;
+          // If not IDLE, intercept and start wind down instead of stopping immediately
+          if (state.status !== "IDLE" && !windDownMode) {
+            console.log("[AutoTrader] Graceful stop initiated (Wind Down)");
+            toast.info("Graceful stop initiated. Bot will finish this sequence and stop on the next win.");
+            setWindDownMode(true);
+            // Return prev (keep enabled: true)
+            return prev;
+          }
+          // If already in wind down mode, or IDLE, proceed with force stop
+          if (windDownMode) {
+            console.log("[AutoTrader] Force stop triggered (Wind Down already active)");
+            setWindDownMode(false);
+          }
+        }
+
         // Track manual toggle activity
         if (nextConfig.enabled !== prev.enabled) {
           console.log(`%c[AutoTrader] Manual Toggle Detected: enabled=${prev.enabled} -> ${nextConfig.enabled}`, "color: blue; font-weight: bold;");
@@ -1028,6 +1046,21 @@ export function useAutoTrader(
       nextConfig = val;
       const prevEnabled = enabledRef.current;
       
+      // Handle Graceful Stop for object-based updates
+      if (prevEnabled === true && nextConfig.enabled === false) {
+        const state = sessionStateRef.current;
+        if (state.status !== "IDLE" && !windDownMode) {
+          console.log("[AutoTrader] Graceful stop initiated (Wind Down)");
+          toast.info("Graceful stop initiated. Bot will finish this sequence and stop on the next win.");
+          setWindDownMode(true);
+          return; // Abort this update, keep it enabled
+        }
+        if (windDownMode) {
+          console.log("[AutoTrader] Force stop triggered");
+          setWindDownMode(false);
+        }
+      }
+
       if (nextConfig.enabled !== prevEnabled) {
         console.log(`%c[AutoTrader] Manual Toggle Detected: enabled=${prevEnabled} -> ${nextConfig.enabled}`, "color: blue; font-weight: bold;");
         lastManualActionRef.current = Date.now();
@@ -1048,7 +1081,7 @@ export function useAutoTrader(
 
       setConfig(nextConfig);
     }
-  }, [user?.id]);
+  }, [user?.id, windDownMode]);
 
   return {
     config,

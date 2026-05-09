@@ -148,21 +148,31 @@ export function TradingPanel({
       {/* Bot Control */}
       <div className={`flex items-center justify-between p-3 rounded-md border transition-all duration-300 ${
         config.enabled 
-          ? "bg-primary/5 border-primary/20" 
+          ? windDownMode 
+            ? "bg-orange-500/10 border-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.1)]"
+            : "bg-primary/5 border-primary/20" 
           : "bg-destructive/5 border-destructive/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
       }`}>
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-full transition-colors ${
             config.enabled 
-              ? "bg-primary/20 text-primary" 
+              ? windDownMode
+                ? "bg-orange-500/20 text-orange-500"
+                : "bg-primary/20 text-primary" 
               : "bg-destructive/20 text-destructive"
           }`}>
             <Shuffle className={`w-4 h-4 ${config.enabled ? "animate-spin-slow" : ""}`} />
           </div>
           <div>
-            <div className={`text-xs font-bold uppercase tracking-tight ${!config.enabled ? "text-destructive" : ""}`}>AI-Trading Loop</div>
+            <div className={`text-xs font-bold uppercase tracking-tight ${
+              !config.enabled ? "text-destructive" : windDownMode ? "text-orange-500" : ""
+            }`}>
+              {windDownMode ? "Stopping Gracefully..." : "AI-Trading Loop"}
+            </div>
             <div className="text-[10px] text-muted-foreground font-medium">
-              {config.enabled ? "Running AI..." : "AI is Paused"}
+              {config.enabled 
+                ? windDownMode ? "Waiting for win to stop" : "Running AI..." 
+                : "AI is Paused"}
             </div>
           </div>
         </div>
@@ -170,7 +180,7 @@ export function TradingPanel({
           checked={config.enabled}
           onCheckedChange={(enabled) => onConfigChange({ ...config, enabled })}
           disabled={!canTrade}
-          className="data-[state=unchecked]:bg-destructive"
+          className={`${!config.enabled ? "data-[state=unchecked]:bg-destructive" : windDownMode ? "data-[state=checked]:bg-orange-500" : ""}`}
         />
       </div>
       <Button
