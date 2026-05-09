@@ -251,6 +251,11 @@ export function useAutoTrader(
   }, []);
 
   const execute_trade = useCallback(async () => {
+    if (!config.enabled) {
+      console.log("[AutoTrader] execute_trade aborted: bot is disabled");
+      return;
+    }
+
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       console.warn("[AutoTrader] Trade skipped: WebSocket not open");
@@ -610,7 +615,12 @@ export function useAutoTrader(
     }, null, 2));
     
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
-      setTimeout(() => execute_trade(), 0);
+      if (config.enabled) {
+        console.log("[AutoTrader] Scheduling next trade immediately...");
+        setTimeout(() => execute_trade(), 0);
+      } else {
+        console.log("[AutoTrader] Bot disabled, stopping loop after trade settlement.");
+      }
     }
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
@@ -860,7 +870,11 @@ export function useAutoTrader(
       if (data?.config) {
         const cloudConfig = sanitizeConfig(data.config as AutoTraderConfig);
         if (JSON.stringify(cloudConfig) !== JSON.stringify(config)) {
-          setConfig(prev => ({ ...prev, ...cloudConfig, enabled: prev.enabled }));
+          console.log("[AutoTrader] Merging cloud config...", cloudConfig);
+          setConfig(prev => {
+            // Explicitly preserve the LOCAL enabled state during sync to prevent flip-backs
+            return { ...prev, ...cloudConfig, enabled: prev.enabled };
+          });
         }
       }
     };
@@ -938,9 +952,24 @@ export function useAutoTrader(
     setContinuousTradeStartAt(config.enabled ? Date.now() : null);
   }, [config.baseStake, config.enabled]);
 
+  const stableSetConfig = useCallback((val: AutoTraderConfig | ((prev: AutoTraderConfig) => AutoTraderConfig)) => {
+    if (typeof val === 'function') {
+      setConfig(prev => {
+        const next = val(prev);
+        console.log(`[AutoTrader] Config Change: enabled=${prev.enabled} -> ${next.enabled}`);
+        return next;
+      });
+    } else {
+      setConfig(prev => {
+        console.log(`[AutoTrader] Config Change: enabled=${prev.enabled} -> ${val.enabled}`);
+        return val;
+      });
+    }
+  }, []);
+
   return {
     config,
-    setConfig,
+    setConfig: stableSetConfig,
     tradeLog,
     setTradeLog,
     dailyPL,
