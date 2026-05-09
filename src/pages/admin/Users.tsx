@@ -69,47 +69,13 @@ export default function UserManagement() {
   const queryClient = useQueryClient();
 
   // Real-time Subscriptions for Admin Sync (with enhanced debugging)
-  useEffect(() => {
-    console.log("[Realtime] Initializing admin dashboard sync...");
-    
-    // Listen for ALL changes (INSERT, UPDATE, DELETE) on profiles and payments
-    const channel = supabase
-      .channel('admin-dashboard-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        (payload) => {
-          console.log("[Realtime] Profile change detected:", payload.eventType, payload.new);
-          queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'payments' },
-        (payload) => {
-          console.log("[Realtime] Payment change detected:", payload.eventType, payload.new);
-          queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
-        }
-      )
-      .subscribe((status, err) => {
-        console.log(`[Realtime] Subscription status: ${status}`);
-        if (err) console.error("[Realtime] Subscription error:", err);
-        
-        if (status === 'CHANNEL_ERROR') {
-          console.error("[Realtime] Channel error occurred. Check RLS policies or replication settings.");
-        }
-      });
-
-    return () => {
-      console.log("[Realtime] Unsubscribing from admin dashboard sync...");
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
+  
 
   // Fetch Users
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
+      console.log("[AdminUsers] Fetching all users and performance stats...");
       const { data: profiles, error: perfError } = await supabase
         .from('profiles')
         .select('*, performance:admin_user_performance(*)')
@@ -117,8 +83,33 @@ export default function UserManagement() {
       
       if (perfError) throw perfError;
       return profiles;
-    }
+    },
+    refetchInterval: 30000, // Auto-refresh every 30s to catch the 60s bot reports
   });
+
+  // Real-time synchronization for the main list
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-global-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'daily_reports' },
+        () => {
+          console.log("[AdminUsers] Daily report update detected. Refreshing list...");
+          queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => queryClient.invalidateQueries({ queryKey: ["admin-users"] })
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Fetch Pending Payments
   const { data: payments, isLoading: paymentsLoading } = useQuery({
@@ -319,20 +310,43 @@ export default function UserManagement() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2 text-[10px]">
-                            <Activity className="w-3 h-3 text-muted-foreground" />
-                            <span className="font-medium">{u.performance?.[0]?.total_trades || 0} Trades</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px]">
-                            { (u.performance?.[0]?.net_profit || 0) >= 0 ? (
-                              <TrendingUp className="w-3 h-3 text-green-500" />
-                            ) : (
-                              <TrendingDown className="w-3 h-3 text-destructive" />
-                            )}
-                            <span className={`font-bold ${(u.performance?.[0]?.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                              ${(u.performance?.[0]?.net_profit || 0).toFixed(2)}
-                            </span>
-                          </div>
+                          {(() => {
+                            // Aggregate stats across all accounts (old and new logins)
+                            const perf = u.performance || [];
+                            const totalTrades = perf.reduce((sum: number, p: any) => sum + (p.total_trades || 0), 0);
+                            const netProfit = perf.reduce((sum: number, p: any) => sum + (Number(p.net_profit) || 0), 0);
+                            const todayProfit = perf.reduce((sum: number, p: any) => sum + (Number(p.today_profit) || 0), 0);
+                            const isActive = perf.some((p: any) => p.is_active_now);
+
+                            return (
+                              <>
+                                <div className="flex items-center gap-2 text-[10px]">
+                                  <Activity className={`w-3 h-3 ${isActive ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
+                                  <span className="font-medium">{totalTrades} Trades</span>
+                                  {perf.length > 1 && (
+                                    <Badge variant="outline" className="text-[8px] h-3.5 px-1 py-0 bg-primary/5 text-primary border-primary/20">
+                                      {perf.length} Accounts
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px]">
+                                  { netProfit >= 0 ? (
+                                    <TrendingUp className="w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <TrendingDown className="w-3 h-3 text-destructive" />
+                                  )}
+                                  <span className={`font-bold ${netProfit >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                                    ${netProfit.toFixed(2)}
+                                  </span>
+                                  {todayProfit !== 0 && (
+                                    <span className={`text-[9px] font-medium ${todayProfit > 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                                      ({todayProfit > 0 ? '+' : ''}{todayProfit.toFixed(1)})
+                                    </span>
+                                  )}
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       </TableCell>
                       <TableCell>

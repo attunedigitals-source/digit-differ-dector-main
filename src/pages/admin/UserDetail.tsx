@@ -259,6 +259,7 @@ export default function UserDetail() {
                     onClick={() => setSelectedAccountId(p.deriv_loginid)}
                   >
                     {p.deriv_loginid}
+                    {p.is_active_now && <span className="ml-1.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />}
                   </Button>
                 ))}
               </div>
