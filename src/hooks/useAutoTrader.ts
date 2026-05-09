@@ -112,6 +112,14 @@ export function useAutoTrader(
   const continuousTradeStartAtRef = useRef<number | null>(null);
 
   const executionStartedAtRef = useRef<number>(0);
+  const enabledRef = useRef<boolean>(config.enabled);
+  const lastManualActionRef = useRef<number>(0);
+
+  // Keep enabledRef in sync with config.enabled
+  useEffect(() => {
+    enabledRef.current = config.enabled;
+  }, [config.enabled]);
+
 
   const requestContractStatus = useCallback((contractId: string) => {
     const ws = wsRef.current;
@@ -251,8 +259,8 @@ export function useAutoTrader(
   }, []);
 
   const execute_trade = useCallback(async () => {
-    if (!config.enabled) {
-      console.log("[AutoTrader] execute_trade aborted: bot is disabled");
+    if (!enabledRef.current) {
+      console.log("%c[AutoTrader] execute_trade aborted: bot is disabled (Ref Check)", "color: orange; font-weight: bold;");
       return;
     }
 
@@ -615,11 +623,11 @@ export function useAutoTrader(
     }, null, 2));
     
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
-      if (config.enabled) {
+      if (enabledRef.current) {
         console.log("[AutoTrader] Scheduling next trade immediately...");
         setTimeout(() => execute_trade(), 0);
       } else {
-        console.log("[AutoTrader] Bot disabled, stopping loop after trade settlement.");
+        console.log("%c[AutoTrader] Bot disabled, stopping loop after trade settlement.", "color: red; font-weight: bold;");
       }
     }
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
@@ -866,20 +874,56 @@ export function useAutoTrader(
   useEffect(() => {
     if (!user?.id) return;
     const syncConfig = async () => {
+      // Don't sync from cloud if the user recently performed a manual action (prevent overwriting new state with old DB state)
+      if (Date.now() - lastManualActionRef.current < 10000) {
+        console.log("[AutoTrader] Sync from cloud blocked: recent manual activity detected.");
+        return;
+      }
+
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
         const cloudConfig = sanitizeConfig(data.config as AutoTraderConfig);
-        if (JSON.stringify(cloudConfig) !== JSON.stringify(config)) {
-          console.log("[AutoTrader] Merging cloud config...", cloudConfig);
+        
+        // Only merge if meaningful changes exist and avoid flipping 'enabled' back to true if it was locally disabled
+        const isDifferent = JSON.stringify(cloudConfig) !== JSON.stringify(config);
+        
+        if (isDifferent) {
+          console.group("[AutoTrader] Syncing config from Supabase");
+          console.log("Local Config:", config);
+          console.log("Cloud Config:", cloudConfig);
+          
           setConfig(prev => {
-            // Explicitly preserve the LOCAL enabled state during sync to prevent flip-backs
-            return { ...prev, ...cloudConfig, enabled: prev.enabled };
+            const finalEnabled = prev.enabled === false ? false : cloudConfig.enabled;
+            if (finalEnabled !== cloudConfig.enabled && cloudConfig.enabled === true) {
+              console.warn("[AutoTrader] Cloud tried to enable bot, but local is disabled. Overriding cloud.");
+            }
+            return { ...prev, ...cloudConfig, enabled: finalEnabled };
           });
+          console.groupEnd();
         }
       }
     };
     syncConfig();
   }, [user?.id]);
+
+  // Cross-tab sync for localStorage
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'autoTraderConfig' && e.newValue) {
+        try {
+          const newConfig = sanitizeConfig(JSON.parse(e.newValue));
+          if (JSON.stringify(newConfig) !== JSON.stringify(config)) {
+            console.log("[AutoTrader] Syncing config from other tab...");
+            setConfig(newConfig);
+          }
+        } catch (err) {
+          console.error("[AutoTrader] Cross-tab sync failed:", err);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [config]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -952,20 +996,59 @@ export function useAutoTrader(
     setContinuousTradeStartAt(config.enabled ? Date.now() : null);
   }, [config.baseStake, config.enabled]);
 
-  const stableSetConfig = useCallback((val: AutoTraderConfig | ((prev: AutoTraderConfig) => AutoTraderConfig)) => {
+  const stableSetConfig = useCallback(async (val: AutoTraderConfig | ((prev: AutoTraderConfig) => AutoTraderConfig)) => {
+    let nextConfig: AutoTraderConfig;
+    
     if (typeof val === 'function') {
       setConfig(prev => {
-        const next = val(prev);
-        console.log(`[AutoTrader] Config Change: enabled=${prev.enabled} -> ${next.enabled}`);
-        return next;
+        nextConfig = val(prev);
+        
+        // Track manual toggle activity
+        if (nextConfig.enabled !== prev.enabled) {
+          console.log(`%c[AutoTrader] Manual Toggle Detected: enabled=${prev.enabled} -> ${nextConfig.enabled}`, "color: blue; font-weight: bold;");
+          lastManualActionRef.current = Date.now();
+          enabledRef.current = nextConfig.enabled;
+          
+          // Immediate persistence for enabled state change
+          if (user?.id) {
+            supabase.from('user_configs').upsert({ 
+              user_id: user.id, 
+              config: nextConfig, 
+              updated_at: new Date().toISOString() 
+            }).then(({ error }) => {
+              if (error) console.error("[AutoTrader] Immediate save failed:", error);
+              else console.log("[AutoTrader] Immediate save successful.");
+            });
+          }
+        }
+        
+        return nextConfig;
       });
     } else {
-      setConfig(prev => {
-        console.log(`[AutoTrader] Config Change: enabled=${prev.enabled} -> ${val.enabled}`);
-        return val;
-      });
+      nextConfig = val;
+      const prevEnabled = enabledRef.current;
+      
+      if (nextConfig.enabled !== prevEnabled) {
+        console.log(`%c[AutoTrader] Manual Toggle Detected: enabled=${prevEnabled} -> ${nextConfig.enabled}`, "color: blue; font-weight: bold;");
+        lastManualActionRef.current = Date.now();
+        enabledRef.current = nextConfig.enabled;
+
+        // Immediate persistence for enabled state change
+        if (user?.id) {
+          supabase.from('user_configs').upsert({ 
+            user_id: user.id, 
+            config: nextConfig, 
+            updated_at: new Date().toISOString() 
+          }).then(({ error }) => {
+            if (error) console.error("[AutoTrader] Immediate save failed:", error);
+            else console.log("[AutoTrader] Immediate save successful.");
+          });
+        }
+      }
+
+      setConfig(nextConfig);
     }
-  }, []);
+  }, [user?.id]);
 
   return {
     config,
