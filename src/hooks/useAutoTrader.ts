@@ -1105,7 +1105,7 @@ export function useAutoTrader(
 
       setConfig(nextConfig);
     }
-  }, [user?.id, windDownMode]);
+  }, [user?.id, windDownMode, sanitizeConfigWithToasts]);
 
   return {
     config,
