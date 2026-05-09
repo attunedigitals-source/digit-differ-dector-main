@@ -17,5 +17,4 @@ export interface AutoTraderConfig {
   baseStake: number;
   maxMartingaleSteps: number;
   cooldownIntervalMinutes: 30 | 40 | 50 | 60;
-  windDownMode: boolean;
 }

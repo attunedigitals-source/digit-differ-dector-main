@@ -47,7 +47,6 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
     baseStake,
     maxMartingaleSteps,
     cooldownIntervalMinutes,
-    windDownMode: Boolean(incoming?.windDownMode),
   };
 };
 
@@ -92,7 +91,6 @@ export function useAutoTrader(
       baseStake: 0.35,
       maxMartingaleSteps: 10,
       cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
-      windDownMode: false,
     });
   });
 
@@ -109,6 +107,7 @@ export function useAutoTrader(
   });
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
+  const [windDownMode, setWindDownMode] = useState(false);
   const [continuousTradeStartAt, setContinuousTradeStartAt] = useState<number | null>(null);
   const continuousTradeStartAtRef = useRef<number | null>(null);
 
@@ -587,10 +586,11 @@ export function useAutoTrader(
       });
     }
 
-    if (config.windDownMode && isWin) {
+    if (windDownMode && isWin) {
       nextAction = "WD_CMP";
       ticksToWaitNext = 0;
-      setConfig(prev => ({ ...prev, enabled: false, windDownMode: false }));
+      setConfig(prev => ({ ...prev, enabled: false }));
+      setWindDownMode(false);
       toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
     }
 
@@ -622,7 +622,7 @@ export function useAutoTrader(
       timestamp: new Date().toISOString()
     }, null, 2));
     
-    if (ticksToWaitNext === 0 && !(config.windDownMode && isWin)) {
+    if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
       if (enabledRef.current) {
         console.log("[AutoTrader] Scheduling next trade immediately...");
         setTimeout(() => execute_trade(), 0);
@@ -928,48 +928,31 @@ export function useAutoTrader(
   useEffect(() => {
     if (!user?.id) return;
     const timer = setTimeout(async () => {
-      // Immediate save to Supabase when config changes
-      await supabase.from('user_configs').upsert({ 
-        user_id: user.id, 
-        config, 
-        updated_at: new Date().toISOString() 
-      });
-    }, 1000);
+      await supabase.from('user_configs').upsert({ user_id: user.id, config, updated_at: new Date().toISOString() });
+    }, 2000);
     return () => clearTimeout(timer);
   }, [config, user?.id]);
-
-  // Handle Wind Down Toast notifications in a pure effect
-  const lastWindDownRef = useRef(config?.windDownMode);
-  useEffect(() => {
-    if (config?.windDownMode && !lastWindDownRef.current) {
-      toast.info("Graceful stop initiated. Bot will finish this sequence and stop on the next win.");
-    }
-    lastWindDownRef.current = config?.windDownMode;
-  }, [config?.windDownMode]);
 
   // Main Auto-Trading Loop
   useEffect(() => {
     if (!config.enabled) return;
 
-    // Fix: If wind down is active, ONLY proceed if we are in the middle of a loss-recovery sequence
-    // If we are IDLE or just had a WIN, we should NOT start a new sequence
-    const isWindingDown = config.windDownMode;
-    const canStartNewSequence = !isWindingDown;
-    const isInSequence = sessionState.status === "LOSS";
-
+    // Check if we should trigger a trade
     const shouldTrade = 
-      (sessionState.status === "IDLE" && canStartNewSequence) || 
-      (ticksToWait === 0 && (isInSequence || (sessionState.status === "WIN" && canStartNewSequence)));
+      (sessionState.status === "IDLE") || 
+      (ticksToWait === 0 && (sessionState.status === "WIN" || sessionState.status === "LOSS"));
 
     if (shouldTrade && !isExecutingRef.current && sessionState.status !== "PENDING" && openContracts.current.size === 0) {
       console.log("[AutoTrader] Loop trigger: executing trade");
       execute_trade();
-    } else if (isWindingDown && sessionState.status === "WIN") {
-      console.log("[AutoTrader] Loop blocked: wind down active and sequence finished on win.");
     }
-  }, [config.enabled, config.windDownMode, sessionState.status, ticksToWait, execute_trade]);
+  }, [config.enabled, sessionState.status, ticksToWait, execute_trade]);
 
-  // Wind down mode cleanup removed as it is now part of config
+  useEffect(() => {
+    if (!config.enabled && windDownMode) {
+      setWindDownMode(false);
+    }
+  }, [config.enabled, windDownMode]);
 
   useEffect(() => {
     if (!config.enabled) {
@@ -991,7 +974,7 @@ export function useAutoTrader(
       toast.error("Enable auto-trading before activating wind down.");
       return;
     }
-    setConfig(prev => ({ ...prev, windDownMode: true }));
+    setWindDownMode(true);
     toast.info("Wind down armed: bot will stop only after the next profitable settled trade.");
   }, [config.enabled]);
 
@@ -1013,53 +996,92 @@ export function useAutoTrader(
     setContinuousTradeStartAt(config.enabled ? Date.now() : null);
   }, [config.baseStake, config.enabled]);
 
-  const stableSetConfig = useCallback((val: AutoTraderConfig | ((prev: AutoTraderConfig) => AutoTraderConfig)) => {
+  const stableSetConfig = useCallback(async (val: AutoTraderConfig | ((prev: AutoTraderConfig) => AutoTraderConfig)) => {
+    let nextConfig: AutoTraderConfig;
+    
     if (typeof val === 'function') {
       setConfig(prev => {
-        const nextConfig = val(prev);
+        nextConfig = val(prev);
         
-        // Handle Graceful Stop Logic (Purely in state transition)
+        // Handle Graceful Stop (Stop Button = Wind Down)
         if (prev.enabled === true && nextConfig.enabled === false) {
           const state = sessionStateRef.current;
-          // If not IDLE and not already winding down, transition to wind down
-          if (state.status !== "IDLE" && !prev.windDownMode) {
-            return { ...prev, windDownMode: true };
+          // If not IDLE, intercept and start wind down instead of stopping immediately
+          if (state.status !== "IDLE" && !windDownMode) {
+            console.log("[AutoTrader] Graceful stop initiated (Wind Down)");
+            toast.info("Graceful stop initiated. Bot will finish this sequence and stop on the next win.");
+            setWindDownMode(true);
+            // Return prev (keep enabled: true)
+            return prev;
           }
-          // If already winding down, proceed to force stop
-          if (prev.windDownMode) {
-            return { ...nextConfig, windDownMode: false };
+          // If already in wind down mode, or IDLE, proceed with force stop
+          if (windDownMode) {
+            console.log("[AutoTrader] Force stop triggered (Wind Down already active)");
+            setWindDownMode(false);
           }
         }
 
-        // Update tracking refs synchronously
-        if (nextConfig.enabled !== prev.enabled || nextConfig.windDownMode !== prev.windDownMode) {
+        // Track manual toggle activity
+        if (nextConfig.enabled !== prev.enabled) {
+          console.log(`%c[AutoTrader] Manual Toggle Detected: enabled=${prev.enabled} -> ${nextConfig.enabled}`, "color: blue; font-weight: bold;");
           lastManualActionRef.current = Date.now();
           enabledRef.current = nextConfig.enabled;
+          
+          // Immediate persistence for enabled state change
+          if (user?.id) {
+            supabase.from('user_configs').upsert({ 
+              user_id: user.id, 
+              config: nextConfig, 
+              updated_at: new Date().toISOString() 
+            }).then(({ error }) => {
+              if (error) console.error("[AutoTrader] Immediate save failed:", error);
+              else console.log("[AutoTrader] Immediate save successful.");
+            });
+          }
         }
         
         return nextConfig;
       });
     } else {
-      const nextConfig = val;
-      const prev = config;
+      nextConfig = val;
+      const prevEnabled = enabledRef.current;
       
       // Handle Graceful Stop for object-based updates
-      if (prev.enabled === true && nextConfig.enabled === false) {
+      if (prevEnabled === true && nextConfig.enabled === false) {
         const state = sessionStateRef.current;
-        if (state.status !== "IDLE" && !prev.windDownMode) {
-          setConfig(p => ({ ...p, windDownMode: true }));
-          return;
+        if (state.status !== "IDLE" && !windDownMode) {
+          console.log("[AutoTrader] Graceful stop initiated (Wind Down)");
+          toast.info("Graceful stop initiated. Bot will finish this sequence and stop on the next win.");
+          setWindDownMode(true);
+          return; // Abort this update, keep it enabled
+        }
+        if (windDownMode) {
+          console.log("[AutoTrader] Force stop triggered");
+          setWindDownMode(false);
         }
       }
 
-      if (nextConfig.enabled !== prev.enabled || nextConfig.windDownMode !== prev.windDownMode) {
+      if (nextConfig.enabled !== prevEnabled) {
+        console.log(`%c[AutoTrader] Manual Toggle Detected: enabled=${prevEnabled} -> ${nextConfig.enabled}`, "color: blue; font-weight: bold;");
         lastManualActionRef.current = Date.now();
         enabledRef.current = nextConfig.enabled;
+
+        // Immediate persistence for enabled state change
+        if (user?.id) {
+          supabase.from('user_configs').upsert({ 
+            user_id: user.id, 
+            config: nextConfig, 
+            updated_at: new Date().toISOString() 
+          }).then(({ error }) => {
+            if (error) console.error("[AutoTrader] Immediate save failed:", error);
+            else console.log("[AutoTrader] Immediate save successful.");
+          });
+        }
       }
 
       setConfig(nextConfig);
     }
-  }, [config]);
+  }, [user?.id, windDownMode]);
 
   return {
     config,
@@ -1073,7 +1095,7 @@ export function useAutoTrader(
     ticksToWait,
     handleTradeMessage,
     execute_trade,
-    windDownMode: config?.windDownMode ?? false,
+    windDownMode,
     activateWindDown,
   };
 }
