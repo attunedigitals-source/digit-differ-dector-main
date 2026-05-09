@@ -165,7 +165,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         req_id: getNextRequestId(),
       }));
       // V4: subscribe to live tick stream
-      ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+      ws.send(JSON.stringify({ ticks: symbol, subscribe: 1, req_id: getNextRequestId() }));
     }
   }, [getNextRequestId]);
 

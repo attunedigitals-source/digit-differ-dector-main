@@ -4,7 +4,6 @@ import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import type { SymbolState } from "@/lib/signal-engine";
-import { resolveSettledMartingaleState, type SettledTradeSnapshot } from "@/lib/martingale-state";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -18,48 +17,6 @@ const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
-
-type TradeExecutionContext = SettledTradeSnapshot & {
-  symbol: string;
-  contract: "DIGITOVER" | "DIGITUNDER";
-  barrier: number;
-  timestamp: number;
-  supabaseId?: string;
-};
-
-type PendingProposalContext = TradeExecutionContext & {
-  dangerDigit: number;
-};
-
-type StoredTradeRecord = Partial<Omit<TradeRecord, "timestamp">> & {
-  timestamp?: string | number | Date;
-};
-
-type ProfitTableTransaction = {
-  sell_price?: number | string;
-  buy_price?: number | string;
-};
-
-type DerivTradeMessage = {
-  msg_type?: string;
-  req_id?: string | number;
-  echo_req?: { offset?: number };
-  profit_table?: { transactions?: ProfitTableTransaction[] };
-  proposal?: { id: string };
-  buy?: { contract_id: string | number; buy_price?: number | string };
-  proposal_open_contract?: {
-    contract_id: string | number;
-    status?: string;
-    is_sold?: boolean;
-    is_expired?: boolean;
-    profit?: number | string;
-    underlying?: string;
-  };
-  error?: { code?: string; message?: string };
-};
-
-type DailyPLBuffer = { profit: number; trades: number; wins: number };
-
 
 const selectTradeFromLast16Digits = (digits: number[]) => {
   const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
@@ -106,12 +63,11 @@ export function useAutoTrader(
       try {
         const parsed = JSON.parse(saved);
         // Safety check for missing IDs or dates
-        if (!Array.isArray(parsed)) return [];
-        return parsed.map((t: StoredTradeRecord) => ({
+        return parsed.map((t: any) => ({
           ...t,
           id: t.id || Math.random().toString(36).substring(2, 11),
           timestamp: new Date(t.timestamp || Date.now())
-        })) as TradeRecord[];
+        }));
       } catch (e) {
         console.error("Error loading tradeLog from localStorage", e);
       }
@@ -207,17 +163,11 @@ export function useAutoTrader(
 
   const lastSyncedRef = useRef({ pl: 0, trades: 0 });
   const statsRef = useRef({ pl: dailyPL, stats: dailyStats });
-  const configRef = useRef(config);
-  const dailyPLBufferRef = useRef<DailyPLBuffer>({ profit: 0, trades: 0, wins: 0 });
 
   // Keep statsRef updated for the sync loop
   useEffect(() => {
     statsRef.current = { pl: dailyPL, stats: dailyStats };
   }, [dailyPL, dailyStats]);
-
-  useEffect(() => {
-    configRef.current = config;
-  }, [config]);
 
   useEffect(() => {
     if (!user?.id || !accountInfo?.loginid) return;
@@ -259,10 +209,10 @@ export function useAutoTrader(
     return () => clearInterval(interval);
   }, [user?.id, accountInfo?.loginid]);
 
-  const pendingProposals = useRef<Map<string, PendingProposalContext>>(new Map());
-  const openContracts = useRef<Map<string, TradeExecutionContext>>(new Map());
+  const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
+  const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const settledContracts = useRef<Set<string>>(new Set());
-  const pendingBuys = useRef<Map<string, TradeExecutionContext>>(new Map());
+  const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map());
 
   const isExecutingRef = useRef(false);
   // Stores per-proposal timeout handles so they can be cancelled when a response arrives
@@ -307,12 +257,7 @@ export function useAutoTrader(
       return;
     }
 
-    const hasActiveTrade =
-      pendingProposals.current.size > 0 ||
-      pendingBuys.current.size > 0 ||
-      openContracts.current.size > 0;
-
-    if (isExecutingRef.current || sessionStateRef.current.status === "PENDING" || hasActiveTrade) {
+    if (isExecutingRef.current || sessionStateRef.current.status === "PENDING" || openContracts.current.size > 0) {
       console.log("[AutoTrader] Trade skip: already executing or pending or contract open");
       return;
     }
@@ -430,8 +375,8 @@ export function useAutoTrader(
 
       console.log("[AutoTrader] Trade decision", decision);
 
-      const pendingSessionState = {
-        ...state,
+      setSessionState(prev => ({
+        ...prev,
         currentStake: nextStake,
         martingaleStep: nextStep,
         sequenceStep: seqStep,
@@ -439,11 +384,9 @@ export function useAutoTrader(
         currentSymbol: symbol,
         currentContract: type,
         currentBarrier: barrier,
-        status: "PENDING" as const,
+        status: "PENDING",
         nextAction: "TRD_LIV",
-      };
-      sessionStateRef.current = pendingSessionState;
-      setSessionState(pendingSessionState);
+      }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
 
@@ -471,7 +414,7 @@ export function useAutoTrader(
         currency: "USD",
         duration: 1,
         duration_unit: "t",
-        underlying_symbol: symbol, // V4 API: renamed from 'symbol'
+        underlying_symbol: symbol,
         barrier: String(barrier),
         req_id: reqId,
       };
@@ -479,12 +422,8 @@ export function useAutoTrader(
       // Register the pending proposal before sending (supabaseId filled in background)
       pendingProposals.current.set(String(reqId), {
         symbol,
-        contract: type,
-        barrier,
         dangerDigit: barrier,
         stake: nextStake,
-        martingaleStep: nextStep,
-        sequenceStep: seqStep,
         timestamp: Date.now(),
         supabaseId: undefined,
       });
@@ -572,17 +511,8 @@ export function useAutoTrader(
     }
   }, [config, wsRef, accountInfo, select_random_symbol_with_last16]);
 
-  const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, tradeContext?: TradeExecutionContext) => {
+  const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
-    const settledTrade: TradeExecutionContext = tradeContext ?? {
-      symbol,
-      contract: state.currentContract,
-      barrier: state.currentBarrier,
-      stake: state.currentStake,
-      martingaleStep: state.martingaleStep,
-      sequenceStep: state.sequenceStep,
-      timestamp: Date.now(),
-    };
     const newStatus = isWin ? "WIN" : "LOSS";
     let ticksToWaitNext = randomTradeCooldownTicks(isWin);
     let nextAction = isWin
@@ -593,11 +523,11 @@ export function useAutoTrader(
       id: Math.random().toString(36).substring(2, 11),
       symbol,
       sequence_name: activeSequenceNameRef.current,
-      contract: settledTrade.contract || "UNKNOWN",
-      barrier: settledTrade.barrier || 0,
-      stake: settledTrade.stake,
+      contract: state.currentContract || "UNKNOWN",
+      barrier: state.currentBarrier || 0,
+      stake: state.currentStake,
       profit,
-      martingale_step: settledTrade.martingaleStep,
+      martingale_step: state.martingaleStep,
       status: newStatus,
       next_action: nextAction,
       timestamp: new Date(),
@@ -630,8 +560,8 @@ export function useAutoTrader(
       setMartingaleCycles(0);
     }
 
-    if (tradeContext?.supabaseId) {
-      supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", tradeContext.supabaseId).then(({ error }) => {
+    if (supabaseId) {
+      supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
         if (error) console.error("Error updating trade result in Supabase:", error);
       });
     }
@@ -644,13 +574,14 @@ export function useAutoTrader(
       toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
     }
 
-    const nextSessionState = resolveSettledMartingaleState(
-      state,
-      settledTrade,
-      isWin,
-      config.baseStake,
-      nextAction
-    );
+    const nextSessionState = {
+      ...state,
+      status: newStatus,
+      nextAction,
+      currentStake: isWin ? config.baseStake : state.currentStake,
+      martingaleStep: isWin ? 0 : state.martingaleStep,
+      sequenceStep: isWin ? 0 : state.sequenceStep,
+    };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
     setTicksToWait(ticksToWaitNext);
@@ -661,7 +592,7 @@ export function useAutoTrader(
       event: "trade_settled",
       sequence: activeSequenceNameRef.current,
       step: stepIndexRef.current,
-      trade: settledTrade.contract,
+      trade: state.currentContract,
       result: newStatus,
       symbol,
       status: newStatus,
@@ -674,51 +605,22 @@ export function useAutoTrader(
     if (ticksToWaitNext === 0 && !(windDownMode && isWin)) {
       setTimeout(() => execute_trade(), 0);
     }
-  }, [execute_trade, config.baseStake, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
+  }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
-  const fetchDailyPL = useCallback(async (offset = 0) => {
-    try {
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.warn("[AutoTrader] fetchDailyPL: WebSocket not ready");
-        return;
-      }
-
-      const now = new Date();
-      // Get start of today in UTC (00:00:00 UTC)
-      const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-      const epoch = Math.floor(startOfToday.getTime() / 1000);
-
-      if (offset === 0) {
-        console.log(`[AutoTrader] Requesting profit_table from Deriv since ${startOfToday.toISOString()} (UTC)`);
-      }
-
-      ws.send(JSON.stringify({
-        profit_table: 1,
-        date_from: epoch,
-        limit: 500,
-        offset: offset,
-        sort: "ASC"
-      }));
-    } catch (err) {
-      console.error("Unexpected error in fetchDailyPL:", err);
-    }
-  }, [wsRef]);
-
-  const handleTradeMessage = useCallback((data: DerivTradeMessage) => {
+  const handleTradeMessage = useCallback((data: any) => {
     if (data.msg_type !== "tick") {
       console.log(`[AutoTrader] Received message type: ${data.msg_type}`, data);
     }
 
     if (data.msg_type === "profit_table" && data.profit_table) {
       const transactions = data.profit_table.transactions || [];
-      const isFirstPage = (data.echo_req?.offset || 0) === 0;
+      const isFirstPage = (data.echo_req.offset || 0) === 0;
       
       // Use a temporary calculation to avoid intermediate state flickers
       let pageProfit = 0;
       let pageWins = 0;
       
-      transactions.forEach((t) => {
+      transactions.forEach((t: any) => {
         const profit = (Number(t.sell_price) || 0) - (Number(t.buy_price) || 0);
         pageProfit += profit;
         if (profit > 0) pageWins++;
@@ -727,14 +629,15 @@ export function useAutoTrader(
       // Update our accumulation refs (using functional updates or refs to keep track across pages)
       // For simplicity, we'll use the echo_req to know if we should reset
       if (isFirstPage) {
-        dailyPLBufferRef.current = { profit: pageProfit, trades: transactions.length, wins: pageWins };
+        (window as any)._dailyPLBuffer = { profit: pageProfit, trades: transactions.length, wins: pageWins };
       } else {
-        dailyPLBufferRef.current.profit += pageProfit;
-        dailyPLBufferRef.current.trades += transactions.length;
-        dailyPLBufferRef.current.wins += pageWins;
+        const buffer = (window as any)._dailyPLBuffer || { profit: 0, trades: 0, wins: 0 };
+        buffer.profit += pageProfit;
+        buffer.trades += transactions.length;
+        buffer.wins += pageWins;
       }
 
-      const buffer = dailyPLBufferRef.current;
+      const buffer = (window as any)._dailyPLBuffer;
 
       // If we got a full page and haven't hit a safety limit (e.g. 1,000,000 trades), fetch next
       if (transactions.length === 500 && buffer.trades < 1000000) {
@@ -769,7 +672,7 @@ export function useAutoTrader(
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       const buyReqId = Date.now() + Math.floor(Math.random() * 10000);
-      pendingBuys.current.set(String(buyReqId), { ...pending, timestamp: Date.now() });
+      pendingBuys.current.set(String(buyReqId), { symbol: pending.symbol, supabaseId: pending.supabaseId || "" });
       ws.send(JSON.stringify({ buy: data.proposal.id, price: pending.stake + 10, req_id: buyReqId }));
     }
 
@@ -779,11 +682,9 @@ export function useAutoTrader(
       const buyData = pendingBuys.current.get(buyReqId);
       pendingBuys.current.delete(buyReqId);
       const symbol = buyData?.symbol || "";
-      const buyPrice = Number(data.buy.buy_price ?? buyData?.stake ?? state.currentStake);
+      const buyPrice = data.buy.buy_price ?? state.currentStake;
       if (buyData?.supabaseId) supabase.from("trades").update({ contract_id: contractId }).eq("id", buyData.supabaseId).then();
-      if (buyData) {
-        openContracts.current.set(contractId, { ...buyData, stake: buyPrice, timestamp: Date.now() });
-      }
+      openContracts.current.set(contractId, { symbol, stake: buyPrice, timestamp: Date.now(), supabaseId: buyData?.supabaseId });
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 }));
     }
@@ -803,14 +704,12 @@ export function useAutoTrader(
           const isWin = (poc.profit ?? 0) > 0 || status === "won";
           const profit = Number(poc.profit) || 0;
           const openC = openContracts.current.get(contractId);
-          if (openContracts.current.has(contractId)) {
-            console.log(`[AutoTrader] Removing ${contractId} from active monitoring`);
-            openContracts.current.delete(contractId);
-          }
-          handle_result(isWin, poc.underlying || openC?.symbol || "", profit, openC);
-        } else if (openContracts.current.has(contractId)) {
-          // Always remove duplicates from openContracts if already settled to stop watchdog polling.
-          console.log(`[AutoTrader] Removing duplicate settled update ${contractId} from active monitoring`);
+          handle_result(isWin, poc.underlying || "", profit, openC?.supabaseId);
+        }
+        
+        // Always remove from openContracts if finished to stop watchdog polling
+        if (openContracts.current.has(contractId)) {
+          console.log(`[AutoTrader] Removing ${contractId} from active monitoring`);
           openContracts.current.delete(contractId);
         }
       }
@@ -827,7 +726,7 @@ export function useAutoTrader(
 
       // Reset execution lock if this error belongs to a pending trade attempt
       if (pendingProposals.current.has(reqId) || Array.from(pendingBuys.current.keys()).includes(reqId)) {
-        toast.error(`Trade error: ${data.error.message || "Unknown Deriv API error"}`);
+        toast.error(`Trade error: ${data.error.message}`);
         setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERR_RTY" }));
         setTicksToWait(30);
         isExecutingRef.current = false;
@@ -847,7 +746,7 @@ export function useAutoTrader(
         isExecutingRef.current = false;
       }
     }
-  }, [config.enabled, wsRef, handle_result, fetchDailyPL]);
+  }, [config.enabled, wsRef, handle_result, execute_trade]);
 
   useEffect(() => {
     if (!config.enabled || ticksToWait <= 0) return;
@@ -858,7 +757,34 @@ export function useAutoTrader(
   }, [config.enabled, ticksToWait]);
 
 
+  const fetchDailyPL = useCallback(async (offset = 0) => {
+    try {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn("[AutoTrader] fetchDailyPL: WebSocket not ready");
+        return;
+      }
 
+      const now = new Date();
+      // Get start of today in UTC (00:00:00 UTC)
+      const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+      const epoch = Math.floor(startOfToday.getTime() / 1000);
+
+      if (offset === 0) {
+        console.log(`[AutoTrader] Requesting profit_table from Deriv since ${startOfToday.toISOString()} (UTC)`);
+      }
+
+      ws.send(JSON.stringify({
+        profit_table: 1,
+        date_from: epoch,
+        limit: 500,
+        offset: offset,
+        sort: "ASC"
+      }));
+    } catch (err) {
+      console.error("Unexpected error in fetchDailyPL:", err);
+    }
+  }, [wsRef]);
 
   useEffect(() => {
     if (!user?.id || !connected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -881,13 +807,9 @@ export function useAutoTrader(
         pendingTrades.forEach(trade => {
           if (trade.contract_id) {
             // Populate openContracts so handle_result can find it
-            openContracts.current.set(String(trade.contract_id), {
+            openContracts.current.set(trade.contract_id, {
               symbol: trade.symbol || "",
-              contract: trade.contract || "DIGITOVER",
-              barrier: Number(trade.barrier) || 0,
               stake: Number(trade.stake) || 0,
-              martingaleStep: Number(trade.martingale_step) || sessionStateRef.current.martingaleStep,
-              sequenceStep: sessionStateRef.current.sequenceStep,
               timestamp: new Date(trade.timestamp).getTime(),
               supabaseId: trade.id
             });
@@ -930,7 +852,7 @@ export function useAutoTrader(
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
         const cloudConfig = sanitizeConfig(data.config as AutoTraderConfig);
-        if (JSON.stringify(cloudConfig) !== JSON.stringify(configRef.current)) {
+        if (JSON.stringify(cloudConfig) !== JSON.stringify(config)) {
           setConfig(prev => ({ ...prev, ...cloudConfig, enabled: prev.enabled }));
         }
       }
@@ -955,12 +877,7 @@ export function useAutoTrader(
       (sessionState.status === "IDLE") || 
       (ticksToWait === 0 && (sessionState.status === "WIN" || sessionState.status === "LOSS"));
 
-    const hasActiveTrade =
-      pendingProposals.current.size > 0 ||
-      pendingBuys.current.size > 0 ||
-      openContracts.current.size > 0;
-
-    if (shouldTrade && !isExecutingRef.current && sessionState.status !== "PENDING" && !hasActiveTrade) {
+    if (shouldTrade && !isExecutingRef.current && sessionState.status !== "PENDING" && openContracts.current.size === 0) {
       console.log("[AutoTrader] Loop trigger: executing trade");
       execute_trade();
     }
