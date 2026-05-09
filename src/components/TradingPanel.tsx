@@ -73,7 +73,7 @@ export function TradingPanel({
             min={0.35}
             step={0.1}
             value={config.baseStake}
-            onChange={(e) => onConfigChange({ ...config, baseStake: Number(e.target.value) })}
+            onChange={(e) => onConfigChange({ ...config, baseStake: Math.max(0.35, Number(e.target.value)) })}
             className="bg-muted border-border font-mono text-sm h-8"
           />
         </div>
@@ -83,11 +83,11 @@ export function TradingPanel({
           </label>
           <Input
             type="number"
-            min={1}
+            min={12}
             max={20}
             step={1}
             value={config.maxMartingaleSteps}
-            onChange={(e) => onConfigChange({ ...config, maxMartingaleSteps: Number(e.target.value) })}
+            onChange={(e) => onConfigChange({ ...config, maxMartingaleSteps: Math.max(12, Number(e.target.value)) })}
             className="bg-muted border-border font-mono text-sm h-8"
           />
         </div>

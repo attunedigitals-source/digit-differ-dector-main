@@ -882,10 +882,18 @@ export function useAutoTrader(
 
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
-        const cloudConfig = sanitizeConfig(data.config as AutoTraderConfig);
+        const merged = { ...config, ...data.config };
+        const sanitized = sanitizeConfig(merged);
         
+        // If we sanitized it (changed something), save it back to ensure DB is clean
+        if (sanitized.baseStake !== merged.baseStake || sanitized.maxMartingaleSteps !== merged.maxMartingaleSteps) {
+          console.log("[AutoTrader] Sanitized legacy config:", sanitized);
+          // Don't wait for this
+          supabase.from('user_configs').upsert({ user_id: user.id, config: sanitized });
+        }
+
         // Only merge if meaningful changes exist and avoid flipping 'enabled' back to true if it was locally disabled
-        const isDifferent = JSON.stringify(cloudConfig) !== JSON.stringify(config);
+        const isDifferent = JSON.stringify(sanitized) !== JSON.stringify(config);
         
         if (isDifferent) {
           console.group("[AutoTrader] Syncing config from Supabase");
@@ -996,12 +1004,20 @@ export function useAutoTrader(
     setContinuousTradeStartAt(config.enabled ? Date.now() : null);
   }, [config.baseStake, config.enabled]);
 
+  const sanitizeConfig = useCallback((cfg: AutoTraderConfig): AutoTraderConfig => {
+    return {
+      ...cfg,
+      baseStake: Math.max(0.35, cfg.baseStake || 0.35),
+      maxMartingaleSteps: Math.max(12, cfg.maxMartingaleSteps || 12)
+    };
+  }, []);
+
   const stableSetConfig = useCallback(async (val: AutoTraderConfig | ((prev: AutoTraderConfig) => AutoTraderConfig)) => {
     let nextConfig: AutoTraderConfig;
     
     if (typeof val === 'function') {
       setConfig(prev => {
-        nextConfig = val(prev);
+        nextConfig = sanitizeConfig(val(prev));
         
         // Handle Graceful Stop (Stop Button = Wind Down)
         if (prev.enabled === true && nextConfig.enabled === false) {
@@ -1043,7 +1059,7 @@ export function useAutoTrader(
         return nextConfig;
       });
     } else {
-      nextConfig = val;
+      nextConfig = sanitizeConfig(val);
       const prevEnabled = enabledRef.current;
       
       // Handle Graceful Stop for object-based updates
