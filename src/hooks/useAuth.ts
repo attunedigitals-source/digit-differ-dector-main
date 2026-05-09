@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export type UserRole = 'user' | 'admin' | 'sub-admin';
 export type SubscriptionStatus = 'free' | 'pending' | 'active' | 'expired' | 'suspended';
@@ -105,16 +106,55 @@ export function useAuth() {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    let profileChannel: any = null;
+
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       
       if (currentUser) {
         setProfileLoading(true);
         fetchProfile(currentUser.id);
+
+        // Single-Session Enforcer: Listen for device_id changes
+        if (profileChannel) supabase.removeChannel(profileChannel);
+        
+        profileChannel = supabase
+          .channel(`session-enforcement-${currentUser.id}`)
+          .on(
+            'postgres_changes',
+            { 
+              event: 'UPDATE', 
+              schema: 'public', 
+              table: 'profiles', 
+              filter: `id=eq.${currentUser.id}` 
+            },
+            (payload) => {
+              const serverDeviceId = payload.new.device_id;
+              const localDeviceId = localStorage.getItem('bt_device_id');
+              
+              if (serverDeviceId && localDeviceId && serverDeviceId !== localDeviceId) {
+                console.warn("[Auth] New login detected on another device. Signing out...");
+                toast.error("You have been logged in on another device. This session will close.", {
+                  duration: 5000,
+                  id: 'session-kick-out'
+                });
+                
+                // Small delay to allow the user to see the message
+                setTimeout(() => {
+                  supabase.auth.signOut();
+                }, 2000);
+              }
+            }
+          )
+          .subscribe();
       } else {
         setProfile(null);
         setProfileLoading(false);
+        if (profileChannel) {
+          supabase.removeChannel(profileChannel);
+          profileChannel = null;
+        }
       }
       
       setLoading(false);
@@ -135,7 +175,10 @@ export function useAuth() {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      authSub.unsubscribe();
+      if (profileChannel) supabase.removeChannel(profileChannel);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
