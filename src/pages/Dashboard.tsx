@@ -133,7 +133,6 @@ export default function Dashboard() {
               connected={connected}
               hasToken={!!activeOAuthAccount}
               dailyPL={dailyPL}
-              windDownMode={windDownMode}
               onActivateWindDown={activateWindDown}
             />
           </div>

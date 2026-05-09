@@ -20,7 +20,6 @@ interface TradingPanelProps {
   connected: boolean;
   hasToken: boolean;
   dailyPL: number;
-  windDownMode: boolean;
   onActivateWindDown: () => void;
 }
 
@@ -33,7 +32,6 @@ export function TradingPanel({
   connected,
   hasToken,
   dailyPL,
-  windDownMode,
   onActivateWindDown,
 }: TradingPanelProps) {
   const canTrade = connected && hasToken && config.baseStake >= 0.35;
@@ -148,7 +146,7 @@ export function TradingPanel({
       {/* Bot Control */}
       <div className={`flex items-center justify-between p-3 rounded-md border transition-all duration-300 ${
         config.enabled 
-          ? windDownMode 
+          ? config.windDownMode 
             ? "bg-orange-500/10 border-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.1)]"
             : "bg-primary/5 border-primary/20" 
           : "bg-destructive/5 border-destructive/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]"
@@ -156,7 +154,7 @@ export function TradingPanel({
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-full transition-colors ${
             config.enabled 
-              ? windDownMode
+              ? config.windDownMode
                 ? "bg-orange-500/20 text-orange-500"
                 : "bg-primary/20 text-primary" 
               : "bg-destructive/20 text-destructive"
@@ -165,13 +163,13 @@ export function TradingPanel({
           </div>
           <div>
             <div className={`text-xs font-bold uppercase tracking-tight ${
-              !config.enabled ? "text-destructive" : windDownMode ? "text-orange-500" : ""
+              !config.enabled ? "text-destructive" : config.windDownMode ? "text-orange-500" : ""
             }`}>
-              {windDownMode ? "Stopping Gracefully..." : "AI-Trading Loop"}
+              {config.windDownMode ? "Stopping Gracefully..." : "AI-Trading Loop"}
             </div>
             <div className="text-[10px] text-muted-foreground font-medium">
               {config.enabled 
-                ? windDownMode ? "Waiting for win to stop" : "Running AI..." 
+                ? config.windDownMode ? "Waiting for win to stop" : "Running AI..." 
                 : "AI is Paused"}
             </div>
           </div>
@@ -180,7 +178,7 @@ export function TradingPanel({
           checked={config.enabled}
           onCheckedChange={(enabled) => onConfigChange({ ...config, enabled })}
           disabled={!canTrade}
-          className={`${!config.enabled ? "data-[state=unchecked]:bg-destructive" : windDownMode ? "data-[state=checked]:bg-orange-500" : ""}`}
+          className={`${!config.enabled ? "data-[state=unchecked]:bg-destructive" : config.windDownMode ? "data-[state=checked]:bg-orange-500" : ""}`}
         />
       </div>
       <Button
@@ -188,15 +186,15 @@ export function TradingPanel({
         variant="outline"
         size="sm"
         className={`w-full transition-all duration-300 font-bold uppercase text-[10px] tracking-widest h-9 ${
-          windDownMode 
+          config.windDownMode 
             ? "bg-orange-500 text-white hover:bg-orange-600 border-none shadow-lg animate-pulse" 
             : "bg-orange-500/10 text-orange-500 border-orange-500/30 hover:bg-orange-500/20"
         }`}
         onClick={onActivateWindDown}
-        disabled={!config.enabled || windDownMode}
+        disabled={!config.enabled || config.windDownMode}
       >
-        <Flag className={`w-4 h-4 mr-2 ${windDownMode ? "fill-current" : ""}`} />
-        {windDownMode ? "Wind Down Armed (Waiting Profit)" : "Wind Down On Next Profit"}
+        <Flag className={`w-4 h-4 mr-2 ${config.windDownMode ? "fill-current" : ""}`} />
+        {config.windDownMode ? "Wind Down Armed (Waiting Profit)" : "Wind Down On Next Profit"}
       </Button>
 
       {/* Status Bar */}
