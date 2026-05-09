@@ -209,10 +209,11 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
     try {
       console.log(`[WebSocket] Connecting for account ${loginIdToUse}...`);
       const isLegacyToken = accessToken.startsWith("a1-") || accessToken.startsWith("v1-");
+      const appIdToUse = isLegacyToken ? "117322" : (appId || DERIV_APP_ID);
       
       const { connectDerivClient } = await import("@/lib/deriv-auth");
       const { ws } = await connectDerivClient({
-        appId: appId || DERIV_APP_ID,
+        appId: appIdToUse,
         token: accessToken,
         accountId: loginIdToUse,
         preferredAuthMethod: isLegacyToken ? "legacy_authorize" : "pat_otp"
