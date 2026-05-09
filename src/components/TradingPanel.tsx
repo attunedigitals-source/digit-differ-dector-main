@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,27 @@ export function TradingPanel({
   windDownMode,
   onActivateWindDown,
 }: TradingPanelProps) {
+  const [localStake, setLocalStake] = useState(config.baseStake.toString());
+  const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
+
+  // Sync local state when config changes from outside (e.g. sync from cloud)
+  useEffect(() => {
+    setLocalStake(config.baseStake.toString());
+  }, [config.baseStake]);
+
+  useEffect(() => {
+    setLocalSteps(config.maxMartingaleSteps.toString());
+  }, [config.maxMartingaleSteps]);
+
+  const handleStakeBlur = () => {
+    const val = parseFloat(localStake);
+    onConfigChange({ ...config, baseStake: isNaN(val) ? 0.35 : val });
+  };
+
+  const handleStepsBlur = () => {
+    const val = parseInt(localSteps);
+    onConfigChange({ ...config, maxMartingaleSteps: isNaN(val) ? 12 : val });
+  };
   const canTrade = connected && hasToken && config.baseStake >= 0.35;
   const formatCooldown = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -62,7 +84,6 @@ export function TradingPanel({
         </p>
       )}
 
-      {/* Main Configuration */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -72,8 +93,9 @@ export function TradingPanel({
             type="number"
             min={0.35}
             step={0.1}
-            value={config.baseStake}
-            onChange={(e) => onConfigChange({ ...config, baseStake: Math.max(0.35, Number(e.target.value)) })}
+            value={localStake}
+            onChange={(e) => setLocalStake(e.target.value)}
+            onBlur={handleStakeBlur}
             className="bg-muted border-border font-mono text-sm h-8"
           />
         </div>
@@ -86,8 +108,9 @@ export function TradingPanel({
             min={12}
             max={20}
             step={1}
-            value={config.maxMartingaleSteps}
-            onChange={(e) => onConfigChange({ ...config, maxMartingaleSteps: Math.max(12, Number(e.target.value)) })}
+            value={localSteps}
+            onChange={(e) => setLocalSteps(e.target.value)}
+            onBlur={handleStepsBlur}
             className="bg-muted border-border font-mono text-sm h-8"
           />
         </div>

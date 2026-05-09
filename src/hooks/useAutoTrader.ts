@@ -1005,11 +1005,19 @@ export function useAutoTrader(
   }, [config.baseStake, config.enabled]);
 
   const sanitizeConfig = useCallback((cfg: AutoTraderConfig): AutoTraderConfig => {
-    return {
-      ...cfg,
-      baseStake: Math.max(0.35, cfg.baseStake || 0.35),
-      maxMartingaleSteps: Math.max(12, cfg.maxMartingaleSteps || 12)
-    };
+    let corrected = { ...cfg };
+    
+    if (cfg.baseStake < 0.35) {
+      corrected.baseStake = 0.35;
+      toast.warning("Minimum Base Stake is $0.35", { id: 'min-stake-toast' });
+    }
+    
+    if (cfg.maxMartingaleSteps < 12) {
+      corrected.maxMartingaleSteps = 12;
+      toast.warning("Minimum Max Step is 12", { id: 'min-step-toast' });
+    }
+    
+    return corrected;
   }, []);
 
   const stableSetConfig = useCallback(async (val: AutoTraderConfig | ((prev: AutoTraderConfig) => AutoTraderConfig)) => {
