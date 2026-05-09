@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Power, PowerOff, Wifi, WifiOff } from "lucide-react";
+import { Power, PowerOff, Wifi, WifiOff, Zap } from "lucide-react";
 
 interface ConnectionStatusProps {
   connected: boolean;
