@@ -142,6 +142,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   const watchdogTimer = useRef<ReturnType<typeof setInterval>>();
   const lastMessageAt = useRef<number>(Date.now());
   const connectRef = useRef<() => Promise<void>>();
+  const isManualDisconnectRef = useRef(false);
   const requestIdRef = useRef(1);
 
   const onSignalRef = useRef<((signal: SignalWithStatus) => void) | null>(null);
@@ -170,6 +171,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   }, [getNextRequestId]);
 
   const connect = useCallback(async () => {
+    isManualDisconnectRef.current = false;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     // Initialize symbol states
@@ -201,7 +203,9 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
       };
       ws.onclose = () => {
         setConnected(false);
-        reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
+        if (!isManualDisconnectRef.current) {
+          reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
+        }
       };
       return;
     }
@@ -290,8 +294,13 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         setConnected(false);
         if (pingTimer.current) clearInterval(pingTimer.current);
         if (watchdogTimer.current) clearInterval(watchdogTimer.current);
-        console.log(`[WebSocket] Connection closed (code=${event.code}). Reconnecting in 3s...`);
-        reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
+        
+        if (!isManualDisconnectRef.current) {
+          console.log(`[WebSocket] Connection closed (code=${event.code}). Reconnecting in 3s...`);
+          reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
+        } else {
+          console.log(`[WebSocket] Connection closed manually (code=${event.code}).`);
+        }
       };
 
       ws.onerror = (err) => {
@@ -405,6 +414,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
   }, [activeLoginId]);
 
   const disconnect = useCallback(() => {
+    isManualDisconnectRef.current = true;
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     if (pingTimer.current) clearInterval(pingTimer.current);
     if (watchdogTimer.current) clearInterval(watchdogTimer.current);
