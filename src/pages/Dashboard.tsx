@@ -46,8 +46,20 @@ export default function Dashboard() {
   }, []);
 
   const handleLogout = async () => {
+    // 1. Clear Deriv specific session data
     clearDerivAuth();
+    
+    // 2. Clear any other related local storage items
+    localStorage.removeItem('deriv.session');
+    localStorage.removeItem('deriv.accounts');
+    localStorage.removeItem('deriv.activeLoginid');
+    localStorage.removeItem('bt_device_id'); // Optional: reset device ID on logout if needed
+    
+    // 3. Clear Supabase session
     await signOut();
+    
+    // 4. Force a hard redirect to the landing page to ensure all memory states are wiped
+    window.location.href = "/";
   };
   const { 
     connected, connect, disconnect, signals, results,

@@ -37,7 +37,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/admin/login");
+    window.location.href = "/admin/login";
   };
 
   const NavContent = () => (
