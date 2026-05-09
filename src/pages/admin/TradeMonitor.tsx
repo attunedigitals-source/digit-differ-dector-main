@@ -56,7 +56,7 @@ export default function TradeMonitor() {
       const { data, error } = await supabase
         .from('admin_user_performance')
         .select('*, profiles(email, subscription_status)')
-        .order('net_profit', { ascending: false });
+        .order('today_trades', { ascending: false });
       
       if (error) {
         console.error("[AdminMonitor] Fetch error:", error);
@@ -231,6 +231,17 @@ export default function TradeMonitor() {
   );
 
   function renderAccountTable(accountList: AccountSummary[]) {
+    // Sort accounts: prioritize active today trades, then total trades as fallback
+    const sortedList = [...accountList].sort((a, b) => {
+      const aToday = a.today_trades || 0;
+      const bToday = b.today_trades || 0;
+      if (bToday !== aToday) return bToday - aToday;
+
+      const aTotal = a.total_trades || 0;
+      const bTotal = b.total_trades || 0;
+      return bTotal - aTotal;
+    });
+
     return (
       <Table>
         <TableHeader>
@@ -252,54 +263,60 @@ export default function TradeMonitor() {
                 </div>
               </TableCell>
             </TableRow>
-          ) : accountList.length === 0 ? (
+          ) : sortedList.length === 0 ? (
             <TableRow>
               <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-xs italic">
                 No active accounts found in this section
               </TableCell>
             </TableRow>
           ) : (
-            accountList.map((a) => (
+            sortedList.map((a) => (
               <TableRow key={`${a.user_id}-${a.deriv_loginid}`} className="border-border/50 group hover:bg-muted/30 transition-colors">
-              <TableCell className="pl-6 py-4">
-                <div className="flex flex-col">
-                  <Link 
-                    to={`/admin/users/${a.user_id}`}
-                    className="flex items-center gap-1.5 font-bold text-sm hover:text-primary transition-colors decoration-primary underline-offset-4 hover:underline group/email"
-                  >
-                    {a.profiles?.subscription_status === 'active' ? (
-                      <UserCheck className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <User className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    {a.profiles?.email || 'System User'}
-                    <ArrowUpRight className="w-3 h-3 opacity-0 group-hover/email:opacity-100 transition-opacity" />
-                  </Link>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px] font-mono py-0 h-4 bg-background/50">
-                      ID: {a.deriv_loginid}
-                    </Badge>
+                <TableCell className="pl-6 py-4">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <Link 
+                        to={`/admin/users/${a.user_id}`}
+                        className="flex items-center gap-1.5 font-bold text-sm hover:text-primary transition-colors decoration-primary underline-offset-4 hover:underline group/email"
+                      >
+                        {a.profiles?.subscription_status === 'active' ? (
+                          <UserCheck className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <User className="w-4 h-4 text-muted-foreground" />
+                        )}
+                        {a.profiles?.email || 'System User'}
+                        <ArrowUpRight className="w-3 h-3 opacity-0 group-hover/email:opacity-100 transition-opacity" />
+                      </Link>
+                      {a.last_trade_at && (new Date().getTime() - new Date(a.last_trade_at).getTime()) < 120000 && (
+                        <Badge className="bg-green-500 hover:bg-green-600 animate-pulse text-[9px] h-4 px-1">LIVE</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] font-mono py-0 h-4 bg-background/50">
+                        ID: {a.deriv_loginid}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              </TableCell>
-              <TableCell className={`text-center font-mono text-sm font-black border-x border-border/5 ${(a.today_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                { (a.today_profit || 0) >= 0 ? '+' : ''}${(Number(a.today_profit) || 0).toFixed(2)}
-              </TableCell>
-              <TableCell className="text-center font-mono text-xs font-bold border-r border-border/5">
-                {a.today_trades || 0}
-              </TableCell>
-              <TableCell className={`text-center font-mono text-xs font-bold opacity-70 ${(a.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                ${(Number(a.net_profit) || 0).toFixed(2)}
-              </TableCell>
-              <TableCell className="text-right pr-6">
-                <div className="flex flex-col items-end">
-                  <span className="text-xs font-medium">{getRelativeTime(a.last_trade_at)}</span>
-                  <span className="text-[9px] text-muted-foreground opacity-50 font-mono">
-                    {a.last_trade_at ? new Date(a.last_trade_at).toLocaleTimeString([], { hour12: false }) : '-'}
-                  </span>
-                </div>
-              </TableCell>
-            </TableRow>
+                </TableCell>
+
+                <TableCell className={`text-center font-mono text-sm font-black border-x border-border/5 ${(a.today_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                  { (a.today_profit || 0) >= 0 ? '+' : ''}${(Number(a.today_profit) || 0).toFixed(2)}
+                </TableCell>
+                <TableCell className="text-center font-mono text-xs font-bold border-r border-border/5">
+                  {a.today_trades || 0}
+                </TableCell>
+                <TableCell className={`text-center font-mono text-xs font-bold opacity-70 ${(a.net_profit || 0) >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                  ${(Number(a.net_profit) || 0).toFixed(2)}
+                </TableCell>
+                <TableCell className="text-right pr-6">
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs font-medium">{getRelativeTime(a.last_trade_at)}</span>
+                    <span className="text-[9px] text-muted-foreground opacity-50 font-mono">
+                      {a.last_trade_at ? new Date(a.last_trade_at).toLocaleTimeString([], { hour12: false }) : '-'}
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
             ))
           )}
         </TableBody>
