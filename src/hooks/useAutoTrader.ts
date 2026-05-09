@@ -406,7 +406,9 @@ export function useAutoTrader(
       };
       setTradeLog(prev => [pendingRecord, ...prev].slice(0, 2000));
 
-      const proposalReq = {
+      const isV4 = ws.url.includes("api.derivws.com");
+      
+      const proposalReq: any = {
         proposal: 1,
         amount: nextStake,
         basis: "stake",
@@ -414,10 +416,15 @@ export function useAutoTrader(
         currency: "USD",
         duration: 1,
         duration_unit: "t",
-        underlying_symbol: symbol,
         barrier: String(barrier),
         req_id: reqId,
       };
+
+      if (isV4) {
+        proposalReq.underlying_symbol = symbol;
+      } else {
+        proposalReq.symbol = symbol;
+      }
 
       // Register the pending proposal before sending (supabaseId filled in background)
       pendingProposals.current.set(String(reqId), {
@@ -704,7 +711,7 @@ export function useAutoTrader(
           const isWin = (poc.profit ?? 0) > 0 || status === "won";
           const profit = Number(poc.profit) || 0;
           const openC = openContracts.current.get(contractId);
-          handle_result(isWin, poc.underlying || "", profit, openC?.supabaseId);
+          handle_result(isWin, poc.underlying || poc.symbol || "", profit, openC?.supabaseId);
         }
         
         // Always remove from openContracts if finished to stop watchdog polling
