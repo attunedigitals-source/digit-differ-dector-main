@@ -35,8 +35,8 @@ const selectTradeFromLast16Digits = (digits: number[]) => {
 };
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
-  const baseStake = Number(incoming?.baseStake ?? 0.35);
-  const maxMartingaleSteps = Number(incoming?.maxMartingaleSteps ?? 10);
+  const baseStake = Math.max(0.35, Number(incoming?.baseStake ?? 0.35));
+  const maxMartingaleSteps = Math.max(12, Number(incoming?.maxMartingaleSteps ?? 12));
   const rawCooldownMinutes = Number(incoming?.cooldownIntervalMinutes ?? DEFAULT_COOLDOWN_INTERVAL_MINUTES);
   const cooldownIntervalMinutes = COOLDOWN_INTERVAL_OPTIONS.includes(rawCooldownMinutes as AutoTraderConfig["cooldownIntervalMinutes"])
     ? (rawCooldownMinutes as AutoTraderConfig["cooldownIntervalMinutes"])
@@ -898,14 +898,14 @@ export function useAutoTrader(
         if (isDifferent) {
           console.group("[AutoTrader] Syncing config from Supabase");
           console.log("Local Config:", config);
-          console.log("Cloud Config:", cloudConfig);
+          console.log("Cloud Config:", sanitized);
           
           setConfig(prev => {
-            const finalEnabled = prev.enabled === false ? false : cloudConfig.enabled;
-            if (finalEnabled !== cloudConfig.enabled && cloudConfig.enabled === true) {
+            const finalEnabled = prev.enabled === false ? false : sanitized.enabled;
+            if (finalEnabled !== sanitized.enabled && sanitized.enabled === true) {
               console.warn("[AutoTrader] Cloud tried to enable bot, but local is disabled. Overriding cloud.");
             }
-            return { ...prev, ...cloudConfig, enabled: finalEnabled };
+            return { ...prev, ...sanitized, enabled: finalEnabled };
           });
           console.groupEnd();
         }
@@ -1004,7 +1004,7 @@ export function useAutoTrader(
     setContinuousTradeStartAt(config.enabled ? Date.now() : null);
   }, [config.baseStake, config.enabled]);
 
-  const sanitizeConfig = useCallback((cfg: AutoTraderConfig): AutoTraderConfig => {
+  const sanitizeConfigWithToasts = useCallback((cfg: AutoTraderConfig): AutoTraderConfig => {
     let corrected = { ...cfg };
     
     if (cfg.baseStake < 0.35) {
@@ -1025,7 +1025,7 @@ export function useAutoTrader(
     
     if (typeof val === 'function') {
       setConfig(prev => {
-        nextConfig = sanitizeConfig(val(prev));
+        nextConfig = sanitizeConfigWithToasts(val(prev));
         
         // Handle Graceful Stop (Stop Button = Wind Down)
         if (prev.enabled === true && nextConfig.enabled === false) {
@@ -1067,7 +1067,7 @@ export function useAutoTrader(
         return nextConfig;
       });
     } else {
-      nextConfig = sanitizeConfig(val);
+      nextConfig = sanitizeConfigWithToasts(val);
       const prevEnabled = enabledRef.current;
       
       // Handle Graceful Stop for object-based updates
