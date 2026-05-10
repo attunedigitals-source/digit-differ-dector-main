@@ -22,8 +22,13 @@ import {
   Clock,
   User as UserIcon,
   CreditCard,
-  AlertCircle
+  AlertCircle,
+  Terminal
 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import { getSymbolName } from "@/lib/deriv-symbols";
 
 interface Trade {
@@ -215,6 +220,23 @@ export default function UserDetail() {
     refetchInterval: 5000 
   });
 
+  const updateLogsMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ enable_logs: enabled })
+        .eq('id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-user-profile", userId] });
+      toast.success("User console log preference updated");
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to update user setting: ${err.message}`);
+    }
+  });
+
   if (profileLoading && !profile) {
     return (
       <AdminLayout title="User Details">
@@ -275,13 +297,35 @@ export default function UserDetail() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-5">
-          <SummaryCard
-            title="User Identity"
-            value={profile?.email}
-            subtitle={`TZ: ${profile?.timezone || 'UTC'}`}
-            icon={<UserIcon className="w-5 h-5 text-primary" />}
-            valueClassName="text-sm leading-tight whitespace-normal break-all"
-          />
+          <div className="md:col-span-1">
+            <Card className="border-border bg-card/40 p-4 h-full">
+              <div className="flex flex-col h-full justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase">User Identity</p>
+                    <UserIcon className="w-4 h-4 text-primary" />
+                  </div>
+                  <h4 className="text-sm font-bold leading-tight break-all">{profile?.email}</h4>
+                  <p className="text-xs text-muted-foreground">TZ: {profile?.timezone || 'UTC'}</p>
+                </div>
+                
+                <div className="pt-3 border-t border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Terminal className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-bold uppercase">Console Logs</span>
+                    </div>
+                    <Switch 
+                      checked={profile?.enable_logs ?? true}
+                      onCheckedChange={(checked) => updateLogsMutation.mutate(checked)}
+                      disabled={updateLogsMutation.isPending}
+                      className="scale-75 origin-right"
+                    />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
           <SummaryCard title="Today (WAT)" value={`${(dualPL?.wat || 0) >= 0 ? "+" : ""}${(dualPL?.wat || 0).toFixed(2)}`} subtitle="Africa/Lagos" icon={<TrendingUp className="w-5 h-5 text-green-500" />} isPositive={(dualPL?.wat || 0) >= 0} />
           <SummaryCard title="Today (Local)" value={`${(dualPL?.local || 0) >= 0 ? "+" : ""}${(dualPL?.local || 0).toFixed(2)}`} subtitle="Client Timeframe" icon={<TrendingUp className="w-5 h-5 text-blue-500" />} isPositive={(dualPL?.local || 0) >= 0} />
           <SummaryCard title="Total Volume" value={`${totalTradesCount}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-slate-500" />} />

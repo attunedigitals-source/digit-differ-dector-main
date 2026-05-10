@@ -1,47 +1,95 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const ConsoleGuard = ({ children }: { children: React.ReactNode }) => {
+  const [globalEnabled, setGlobalEnabled] = useState(true);
+  const [userEnabled, setUserEnabled] = useState(true);
+
   useEffect(() => {
-    // Store original console methods
+    // Store original console methods locally in the effect to keep them pure
     const originalLog = window.console.log;
     const originalInfo = window.console.info;
     const originalWarn = window.console.warn;
     const originalDebug = window.console.debug;
 
-    const applyPreference = (enabled: boolean) => {
-      if (!enabled) {
-        window.console.log = () => {};
-        window.console.info = () => {};
-        window.console.warn = () => {};
-        window.console.debug = () => {};
-      } else {
-        window.console.log = originalLog;
-        window.console.info = originalInfo;
-        window.console.warn = originalWarn;
-        window.console.debug = originalDebug;
-      }
-    };
+    const isCurrentlyEnabled = globalEnabled && userEnabled;
 
-    // Initial fetch
-    const fetchPreference = async () => {
-      const { data, error } = await supabase
+    if (!isCurrentlyEnabled) {
+      window.console.log = () => {};
+      window.console.info = () => {};
+      window.console.warn = () => {};
+      window.console.debug = () => {};
+    } else {
+      window.console.log = originalLog;
+      window.console.info = originalInfo;
+      window.console.warn = originalWarn;
+      window.console.debug = originalDebug;
+    }
+
+    return () => {
+      // Restore on effect cleanup or change
+      window.console.log = originalLog;
+      window.console.info = originalInfo;
+      window.console.warn = originalWarn;
+      window.console.debug = originalDebug;
+    };
+  }, [globalEnabled, userEnabled]);
+
+  useEffect(() => {
+    let userChannel: any;
+
+    const initialize = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // 1. Fetch Global Preference
+      const { data: globalData } = await supabase
         .from('system_settings')
         .select('value')
         .eq('key', 'enable_client_logs')
         .maybeSingle();
       
-      if (!error && data) {
-        const isEnabled = data.value === true || data.value === 'true';
-        applyPreference(isEnabled);
+      if (globalData) {
+        setGlobalEnabled(globalData.value === true || globalData.value === 'true');
+      }
+
+      // 2. Fetch User-Specific Preference
+      if (user) {
+        const { data: userData } = await supabase
+          .from('profiles')
+          .select('enable_logs')
+          .eq('id', user.id)
+          .maybeSingle();
+        
+        if (userData) {
+          setUserEnabled(userData.enable_logs);
+        }
+
+        // 3. Subscribe to individual user preference changes
+        userChannel = supabase
+          .channel(`user-log-sync-${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${user.id}`
+            },
+            (payload: any) => {
+              if (payload.new) {
+                setUserEnabled(payload.new.enable_logs);
+              }
+            }
+          )
+          .subscribe();
       }
     };
 
-    fetchPreference();
+    initialize();
 
-    // Realtime subscription
-    const channel = supabase
-      .channel('system-settings-changes')
+    // 4. Subscribe to global preference changes
+    const globalChannel = supabase
+      .channel('global-log-sync')
       .on(
         'postgres_changes',
         {
@@ -52,20 +100,15 @@ export const ConsoleGuard = ({ children }: { children: React.ReactNode }) => {
         },
         (payload: any) => {
           if (payload.new) {
-            const isEnabled = payload.new.value === true || payload.new.value === 'true';
-            applyPreference(isEnabled);
+            setGlobalEnabled(payload.new.value === true || payload.new.value === 'true');
           }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
-      // Restore on unmount
-      window.console.log = originalLog;
-      window.console.info = originalInfo;
-      window.console.warn = originalWarn;
-      window.console.debug = originalDebug;
+      supabase.removeChannel(globalChannel);
+      if (userChannel) supabase.removeChannel(userChannel);
     };
   }, []);
 
