@@ -21,7 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 const sections = [
   { id: "overview", title: "Overview" },
   { id: "access", title: "1. Access Digit Bot Pro" },
-  { id: "fetch-balances", title: "2. Fetch Account Balances" },
+  { id: "fetch-balances", title: "2. Select account & Fetch Balance" },
   { id: "configure-ai", title: "3. Configure & Start AI" },
   { id: "wind-down", title: "4. Graceful Exit: Wind Down" },
   { id: "best-practices", title: "Best Practices" },
@@ -195,16 +195,19 @@ const Documentation = () => {
               </div>
             </section>
 
-            {/* 2. Fetch Account Balances */}
+            {/* 2. Select account to trade & Fetch account Balance */}
             <section id="fetch-balances" className="scroll-mt-32">
               <div className="mb-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <CircleDollarSign className="h-6 w-6" />
                   </div>
-                  <h2 className="text-3xl font-bold">2. Fetch Account Balances</h2>
+                  <h2 className="text-3xl font-bold">2. Select account to trade & Fetch account Balance</h2>
                 </div>
-                <p className="text-muted-foreground mb-8 text-lg">Click START to connect to Deriv and load your account information.</p>
+                <p className="text-muted-foreground mb-8 text-lg">
+                  Before you begin trading, you must select the correct account and connect to Deriv. 
+                  <span className="block mt-2 text-primary font-semibold italic">Important: New users should always start with a Demo account to familiarize themselves with the engine.</span>
+                </p>
                 <div className="grid md:grid-cols-3 gap-6 mb-8">
                   <div className="p-4 bg-background/50 rounded-2xl border border-border/50 text-center">
                     <p className="font-bold text-primary mb-1">Step 1</p>
@@ -212,24 +215,24 @@ const Documentation = () => {
                   </div>
                   <div className="p-4 bg-background/50 rounded-2xl border border-border/50 text-center">
                     <p className="font-bold text-primary mb-1">Step 2</p>
-                    <p className="text-sm text-muted-foreground">Click the green <strong>START</strong> button at the top right.</p>
+                    <p className="text-sm text-muted-foreground">Select your <strong>Demo</strong> or Real account from the switcher.</p>
                   </div>
                   <div className="p-4 bg-background/50 rounded-2xl border border-border/50 text-center">
                     <p className="font-bold text-primary mb-1">Step 3</p>
-                    <p className="text-sm text-muted-foreground">Your balances will be fetched from Deriv.</p>
+                    <p className="text-sm text-muted-foreground">Click the green <strong>START</strong> button at the top right.</p>
                   </div>
                 </div>
                 <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500 mb-8">
-                  <img src="/doc-step-2-fetch.png" alt="Fetch Account Balances" className="w-full h-auto" />
+                  <img src="/doc-step-select-account.png" alt="Select account & Fetch Balance" className="w-full h-auto" />
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex gap-3">
                     <CheckCircle2 className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-                    <p className="text-sm text-muted-foreground">Balances and performance data will appear after you connect.</p>
+                    <p className="text-sm text-muted-foreground">Your balances and performance data will appear after you connect.</p>
                   </div>
                   <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20 flex gap-3">
                     <ShieldCheck className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
-                    <p className="text-sm text-muted-foreground">Digit Bot Pro only accesses the account data you authorize.</p>
+                    <p className="text-sm text-muted-foreground">Switch between accounts easily using the top navigation switcher.</p>
                   </div>
                 </div>
               </div>
