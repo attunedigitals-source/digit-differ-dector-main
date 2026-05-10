@@ -92,7 +92,7 @@ const Documentation = () => {
               Master Digit Bot Pro from setup to execution.
             </h1>
             <p className="text-lg leading-relaxed text-muted-foreground md:text-xl">
-              Digit Bot Pro is an advanced trading assistant for Deriv synthetic indices. This guide provides step-by-step visual instructions to ensure your automation is configured for maximum discipline and capital safety.
+              Digit Bot Pro is an advanced trading tool for Deriv synthetic indices. This guide provides step-by-step visual instructions to ensure your automation is configured for maximum discipline and capital safety.
             </p>
           </div>
 
