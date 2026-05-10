@@ -336,7 +336,7 @@ const Documentation = () => {
                 <div className="grid gap-4">
                   {[
                     "Start small on a Demo account until you understand the engine's behavior.",
-                    "Set a daily loss limit before you start and stick to it without exception.",
+                    "Start with 0.35 as base stake with Max step of 12",
                     "Use a stable internet connection; the bot requires real-time data to execute safely.",
                     "Review your trade history after each session to refine your stake and max steps.",
                     "Never trade with funds that are essential for your daily living expenses."
