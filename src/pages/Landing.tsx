@@ -168,22 +168,22 @@ const Landing = () => {
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">1</div>
                   <div>
-                    <h4 className="text-xl font-bold mb-1">Connect Your Account</h4>
-                    <p className="text-muted-foreground">Securely connect using your Deriv API token for direct account access.</p>
+                    <h4 className="text-xl font-bold mb-1">Access & Connect</h4>
+                    <p className="text-muted-foreground">Launch the tool and securely link your account via the Deriv API integration.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">2</div>
                   <div>
-                    <h4 className="text-xl font-bold mb-1">Configure Strategy</h4>
-                    <p className="text-muted-foreground">Set your preferred market, stake, and protection settings to match your trading plan.</p>
+                    <h4 className="text-xl font-bold mb-1">Select & Configure</h4>
+                    <p className="text-muted-foreground">Choose between Demo or Real accounts and set your AI engine parameters for trading.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">3</div>
                   <div>
-                    <h4 className="text-xl font-bold mb-1">Use the Tool</h4>
-                    <p className="text-muted-foreground">Launch Digit Bot Pro and let the predictive engine execute your configured strategy with discipline.</p>
+                    <h4 className="text-xl font-bold mb-1">Smart Execution</h4>
+                    <p className="text-muted-foreground">Initiate the AI trading loop and use the 'Wind Down' feature to exit safely on profit.</p>
                   </div>
                 </div>
               </div>
