@@ -10,8 +10,13 @@ import {
   UserPlus, 
   UserMinus,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Terminal
 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
 import { 
   BarChart, 
   Bar, 
@@ -25,6 +30,8 @@ import {
 } from "recharts";
 
 export default function AdminDashboard() {
+  const queryClient = useQueryClient();
+
   // Fetch high-level stats
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
@@ -35,13 +42,15 @@ export default function AdminDashboard() {
         { count: paidUsers },
         { count: freeUsers },
         { count: pendingPayments },
-        { data: recentRevenue }
+        { data: recentRevenue },
+        { data: logSetting }
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'free'),
         supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('payments').select('amount, created_at').eq('status', 'approved').order('created_at', { ascending: false }).limit(100)
+        supabase.from('payments').select('amount, created_at').eq('status', 'approved').order('created_at', { ascending: false }).limit(100),
+        supabase.from('system_settings').select('value').eq('key', 'enable_client_logs').single()
       ]);
 
       return {
@@ -49,8 +58,25 @@ export default function AdminDashboard() {
         paidUsers: paidUsers || 0,
         freeUsers: freeUsers || 0,
         pendingPayments: pendingPayments || 0,
-        recentRevenue: recentRevenue || []
+        recentRevenue: recentRevenue || [],
+        enableClientLogs: logSetting?.value === true || logSetting?.value === 'true'
       };
+    }
+  });
+
+  const updateLogsMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({ key: 'enable_client_logs', value: enabled }, { onConflict: 'key' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+      toast.success("Client console logs preference updated");
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to update settings: ${err.message}`);
     }
   });
 
@@ -109,6 +135,32 @@ export default function AdminDashboard() {
             description="Limited to demo trading" 
           />
         </div>
+
+        {/* System Settings & Controls */}
+        <Card className="border-border bg-card/40">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Terminal className="w-5 h-5 text-primary" />
+              <CardTitle className="text-lg font-semibold">Global System Controls</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 bg-background/50 rounded-xl border border-border/50">
+              <div className="space-y-0.5">
+                <Label htmlFor="client-logs" className="text-base font-bold">Client Console Logs</Label>
+                <p className="text-sm text-muted-foreground">
+                  When disabled, all console.log messages will be suppressed on the client side for all users.
+                </p>
+              </div>
+              <Switch 
+                id="client-logs" 
+                checked={stats?.enableClientLogs ?? true}
+                onCheckedChange={(checked) => updateLogsMutation.mutate(checked)}
+                disabled={updateLogsMutation.isPending}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
           {/* Revenue Trends */}

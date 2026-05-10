@@ -19,38 +19,41 @@ import TradeMonitor from "./pages/admin/TradeMonitor.tsx";
 import ChurnAnalytics from "./pages/admin/Churn.tsx";
 import UserDetail from "./pages/admin/UserDetail.tsx";
 import { AdminGuard } from "./components/AdminGuard.tsx";
+import { ConsoleGuard } from "./components/ConsoleGuard.tsx";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/auth" element={<Index />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/documentation" element={<Documentation />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms-of-service" element={<TermsOfService />} />
-          
-          {/* Protected Admin Routes */}
-          <Route path="/admin/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
-          <Route path="/admin/users" element={<AdminGuard><UserManagement /></AdminGuard>} />
-          <Route path="/admin/users/:userId" element={<AdminGuard><UserDetail /></AdminGuard>} />
-          <Route path="/admin/revenue" element={<AdminGuard><RevenueAnalytics /></AdminGuard>} />
-          <Route path="/admin/trades" element={<AdminGuard><TradeMonitor /></AdminGuard>} />
-          <Route path="/admin/churn" element={<AdminGuard><ChurnAnalytics /></AdminGuard>} />
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ConsoleGuard>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/auth" element={<Index />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/documentation" element={<Documentation />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            
+            {/* Protected Admin Routes */}
+            <Route path="/admin/dashboard" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
+            <Route path="/admin/users" element={<AdminGuard><UserManagement /></AdminGuard>} />
+            <Route path="/admin/users/:userId" element={<AdminGuard><UserDetail /></AdminGuard>} />
+            <Route path="/admin/revenue" element={<AdminGuard><RevenueAnalytics /></AdminGuard>} />
+            <Route path="/admin/trades" element={<AdminGuard><TradeMonitor /></AdminGuard>} />
+            <Route path="/admin/churn" element={<AdminGuard><ChurnAnalytics /></AdminGuard>} />
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ConsoleGuard>
   </QueryClientProvider>
 );
 
