@@ -149,7 +149,7 @@ export default function AdminDashboard() {
               <div className="space-y-0.5">
                 <Label htmlFor="client-logs" className="text-base font-bold">Client Console Logs</Label>
                 <p className="text-sm text-muted-foreground">
-                  When disabled, all console.log messages will be suppressed on the client side for all users.
+                  Master Switch: When disabled, all console messages are silenced for EVERYONE. When enabled, individual user preferences apply.
                 </p>
               </div>
               <Switch 

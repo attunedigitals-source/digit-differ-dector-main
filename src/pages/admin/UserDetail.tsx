@@ -313,7 +313,7 @@ export default function UserDetail() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <Terminal className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase">Console Logs</span>
+                      <span className="text-[10px] font-bold uppercase">Console Logs (Off by Default)</span>
                     </div>
                     <Switch 
                       checked={profile?.enable_logs ?? true}
