@@ -20,6 +20,7 @@ import ChurnAnalytics from "./pages/admin/Churn.tsx";
 import UserDetail from "./pages/admin/UserDetail.tsx";
 import { AdminGuard } from "./components/AdminGuard.tsx";
 import { ConsoleGuard } from "./components/ConsoleGuard.tsx";
+import { TawkChat } from "./components/TawkChat.tsx";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <TawkChat />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
