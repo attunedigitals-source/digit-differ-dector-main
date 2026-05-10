@@ -359,19 +359,19 @@ const Documentation = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-3">
                     <h4 className="font-bold text-foreground text-lg">Connection Fails</h4>
-                    <p className="text-muted-foreground leading-relaxed">Verify your API token permissions on Deriv. Ensure you're on a stable network and that the token hasn't been revoked.</p>
+                    <p className="text-muted-foreground leading-relaxed">Verify that you are connected, if not click START to get connected</p>
                   </div>
                   <div className="space-y-3">
                     <h4 className="font-bold text-foreground text-lg">No Trades Executing</h4>
-                    <p className="text-muted-foreground leading-relaxed">Confirm market symbols are selected in the AI panel and that your Base Stake is greater than the market minimum ($0.35).</p>
+                    <p className="text-muted-foreground leading-relaxed">Check the Recent Trades section and see if there is no pending trades, if there is, wait for 5 minutes and if there is no change, log out and re-login</p>
                   </div>
                   <div className="space-y-3">
                     <h4 className="font-bold text-foreground text-lg">Unexpected Stops</h4>
-                    <p className="text-muted-foreground leading-relaxed">The AI Engine auto-stops if a Daily Loss Limit or Profit Target is hit. Check your AI dashboard statistics for hit limits.</p>
+                    <p className="text-muted-foreground leading-relaxed">The AI Engine auto-stops if a Daily Loss Limit is hit. Check your AI dashboard statistics for hit limits.</p>
                   </div>
                   <div className="space-y-3">
                     <h4 className="font-bold text-foreground text-lg">UI Not Updating</h4>
-                    <p className="text-muted-foreground leading-relaxed">If stats appear stuck, try refreshing the page. Your token and settings are saved locally and will persist.</p>
+                    <p className="text-muted-foreground leading-relaxed">If stats appear stuck, try refreshing the page.</p>
                   </div>
                 </div>
               </div>
