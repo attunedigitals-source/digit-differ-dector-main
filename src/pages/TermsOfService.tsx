@@ -14,7 +14,7 @@ const TermsOfService = () => (
         <h2 className="text-xl font-bold text-foreground">2. Nature of Service</h2>
         <p>Digit Bot Pro provides tooling and automation support; it is not investment advice, brokerage, or guaranteed profit service.</p>
         <h2 className="text-xl font-bold text-foreground">3. Account Responsibilities</h2>
-        <p>You are responsible for account security, API token management, and all activity conducted through your account.</p>
+        <p>You are responsible for account security and all activity conducted through your account.</p>
         <h2 className="text-xl font-bold text-foreground">4. Payments and Subscriptions</h2>
         <p>Paid access features are governed by the plan presented at purchase. Fees may be non-refundable except where required by law or explicitly stated.</p>
         <h2 className="text-xl font-bold text-foreground">5. Risk Disclosure</h2>

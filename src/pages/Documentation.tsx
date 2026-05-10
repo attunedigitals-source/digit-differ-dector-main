@@ -35,8 +35,8 @@ const highlights = [
     icon: Zap,
   },
   {
-    title: "Secure API Workflow",
-    description: "Connect safely with your Deriv token. We prioritize security and only require basic trading permissions.",
+    title: "Secure Connection",
+    description: "Connect safely using the official Deriv login. We prioritize security and only require basic trading permissions.",
     icon: KeyRound,
   },
   {
@@ -189,7 +189,7 @@ const Documentation = () => {
                 </div>
                 <div className="bg-secondary/10 p-6 rounded-2xl border border-border">
                   <p className="text-sm text-muted-foreground">
-                    <strong>Secure & Seamless:</strong> Your Deriv account is secure. Digit Bot Pro only accesses your account through the Deriv API with the permissions you grant.
+                    <strong>Secure & Seamless:</strong> Your Deriv account is secure. Digit Bot Pro only accesses your account with the secure permissions you grant through Deriv.
                   </p>
                 </div>
               </div>

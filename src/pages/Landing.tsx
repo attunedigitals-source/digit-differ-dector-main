@@ -169,7 +169,7 @@ const Landing = () => {
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">1</div>
                   <div>
                     <h4 className="text-xl font-bold mb-1">Access & Connect</h4>
-                    <p className="text-muted-foreground">Launch the tool and securely link your account via the Deriv API integration.</p>
+                    <p className="text-muted-foreground">Launch the tool and securely link your account via the official Deriv integration.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -222,12 +222,12 @@ const Landing = () => {
               </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Your Security, <br />Our Priority.</h2>
               <p className="text-muted-foreground text-lg mb-8 leading-relaxed">
-                Digit Bot Pro uses the Deriv API within a privacy-first, client-side architecture. Your API credentials and trade activity stay on your device and are never stored on our servers.
+                Digit Bot Pro uses the official Deriv integration within a privacy-first, client-side architecture. Your account access and trade activity stay on your device and are never stored on our servers.
               </p>
               <ul className="space-y-4">
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
-                  <span>Official Deriv API Integration</span>
+                  <span>Official Deriv Integration</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
@@ -276,7 +276,7 @@ const Landing = () => {
                 <h4 className="font-bold mb-4">Support</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                                     <li><Link to="/documentation" className="hover:text-primary transition-colors">Documentation</Link></li>
-                  <li><a href="#" className="hover:text-primary transition-colors">API Status</a></li>
+                  <li><a href="#" className="hover:text-primary transition-colors">System Status</a></li>
                                     <li><a href="https://t.me/Blade234" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">Contact</a></li>
                 </ul>
               </div>

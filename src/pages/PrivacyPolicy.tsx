@@ -11,8 +11,8 @@ const PrivacyPolicy = () => (
         <p>This Privacy Policy explains how Digit Bot Pro collects, uses, stores, and protects your information when you use our website and services.</p>
         <h2 className="text-xl font-bold text-foreground">1. Information We Collect</h2>
         <p>We may collect account details (such as email), subscription/payment metadata, device/browser data, and operational logs required to maintain service quality and security.</p>
-        <h2 className="text-xl font-bold text-foreground">2. API Credentials and Trading Data</h2>
-        <p>Digit Bot Pro is designed with a client-side architecture. API tokens and active trade execution data are intended to remain on your device during normal use. We do not intentionally store your private trading credentials in plain form on our servers.</p>
+        <h2 className="text-xl font-bold text-foreground">2. Account Access and Trading Data</h2>
+        <p>Digit Bot Pro is designed with a client-side architecture. Account access and active trade execution data are intended to remain on your device during normal use. We do not intentionally store your private trading credentials in plain form on our servers.</p>
         <h2 className="text-xl font-bold text-foreground">3. How We Use Information</h2>
         <p>We use information to authenticate users, provide subscriptions, support customers, improve reliability, detect abuse/fraud, and comply with legal obligations.</p>
         <h2 className="text-xl font-bold text-foreground">4. Legal Bases and Consent</h2>
