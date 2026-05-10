@@ -20,11 +20,10 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const sections = [
   { id: "overview", title: "Overview" },
-  { id: "register", title: "1. Getting Started" },
-  { id: "connect-deriv", title: "2. Connect Deriv API" },
-  { id: "setup-strategy", title: "3. Paste API & Setup Engine" },
-  { id: "start-trading", title: "4. Use the App" },
-  { id: "risk-controls", title: "5. Risk & Safety" },
+  { id: "access", title: "1. Access Digit Bot Pro" },
+  { id: "fetch-balances", title: "2. Fetch Account Balances" },
+  { id: "configure-ai", title: "3. Configure & Start AI" },
+  { id: "wind-down", title: "4. Graceful Exit: Wind Down" },
   { id: "best-practices", title: "Best Practices" },
   { id: "troubleshooting", title: "Troubleshooting" },
 ];
@@ -143,125 +142,184 @@ const Documentation = () => {
           {/* Main Content Area */}
           <div className="space-y-24">
             
-            {/* 1. How to Register */}
-            <section id="register" className="scroll-mt-32">
+            {/* 1. Access Digit Bot Pro */}
+            <section id="access" className="scroll-mt-32">
               <div className="mb-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <UserPlus className="h-6 w-6" />
                   </div>
-                  <h2 className="text-3xl font-bold">1. Getting Started & Registration</h2>
+                  <h2 className="text-3xl font-bold">1. Access Digit Bot Pro & Redirect</h2>
                 </div>
-                <p className="text-muted-foreground mb-8 text-lg">Begin by visiting the Digit Bot Pro homepage and creating your secure account. We support both Google and email registration to keep your configuration private.</p>
-                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                  <img src="/docs/doc-registration-guide.png" alt="Getting Started and Registration Guide" className="w-full h-auto" />
+                <p className="text-muted-foreground mb-8 text-lg">
+                  You can access Deriv by using any of the options below. Both options will take you to Deriv for login or account creation.
+                </p>
+                <div className="grid md:grid-cols-2 gap-8 mb-8">
+                  <div className="space-y-4">
+                    <div className="flex gap-4 items-start p-4 bg-background/50 rounded-2xl border border-border/50">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</div>
+                      <p className="text-muted-foreground">Click <strong>"Launch Tool"</strong> to go to Deriv and start trading.</p>
+                    </div>
+                    <div className="flex gap-4 items-start p-4 bg-background/50 rounded-2xl border border-border/50">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</div>
+                      <p className="text-muted-foreground">Click <strong>"Login"</strong> (top right) to go to Deriv.</p>
+                    </div>
+                    <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 flex gap-3">
+                      <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                      <p className="text-sm text-muted-foreground"><strong>Tip:</strong> You can login or create a new account on Deriv when you click "Launch Tool" or "Login".</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex gap-3 items-center text-muted-foreground">
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <span>Redirected to Deriv for secure login</span>
+                    </div>
+                    <div className="flex gap-3 items-center text-muted-foreground">
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <span>Login if you already have an account</span>
+                    </div>
+                    <div className="flex gap-3 items-center text-muted-foreground">
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <span>Create a new account if you're new</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500 mb-8">
+                  <img src="/doc-step-1-access.png" alt="Access Digit Bot Pro" className="w-full h-auto" />
+                </div>
+                <div className="bg-secondary/10 p-6 rounded-2xl border border-border">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Secure & Seamless:</strong> Your Deriv account is secure. Digit Bot Pro only accesses your account through the Deriv API with the permissions you grant.
+                  </p>
                 </div>
               </div>
             </section>
 
-            {/* 2. Connect Deriv API */}
-            <section id="connect-deriv" className="scroll-mt-32">
-              <div className="mb-8 space-y-12">
-                <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <KeyRound className="h-6 w-6" />
-                    </div>
-                    <h2 className="text-3xl font-bold">2. Connect Deriv API</h2>
+            {/* 2. Fetch Account Balances */}
+            <section id="fetch-balances" className="scroll-mt-32">
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <CircleDollarSign className="h-6 w-6" />
                   </div>
-                  <p className="text-muted-foreground mb-8 text-lg">
-                    To enable trading, you need to link your Deriv account or{" "}
-                    <a 
-                      href="https://home.deriv.com/dashboard/signup?lang=en" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary font-semibold hover:underline"
-                    >
-                      create a Deriv Account
-                    </a>{" "}
-                    if you do not have one. In your Deriv Trader's Hub, select <strong>Demo</strong> first and follow these steps to navigate to the API Token section.
-                  </p>
-                  <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                    <img src="/docs/doc-deriv-nav-guide.png" alt="Deriv Navigation Guide" className="w-full h-auto" />
+                  <h2 className="text-3xl font-bold">2. Fetch Account Balances</h2>
+                </div>
+                <p className="text-muted-foreground mb-8 text-lg">Click START to connect to Deriv and load your account information.</p>
+                <div className="grid md:grid-cols-3 gap-6 mb-8">
+                  <div className="p-4 bg-background/50 rounded-2xl border border-border/50 text-center">
+                    <p className="font-bold text-primary mb-1">Step 1</p>
+                    <p className="text-sm text-muted-foreground">Open the Digit Bot Pro dashboard.</p>
+                  </div>
+                  <div className="p-4 bg-background/50 rounded-2xl border border-border/50 text-center">
+                    <p className="font-bold text-primary mb-1">Step 2</p>
+                    <p className="text-sm text-muted-foreground">Click the green <strong>START</strong> button at the top right.</p>
+                  </div>
+                  <div className="p-4 bg-background/50 rounded-2xl border border-border/50 text-center">
+                    <p className="font-bold text-primary mb-1">Step 3</p>
+                    <p className="text-sm text-muted-foreground">Your balances will be fetched from Deriv.</p>
                   </div>
                 </div>
-
-                <div className="grid md:grid-cols-2 gap-8 items-center bg-primary/5 p-8 rounded-3xl border border-primary/20">
-                  <div>
-                    <h3 className="font-bold text-primary text-xl mb-3 flex items-center gap-2">
-                      <ShieldCheck className="h-6 w-6" /> Secure Your Account
-                    </h3>
-                    <p className="text-muted-foreground leading-relaxed">
-                      Only select the necessary scopes: <strong>Read</strong>, <strong>Trade</strong>, and <strong>Trading Information</strong>. 
-                      <span className="block mt-2 text-red-400 font-medium italic">Do NOT select Admin or Payments permissions.</span>
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <CheckCircle2 className="h-5 w-5 text-primary" /> Paste token exactly as copied
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <CheckCircle2 className="h-5 w-5 text-primary" /> Confirm "Connected" status
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <CheckCircle2 className="h-5 w-5 text-primary" /> Switch between Real/Demo easily
-                    </div>
-                  </div>
+                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500 mb-8">
+                  <img src="/doc-step-2-fetch.png" alt="Fetch Account Balances" className="w-full h-auto" />
                 </div>
-
-                <div>
-                  <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                    <img src="/docs/doc-deriv-setup.png" alt="Deriv API Token Creation" className="w-full h-auto" />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-sm text-muted-foreground">Balances and performance data will appear after you connect.</p>
                   </div>
-                  <p className="text-muted-foreground mt-8 text-lg">Once you've created your token, copy it carefully and update the settings in your Digit Bot Pro panel.</p>
+                  <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20 flex gap-3">
+                    <ShieldCheck className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <p className="text-sm text-muted-foreground">Digit Bot Pro only accesses the account data you authorize.</p>
+                  </div>
                 </div>
               </div>
             </section>
 
             {/* 3. Configure AI Engine */}
-            <section id="setup-strategy" className="scroll-mt-32">
+            <section id="configure-ai" className="scroll-mt-32">
               <div className="mb-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Settings2 className="h-6 w-6" />
                   </div>
-                  <h2 className="text-3xl font-bold">3. Paste API, Update and Configure AI Engine</h2>
+                  <h2 className="text-3xl font-bold">3. Verify & Configure AI Engine</h2>
                 </div>
-                <p className="text-muted-foreground mb-8 text-lg">Set your base stake, maximum steps (Martingale), and cooldown intervals. The AI engine uses these parameters to manage your trading session automatically.</p>
-                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                  <img src="/docs/doc-app-setup.png" alt="AI Engine Configuration" className="w-full h-auto" />
+                <p className="text-muted-foreground mb-8 text-lg">Once connected, verify your balance and configure the engine settings for your trading session.</p>
+                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500 mb-8">
+                  <img src="/doc-step-3-configure.png" alt="Configure AI Engine" className="w-full h-auto" />
                 </div>
-              </div>
-            </section>
-
-            {/* 4. Start Trading */}
-            <section id="start-trading" className="scroll-mt-32">
-              <div className="mb-8">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <PlayCircle className="h-6 w-6" />
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-lg">1. Verify Connection</h4>
+                    <ul className="space-y-3">
+                      <li className="flex gap-3 items-center text-muted-foreground">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                        <span>Status changes to <strong>CONNECTED</strong></span>
+                      </li>
+                      <li className="flex gap-3 items-center text-muted-foreground">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                        <span>Account balances displayed automatically</span>
+                      </li>
+                    </ul>
                   </div>
-                  <h2 className="text-3xl font-bold">4. Start Trading</h2>
-                </div>
-                <p className="text-muted-foreground mb-8 text-lg">With your account connected and strategy configured, you can initiate the AI-Trading Loop. Monitor performance in real-time on your dashboard.</p>
-                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                  <img src="/docs/doc-trading-setup.jpg" alt="How to Start Trading" className="w-full h-auto" />
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-lg">2. Configure Settings</h4>
+                    <ul className="space-y-3">
+                      <li className="flex gap-3 items-center text-muted-foreground">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                        <span>Set Base Stake & Max Step</span>
+                      </li>
+                      <li className="flex gap-3 items-center text-muted-foreground">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                        <span>Adjust Cooldown Intervals</span>
+                      </li>
+                      <li className="flex gap-3 items-center text-muted-foreground">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                        <span>Start the AI Trading Loop</span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </section>
 
-            {/* 5. Risk & Safety */}
-            <section id="risk-controls" className="scroll-mt-32">
+            {/* 4. Graceful Exit: Wind Down */}
+            <section id="wind-down" className="scroll-mt-32">
               <div className="mb-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning">
                     <LockKeyhole className="h-6 w-6" />
                   </div>
-                  <h2 className="text-3xl font-bold text-warning">5. Risk & Safety: Wind Down</h2>
+                  <h2 className="text-3xl font-bold text-warning">4. Graceful Exit: Wind Down</h2>
                 </div>
-                <p className="text-muted-foreground mb-8 text-lg">Never stop abruptly. Use the <strong>Wind Down on Next Profit</strong> feature to let the bot finish its current sequence and exit the market gracefully after the next winning trade.</p>
-                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500">
-                  <img src="/docs/doc-wind-down.jpg" alt="Risk Management & Wind Down" className="w-full h-auto" />
+                <p className="text-muted-foreground mb-8 text-lg">Let your bot finish strong. The bot will continue trading until the next profitable exit, then stop safely.</p>
+                <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500 mb-8">
+                  <img src="/doc-step-4-wind-down.png" alt="Wind Down Feature" className="w-full h-auto" />
+                </div>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-lg">Smart Exit Control</h4>
+                    <p className="text-muted-foreground leading-relaxed">
+                      Locate the <strong>"WIND DOWN ON NEXT PROFIT"</strong> button at the bottom of the Digits AI Engine panel. This ensures no abrupt stops or open trade interruptions.
+                    </p>
+                    <div className="bg-amber-500/10 p-4 rounded-2xl border border-amber-500/20">
+                      <p className="text-sm text-amber-600 font-bold">Important:</p>
+                      <p className="text-xs text-muted-foreground mt-1">Monitor your session and use this feature when you want to end trading on a profit-led exit.</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4 p-6 bg-secondary/10 rounded-3xl border border-border">
+                    <h4 className="font-bold text-lg">How it works:</h4>
+                    <ol className="space-y-4">
+                      <li className="flex gap-4">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-bold">1</div>
+                        <p className="text-sm text-muted-foreground">The bot keeps trading as usual after activation.</p>
+                      </li>
+                      <li className="flex gap-4">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-bold">2</div>
+                        <p className="text-sm text-muted-foreground">When the next profitable trade closes, the bot stops safely.</p>
+                      </li>
+                    </ol>
+                  </div>
                 </div>
               </div>
             </section>
