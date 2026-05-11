@@ -335,6 +335,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         const historicalDigits = prices.map((p) => extractLastDigit(p as number | string));
         state.digits = historicalDigits.slice(-1000);
         state.tickCount = historicalDigits.length;
+        state.updatedAt = Date.now();
         statesRef.current.set(symbol, state);
         setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
         if (historicalDigits.length > 0) {

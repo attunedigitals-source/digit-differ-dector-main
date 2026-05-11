@@ -17,6 +17,9 @@ const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
+const MIN_DOMINANCE_GAP = 2;
+const MAX_TICK_AGE_MS = 10000;
+const SETTLED_CONTRACT_RETENTION_MS = 60 * 60 * 1000;
 
 const selectTradeFromLast16Digits = (digits: number[]) => {
   const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
@@ -129,10 +132,27 @@ export function useAutoTrader(
     return true;
   }, [wsRef]);
 
+  const cleanupSettledContracts = useCallback(() => {
+    const now = Date.now();
+    let deletedCount = 0;
+    settledContracts.current.forEach((timestamp, contractId) => {
+      if (now - timestamp > SETTLED_CONTRACT_RETENTION_MS) {
+        settledContracts.current.delete(contractId);
+        deletedCount++;
+      }
+    });
+    if (deletedCount > 0) {
+      console.log(`[AutoTrader] Cleaned up ${deletedCount} settled contracts from memory.`);
+    }
+  }, []);
+
   // Watchdog: monitor and resolve stuck execution
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
+
+      // Clean up memory
+      cleanupSettledContracts();
 
       // Poll open contracts that haven't settled within 30s
       openContracts.current.forEach((contract, id) => {
@@ -159,7 +179,7 @@ export function useAutoTrader(
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [requestContractStatus]);
+  }, [requestContractStatus, cleanupSettledContracts]);
 
   const sessionStateRef = useRef(sessionState);
   useEffect(() => {
@@ -219,7 +239,7 @@ export function useAutoTrader(
 
   const pendingProposals = useRef<Map<string, { symbol: string; dangerDigit: number; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
   const openContracts = useRef<Map<string, { symbol: string; stake: number; timestamp: number; supabaseId?: string }>>(new Map());
-  const settledContracts = useRef<Set<string>>(new Set());
+  const settledContracts = useRef<Map<string, number>>(new Map());
   const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map());
 
   const isExecutingRef = useRef(false);
@@ -229,6 +249,7 @@ export function useAutoTrader(
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
   const symbolTradeStreakRef = useRef<Map<string, { trade: TradeCategory; count: number }>>(new Map());
+  const freshnessWarningLogged = useRef(false);
 
   const select_random_symbol_with_last16 = useCallback(() => {
     const symbols = [
@@ -236,16 +257,65 @@ export function useAutoTrader(
       "R_10", "R_25", "R_50", "R_75", "R_100",
     ];
 
-    const candidates = symbols
-      .map((symbol) => ({
+    const candidates = symbols.map((symbol) => {
+      const state = getSymbolState(symbol);
+      const last16Digits = state?.digits?.slice(-16) ?? [];
+      const updatedAt = state?.updatedAt;
+      const tickAgeMs = updatedAt ? Date.now() - updatedAt : null;
+      
+      // Freshness check
+      let isFresh = true;
+      if (updatedAt === undefined) {
+        if (!freshnessWarningLogged.current) {
+          console.warn("[AutoTrader] Market freshness check fallback: SymbolState has no recognized tick timestamp field. Freshness could not be verified.");
+          freshnessWarningLogged.current = true;
+        }
+      } else if (tickAgeMs! > MAX_TICK_AGE_MS) {
+        isFresh = false;
+      }
+
+      const decision = selectTradeFromLast16Digits(last16Digits);
+      
+      // Dominance gap calculation: highest category count minus second-highest category count
+      const countsArray = Object.values(decision.counts);
+      countsArray.sort((a, b) => b - a);
+      const dominanceGap = countsArray[0] - countsArray[1];
+
+      return {
         symbol,
-        last16Digits: getSymbolState(symbol)?.digits?.slice(-16) ?? [],
-      }))
-      .filter(({ last16Digits }) => last16Digits.length >= 16);
+        last16Digits,
+        decision,
+        dominanceGap,
+        isFresh,
+        tickAgeMs,
+        digitCount: last16Digits.length
+      };
+    });
 
-    if (candidates.length === 0) return null;
+    const qualified = candidates.filter(c => 
+      c.digitCount >= 16 && 
+      c.isFresh && 
+      c.dominanceGap >= MIN_DOMINANCE_GAP
+    );
 
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    if (qualified.length === 0) {
+      console.log("[AutoTrader] Candidate Selection Summary (None Qualified):", candidates.map(c => ({
+        symbol: c.symbol,
+        digits: c.digitCount,
+        gap: c.dominanceGap,
+        fresh: c.isFresh,
+        age: c.tickAgeMs ? `${Math.round(c.tickAgeMs/1000)}s` : 'N/A'
+      })));
+      return null;
+    }
+
+    const selected = qualified[Math.floor(Math.random() * qualified.length)];
+    return {
+      symbol: selected.symbol,
+      last16Digits: selected.last16Digits,
+      decision: selected.decision,
+      dominanceGap: selected.dominanceGap
+    };
   }, [getSymbolState]);
 
   const randomCooldownSeconds = useCallback(() => {
@@ -288,13 +358,14 @@ export function useAutoTrader(
 
       const selectedSymbolData = select_random_symbol_with_last16();
       if (!selectedSymbolData) {
-        console.warn("[AutoTrader] Trade skipped: insufficient tick history across all configured volatilities. Need 16 digits per symbol.");
+        console.warn("[AutoTrader] Trade skipped: no symbols met history, freshness, or dominance requirements.");
+        setSessionState(prev => ({ ...prev, nextAction: "SKP_WEAK_DOM" }));
+        setTicksToWait(3);
         isExecutingRef.current = false;
         return;
       }
 
-      const { symbol, last16Digits } = selectedSymbolData;
-      const decision = selectTradeFromLast16Digits(last16Digits);
+      const { symbol, last16Digits, decision, dominanceGap } = selectedSymbolData;
 
       const categoryLabels: Record<TradeCategory, string> = {
         under4: "Under 4",
@@ -308,22 +379,10 @@ export function useAutoTrader(
         symbol,
         last16Digits: last16Digits.join(""),
         last16DigitsArray: last16Digits,
-      });
-      console.log("[AutoTrader] Frequency of occurrence", {
-        "Under 4": decision.counts.under4,
-        "Over 4": decision.counts.over4,
-        "Under 5": decision.counts.under5,
-        "Over 5": decision.counts.over5,
-      });
-      if (topLabels.length > 1) {
-        console.log("[AutoTrader] Tie detected", {
-          tiedCategories: topLabels,
-          tieCount: decision.counts[decision.topCategories[0]],
-        });
-      }
-      console.log("[AutoTrader] Highest frequency selection", {
+        counts: decision.counts,
         topCategories: topLabels,
         selectedCategory: categoryLabels[decision.selectedTrade],
+        dominanceGap,
       });
 
       const trade = decision.selectedTrade;
@@ -632,16 +691,57 @@ export function useAutoTrader(
     }
   }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
+  const handleDerivError = useCallback((data: any) => {
+    const reqId = data.req_id === undefined || data.req_id === null ? undefined : String(data.req_id);
+    console.error(`[AutoTrader] Deriv API Error (req_id: ${reqId}):`, data.error);
+
+    const isProposalError = reqId && pendingProposals.current.has(reqId);
+    const isBuyError = reqId && pendingBuys.current.has(reqId);
+    const isTradeFlowError = isProposalError || isBuyError;
+
+    if (reqId) {
+      // Clear proposal timeouts
+      const timeout = proposalTimeouts.current.get(reqId);
+      if (timeout) {
+        clearTimeout(timeout);
+        proposalTimeouts.current.delete(reqId);
+      }
+
+      // Remove from pending maps
+      pendingProposals.current.delete(reqId);
+      pendingBuys.current.delete(reqId);
+    }
+
+    if (isTradeFlowError) {
+      toast.error(`Trade error: ${data.error.message}`);
+      setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
+      setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERR_RTY" }));
+      setTicksToWait(30);
+      isExecutingRef.current = false;
+    }
+
+    // Handle ContractNotFound specifically
+    if (data.error.code === "ContractNotFound") {
+      console.warn("[AutoTrader] Contract not found on Deriv. Clearing stale open contract references.");
+      openContracts.current.clear(); 
+      isExecutingRef.current = false;
+    }
+  }, []);
+
   const handleTradeMessage = useCallback((data: any) => {
     if (data.msg_type !== "tick") {
       console.log(`[AutoTrader] Received message type: ${data.msg_type}`, data);
+    }
+
+    if (data.error) {
+      handleDerivError(data);
+      return;
     }
 
     if (data.msg_type === "profit_table" && data.profit_table) {
       const transactions = data.profit_table.transactions || [];
       const isFirstPage = (data.echo_req.offset || 0) === 0;
       
-      // Use a temporary calculation to avoid intermediate state flickers
       let pageProfit = 0;
       let pageWins = 0;
       
@@ -651,8 +751,6 @@ export function useAutoTrader(
         if (profit > 0) pageWins++;
       });
 
-      // Update our accumulation refs (using functional updates or refs to keep track across pages)
-      // For simplicity, we'll use the echo_req to know if we should reset
       if (isFirstPage) {
         (window as any)._dailyPLBuffer = { profit: pageProfit, trades: transactions.length, wins: pageWins };
       } else {
@@ -664,7 +762,6 @@ export function useAutoTrader(
 
       const buffer = (window as any)._dailyPLBuffer;
 
-      // If we got a full page and haven't hit a safety limit (e.g. 1,000,000 trades), fetch next
       if (transactions.length === 500 && buffer.trades < 1000000) {
         console.log(`[AutoTrader] Received 500 trades (Total: ${buffer.trades}), fetching next page...`);
         fetchDailyPL(buffer.trades);
@@ -688,7 +785,6 @@ export function useAutoTrader(
       const pending = pendingProposals.current.get(reqId);
       if (!pending) return;
       pendingProposals.current.delete(reqId);
-      // Fix 2: Proposal arrived in time — cancel the self-heal timeout
       const timeout = proposalTimeouts.current.get(reqId);
       if (timeout) {
         clearTimeout(timeout);
@@ -725,53 +821,20 @@ export function useAutoTrader(
       if (isFinished) {
         if (!settledContracts.current.has(contractId)) {
           console.log(`[AutoTrader] Settling contract ${contractId} (${status})`);
-          settledContracts.current.add(contractId);
+          settledContracts.current.set(contractId, Date.now());
           const isWin = (poc.profit ?? 0) > 0 || status === "won";
           const profit = Number(poc.profit) || 0;
           const openC = openContracts.current.get(contractId);
           handle_result(isWin, poc.underlying || poc.symbol || "", profit, openC?.supabaseId);
         }
         
-        // Always remove from openContracts if finished to stop watchdog polling
         if (openContracts.current.has(contractId)) {
           console.log(`[AutoTrader] Removing ${contractId} from active monitoring`);
           openContracts.current.delete(contractId);
         }
       }
     }
-
-    if (data.msg_type === "profit_table" && data.profit_table) {
-      // Handled above the enabled check
-      return;
-    }
-
-    if (data.error) {
-      const reqId = String(data.req_id);
-      console.error(`[AutoTrader] API Error (req_id: ${reqId}):`, data.error);
-
-      // Reset execution lock if this error belongs to a pending trade attempt
-      if (pendingProposals.current.has(reqId) || Array.from(pendingBuys.current.keys()).includes(reqId)) {
-        toast.error(`Trade error: ${data.error.message}`);
-        setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERR_RTY" }));
-        setTicksToWait(30);
-        isExecutingRef.current = false;
-        
-        pendingProposals.current.delete(reqId);
-        // Clear buy if match
-        const buyReq = Array.from(pendingBuys.current.keys()).find(k => k === reqId);
-        if (buyReq) pendingBuys.current.delete(buyReq);
-      }
-
-      // If it's a contract status error and we have it in openContracts, clear it
-      if (data.msg_type === "proposal_open_contract" && data.error.code === "ContractNotFound") {
-        // We don't have the contract ID directly in the error top-level usually, 
-        // but we can check our open contracts if the watchdog just polled.
-        console.warn("[AutoTrader] Contract not found on Deriv. Clearing stale references.");
-        openContracts.current.clear(); // Nuclear option if we hit this, or we could be more specific
-        isExecutingRef.current = false;
-      }
-    }
-  }, [config.enabled, wsRef, handle_result, execute_trade]);
+  }, [config.enabled, wsRef, handle_result, execute_trade, handleDerivError]);
 
   useEffect(() => {
     if (!config.enabled || ticksToWait <= 0) return;

@@ -3,6 +3,7 @@ export interface SymbolState {
   digits: number[];
   tickCount: number;
   lastSignalTick: number;
+  updatedAt?: number;
 }
 
 export interface Signal {
@@ -17,7 +18,7 @@ export interface Signal {
 const MAX_HISTORY = 1000;
 
 export function createSymbolState(symbol: string): SymbolState {
-  return { symbol, digits: [], tickCount: 0, lastSignalTick: -10 };
+  return { symbol, digits: [], tickCount: 0, lastSignalTick: -10, updatedAt: Date.now() };
 }
 
 export function extractLastDigit(quote: number | string): number {
@@ -29,7 +30,7 @@ export function extractLastDigit(quote: number | string): number {
 export function addTick(state: SymbolState, digit: number): SymbolState {
   const digits = [...state.digits, digit];
   if (digits.length > MAX_HISTORY) digits.shift();
-  return { ...state, digits, tickCount: state.tickCount + 1 };
+  return { ...state, digits, tickCount: state.tickCount + 1, updatedAt: Date.now() };
 }
 
 export function getLeastFrequentDigits(digits: number[], count: number = 4): number[] {
