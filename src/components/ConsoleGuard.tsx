@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const ConsoleGuard = ({ children }: { children: React.ReactNode }) => {
-  const [globalEnabled, setGlobalEnabled] = useState(true);
-  const [userEnabled, setUserEnabled] = useState(true);
+  const [globalEnabled, setGlobalEnabled] = useState(false);
+  const [userEnabled, setUserEnabled] = useState(false);
 
   useEffect(() => {
     // Store original console methods locally in the effect to keep them pure

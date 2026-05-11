@@ -154,7 +154,7 @@ export default function AdminDashboard() {
               </div>
               <Switch 
                 id="client-logs" 
-                checked={stats?.enableClientLogs ?? true}
+                checked={stats?.enableClientLogs ?? false}
                 onCheckedChange={(checked) => updateLogsMutation.mutate(checked)}
                 disabled={updateLogsMutation.isPending}
               />

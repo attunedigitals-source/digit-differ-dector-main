@@ -80,8 +80,6 @@ export default function TradeMonitor() {
           const profit = Number(newTrade.profit_loss) || 0;
           const isToday = new Date(newTrade.timestamp).toDateString() === new Date().toDateString();
 
-          toast.info(`New trade on ${newTrade.deriv_loginid}: ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`, { duration: 2000 });
-
           // Update local cache incrementally for instant feel
           queryClient.setQueryData(['admin-accounts'], (oldAccounts: AccountSummary[] | undefined) => {
             if (!oldAccounts) return oldAccounts;

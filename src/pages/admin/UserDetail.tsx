@@ -316,7 +316,7 @@ export default function UserDetail() {
                       <span className="text-[10px] font-bold uppercase">Console Logs (Off by Default)</span>
                     </div>
                     <Switch 
-                      checked={profile?.enable_logs ?? true}
+                      checked={profile?.enable_logs ?? false}
                       onCheckedChange={(checked) => updateLogsMutation.mutate(checked)}
                       disabled={updateLogsMutation.isPending}
                       className="scale-75 origin-right"
