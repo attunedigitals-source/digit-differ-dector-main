@@ -18,7 +18,7 @@ const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
 
-const selectTradeFromLast16Digits = (digits: number[]) => {
+const selectTradeFromDigits = (digits: number[]) => {
   const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
   for (const digit of digits) {
     if (digit < 4) counts.under4 += 1;
@@ -229,8 +229,9 @@ export function useAutoTrader(
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
   const symbolTradeStreakRef = useRef<Map<string, { trade: TradeCategory; count: number }>>(new Map());
+  const useReducedWindowSize = useRef(false);
 
-  const select_random_symbol_with_last16 = useCallback(() => {
+  const select_random_symbol_with_history = useCallback((windowSize: number = 16) => {
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
       "R_10", "R_25", "R_50", "R_75", "R_100",
@@ -239,13 +240,14 @@ export function useAutoTrader(
     const candidates = symbols
       .map((symbol) => ({
         symbol,
-        last16Digits: getSymbolState(symbol)?.digits?.slice(-16) ?? [],
+        digits: getSymbolState(symbol)?.digits?.slice(-windowSize) ?? [],
       }))
-      .filter(({ last16Digits }) => last16Digits.length >= 16);
+      .filter(({ digits }) => digits.length >= windowSize);
 
     if (candidates.length === 0) return null;
 
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    const selected = candidates[Math.floor(Math.random() * candidates.length)];
+    return { symbol: selected.symbol, history: selected.digits };
   }, [getSymbolState]);
 
   const randomCooldownSeconds = useCallback(() => {
@@ -286,15 +288,16 @@ export function useAutoTrader(
       let nextStep = state.martingaleStep;
       let seqStep = state.sequenceStep;
 
-      const selectedSymbolData = select_random_symbol_with_last16();
+      const windowSize = useReducedWindowSize.current ? 10 : 16;
+      const selectedSymbolData = select_random_symbol_with_history(windowSize);
       if (!selectedSymbolData) {
-        console.warn("[AutoTrader] Trade skipped: insufficient tick history across all configured volatilities. Need 16 digits per symbol.");
+        console.warn(`[AutoTrader] Trade skipped: insufficient tick history across all configured volatilities. Need ${windowSize} digits per symbol.`);
         isExecutingRef.current = false;
         return;
       }
 
-      const { symbol, last16Digits } = selectedSymbolData;
-      const decision = selectTradeFromLast16Digits(last16Digits);
+      const { symbol, history } = selectedSymbolData;
+      const decision = selectTradeFromDigits(history);
 
       const categoryLabels: Record<TradeCategory, string> = {
         under4: "Under 4",
@@ -306,8 +309,9 @@ export function useAutoTrader(
 
       console.log("[AutoTrader] Volatility selection", {
         symbol,
-        last16Digits: last16Digits.join(""),
-        last16DigitsArray: last16Digits,
+        windowSize,
+        history: history.join(""),
+        historyArray: history,
       });
       console.log("[AutoTrader] Frequency of occurrence", {
         "Under 4": decision.counts.under4,
@@ -315,8 +319,16 @@ export function useAutoTrader(
         "Under 5": decision.counts.under5,
         "Over 5": decision.counts.over5,
       });
+      if (topLabels.length > 2) {
+        console.log("[AutoTrader] Volatility skipped: Tie exceeds 2 categories", {
+          tiedCategories: topLabels,
+          tieCount: decision.counts[decision.topCategories[0]],
+        });
+        isExecutingRef.current = false;
+        return;
+      }
       if (topLabels.length > 1) {
-        console.log("[AutoTrader] Tie detected", {
+        console.log("[AutoTrader] Tie detected (<= 2 categories)", {
           tiedCategories: topLabels,
           tieCount: decision.counts[decision.topCategories[0]],
         });
@@ -336,6 +348,10 @@ export function useAutoTrader(
           trackedCount: streak.count,
           reason: "Same trade type was already taken last for this volatility; waiting for a different trade type before allowing another of the same type.",
         });
+        if (state.status === "LOSS") {
+          useReducedWindowSize.current = true;
+          console.log("[AutoTrader] Recovery mode: skipped same direction after loss, reducing window size to 10 for next attempt.");
+        }
         setSessionState(prev => ({
           ...prev,
           nextAction: "SKP_DIR"
@@ -529,9 +545,12 @@ export function useAutoTrader(
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
-  }, [config, wsRef, accountInfo, select_random_symbol_with_last16]);
+  }, [config, wsRef, accountInfo, select_random_symbol_with_history]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
+    if (isWin) {
+      useReducedWindowSize.current = false;
+    }
     const state = sessionStateRef.current;
     const newStatus = isWin ? "WIN" : "LOSS";
     let ticksToWaitNext = randomTradeCooldownTicks(isWin);
