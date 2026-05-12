@@ -278,6 +278,7 @@ export default function UserManagement() {
                   <TableRow className="hover:bg-transparent border-border">
                     <TableHead className="text-xs">User</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Trial Status</TableHead>
                     <TableHead className="text-xs">Lifetime Perf</TableHead>
                     <TableHead className="text-xs">Plan Expiry</TableHead>
                     <TableHead className="text-xs">Role</TableHead>
@@ -307,6 +308,37 @@ export default function UserManagement() {
                         }`}>
                           {u.subscription_status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {u.subscription_status === 'free' && u.trial_started_at ? (
+                          (() => {
+                            const startTime = new Date(u.trial_started_at).getTime();
+                            const durationMs = u.trial_duration_days * 24 * 60 * 60 * 1000;
+                            const expiryTime = startTime + durationMs;
+                            const now = new Date().getTime();
+                            const diff = expiryTime - now;
+                            
+                            if (diff <= 0) return <span className="text-[10px] text-destructive font-bold uppercase">Expired</span>;
+                            
+                            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            return (
+                              <div className="flex flex-col">
+                                <span className="text-xs font-mono font-medium text-blue-400">{days}d {hours}h left</span>
+                                <div className="w-16 h-1 bg-muted rounded-full mt-1 overflow-hidden">
+                                  <div 
+                                    className="h-full bg-blue-500" 
+                                    style={{ width: `${Math.max(0, Math.min(100, (diff / durationMs) * 100))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : u.subscription_status === 'active' ? (
+                          <Badge variant="outline" className="text-[9px] bg-green-500/5 text-green-500 border-green-500/20">UNLIMITED</Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground italic">N/A</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">

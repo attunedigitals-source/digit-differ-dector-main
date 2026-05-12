@@ -11,12 +11,15 @@ import {
   UserMinus,
   ArrowUpRight,
   ArrowDownRight,
-  Terminal
+  Terminal,
+  Clock
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { 
   BarChart, 
   Bar, 
@@ -50,7 +53,8 @@ export default function AdminDashboard() {
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'free'),
         supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('payments').select('amount, created_at').eq('status', 'approved').order('created_at', { ascending: false }).limit(100),
-        supabase.from('system_settings').select('value').eq('key', 'enable_client_logs').single()
+        supabase.from('system_settings').select('value').eq('key', 'enable_client_logs').single(),
+        supabase.from('system_settings').select('value').eq('key', 'default_trial_duration').single()
       ]);
 
       return {
@@ -59,10 +63,22 @@ export default function AdminDashboard() {
         freeUsers: freeUsers || 0,
         pendingPayments: pendingPayments || 0,
         recentRevenue: recentRevenue || [],
-        enableClientLogs: logSetting?.value === true || logSetting?.value === 'true'
+        enableClientLogs: logSetting?.value === true || logSetting?.value === 'true',
+        defaultTrialDuration: trialSetting?.value ? String(trialSetting.value) : '7'
       };
     }
   });
+
+    }
+  });
+  
+  const [trialInput, setTrialInput] = useState("");
+  
+  useEffect(() => {
+    if (stats?.defaultTrialDuration) {
+      setTrialInput(stats.defaultTrialDuration);
+    }
+  }, [stats?.defaultTrialDuration]);
 
   const updateLogsMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
@@ -74,6 +90,25 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
       toast.success("Client console logs preference updated");
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to update settings: ${err.message}`);
+    }
+  });
+
+  const updateTrialMutation = useMutation({
+    mutationFn: async (days: string) => {
+      const val = parseInt(days);
+      if (isNaN(val) || val < 0) throw new Error("Invalid duration");
+      
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({ key: 'default_trial_duration', value: String(val) }, { onConflict: 'key' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+      toast.success("Default trial duration updated");
     },
     onError: (err: any) => {
       toast.error(`Failed to update settings: ${err.message}`);
@@ -158,6 +193,36 @@ export default function AdminDashboard() {
                 onCheckedChange={(checked) => updateLogsMutation.mutate(checked)}
                 disabled={updateLogsMutation.isPending}
               />
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-background/50 rounded-xl border border-border/50">
+              <div className="space-y-0.5">
+                <Label htmlFor="trial-duration" className="text-base font-bold">Default Trial Duration</Label>
+                <p className="text-sm text-muted-foreground">
+                  The number of days for the demo trial period assigned to new users upon first login.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative w-24">
+                  <Input 
+                    id="trial-duration"
+                    type="number"
+                    min="1"
+                    value={trialInput}
+                    onChange={(e) => setTrialInput(e.target.value)}
+                    className="pr-10 h-10"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-bold">DAYS</span>
+                </div>
+                <Button 
+                  onClick={() => updateTrialMutation.mutate(trialInput)}
+                  disabled={updateTrialMutation.isPending || trialInput === stats?.defaultTrialDuration}
+                  size="sm"
+                  className="h-10"
+                >
+                  Save
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

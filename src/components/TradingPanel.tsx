@@ -4,9 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target, Flag } from "lucide-react";
+import { Bot, DollarSign, TrendingUp, Shuffle, Clock, Target, Flag, AlertCircle } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { getSymbolName } from "@/lib/deriv-symbols";
+import { UserProfile } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface TradingPanelProps {
   config: AutoTraderConfig;
@@ -23,6 +25,7 @@ interface TradingPanelProps {
   dailyPL: number;
   windDownMode: boolean;
   onActivateWindDown: () => void;
+  profile?: UserProfile | null;
 }
 
 export function TradingPanel({
@@ -36,6 +39,7 @@ export function TradingPanel({
   dailyPL,
   windDownMode,
   onActivateWindDown,
+  profile,
 }: TradingPanelProps) {
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
@@ -63,7 +67,14 @@ export function TradingPanel({
   const isStakeValid = !isNaN(stakeVal) && stakeVal >= 0.35;
   const isStepsValid = !isNaN(stepsVal) && stepsVal >= 12;
 
-  const canTrade = connected && hasToken && isStakeValid && isStepsValid;
+  const isTrialExpired = (() => {
+    if (!profile || profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
+    const startTime = new Date(profile.trial_started_at).getTime();
+    const durationMs = profile.trial_duration_days * 24 * 60 * 60 * 1000;
+    return (startTime + durationMs) < new Date().getTime();
+  })();
+
+  const canTrade = connected && hasToken && isStakeValid && isStepsValid && !isTrialExpired;
   const formatCooldown = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -213,13 +224,22 @@ export function TradingPanel({
         <Switch
           checked={config.enabled}
           onCheckedChange={(enabled) => {
-            if (enabled && !canTrade) {
-              toast.error("Requirements not met: Stake ≥ 0.35 and Steps ≥ 12");
-              return;
+            if (enabled) {
+              if (isTrialExpired) {
+                toast.error("Your free trial has expired, click your Real Account to subscribe", {
+                  duration: 6000,
+                  icon: <AlertCircle className="text-red-500" />
+                });
+                return;
+              }
+              if (!canTrade) {
+                toast.error("Requirements not met: Stake ≥ 0.35 and Steps ≥ 12");
+                return;
+              }
             }
             onConfigChange({ ...config, enabled });
           }}
-          disabled={!canTrade && !config.enabled}
+          disabled={(!canTrade && !config.enabled) || isTrialExpired}
           className={`${!config.enabled ? "data-[state=unchecked]:bg-destructive" : windDownMode ? "data-[state=checked]:bg-orange-500" : ""}`}
         />
       </div>

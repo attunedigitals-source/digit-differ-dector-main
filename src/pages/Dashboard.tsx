@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Zap } from "lucide-react";
 import { getActiveAccount, clearDerivAuth } from "@/lib/deriv-oauth";
+import { TrialCountdown } from "@/components/TrialCountdown";
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   
   const [activeOAuthAccount, setActiveOAuthAccount] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -105,6 +106,11 @@ export default function Dashboard() {
               Live Digits Engine
             </div>
           </div>
+          
+          <div className="flex-1 flex justify-center">
+            {profile && <TrialCountdown profile={profile} />}
+          </div>
+
           <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
             <ConnectionStatus
               connected={connected}
@@ -147,6 +153,7 @@ export default function Dashboard() {
               dailyPL={dailyPL}
               windDownMode={windDownMode}
               onActivateWindDown={activateWindDown}
+              profile={profile}
             />
           </div>
 

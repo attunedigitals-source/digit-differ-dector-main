@@ -220,20 +220,31 @@ export default function UserDetail() {
     refetchInterval: 5000 
   });
 
-  const updateLogsMutation = useMutation({
-    mutationFn: async (enabled: boolean) => {
+    }
+  });
+ 
+  const updateTrialMutation = useMutation({
+    mutationFn: async ({ days, reset }: { days?: number, reset?: boolean }) => {
+      const updates: any = {};
+      if (reset) {
+        updates.trial_started_at = new Date().toISOString();
+        updates.trial_duration_days = days || 7;
+      } else if (days !== undefined) {
+        updates.trial_duration_days = (profile?.trial_duration_days || 7) + days;
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({ enable_logs: enabled })
+        .update(updates)
         .eq('id', userId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-user-profile", userId] });
-      toast.success("User console log preference updated");
+      toast.success("Trial updated successfully");
     },
     onError: (err: any) => {
-      toast.error(`Failed to update user setting: ${err.message}`);
+      toast.error(`Failed to update trial: ${err.message}`);
     }
   });
 
@@ -308,24 +319,78 @@ export default function UserDetail() {
                   <h4 className="text-sm font-bold leading-tight break-all">{profile?.email}</h4>
                   <p className="text-xs text-muted-foreground">TZ: {profile?.timezone || 'UTC'}</p>
                 </div>
-                
-                <div className="pt-3 border-t border-border/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <Terminal className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase">Console Logs (Off by Default)</span>
-                    </div>
-                    <Switch 
-                      checked={profile?.enable_logs ?? false}
-                      onCheckedChange={(checked) => updateLogsMutation.mutate(checked)}
-                      disabled={updateLogsMutation.isPending}
-                      className="scale-75 origin-right"
-                    />
-                  </div>
-                </div>
               </div>
             </Card>
           </div>
+
+          {profile?.subscription_status === 'free' && (
+            <div className="md:col-span-1">
+              <Card className="border-border bg-card/40 p-4 h-full">
+                <div className="flex flex-col h-full justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Trial Status</p>
+                      <Clock className="w-4 h-4 text-blue-400" />
+                    </div>
+                    {profile.trial_started_at ? (
+                      (() => {
+                        const startTime = new Date(profile.trial_started_at).getTime();
+                        const durationMs = profile.trial_duration_days * 24 * 60 * 60 * 1000;
+                        const expiryTime = startTime + durationMs;
+                        const now = new Date().getTime();
+                        const diff = expiryTime - now;
+                        const isExpired = diff <= 0;
+
+                        return (
+                          <div className="space-y-2">
+                            <h4 className={isExpired ? "text-red-500 font-bold" : "text-blue-400 font-bold"}>
+                              {isExpired ? "EXPIRED" : `${Math.floor(diff / (1000 * 60 * 60 * 24))}d left`}
+                            </h4>
+                            <p className="text-[10px] text-muted-foreground italic">
+                              Started: {new Date(profile.trial_started_at).toLocaleDateString()}
+                            </p>
+                            <div className="flex flex-wrap gap-2 pt-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-7 text-[10px] bg-primary/10"
+                                onClick={() => updateTrialMutation.mutate({ days: 7 })}
+                                disabled={updateTrialMutation.isPending}
+                              >
+                                +7 Days
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-7 text-[10px]"
+                                onClick={() => updateTrialMutation.mutate({ reset: true, days: 7 })}
+                                disabled={updateTrialMutation.isPending}
+                              >
+                                Reset (7d)
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs italic text-muted-foreground">No trial started</p>
+                        <Button 
+                          size="sm" 
+                          className="h-8 w-full"
+                          onClick={() => updateTrialMutation.mutate({ reset: true, days: 7 })}
+                          disabled={updateTrialMutation.isPending}
+                        >
+                          Start Trial (7d)
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+          
           <SummaryCard title="Today (WAT)" value={`${(dualPL?.wat || 0) >= 0 ? "+" : ""}${(dualPL?.wat || 0).toFixed(2)}`} subtitle="Africa/Lagos" icon={<TrendingUp className="w-5 h-5 text-green-500" />} isPositive={(dualPL?.wat || 0) >= 0} />
           <SummaryCard title="Today (Local)" value={`${(dualPL?.local || 0) >= 0 ? "+" : ""}${(dualPL?.local || 0).toFixed(2)}`} subtitle="Client Timeframe" icon={<TrendingUp className="w-5 h-5 text-blue-500" />} isPositive={(dualPL?.local || 0) >= 0} />
           <SummaryCard title="Total Volume" value={`${totalTradesCount}`} subtitle="Trades Taken" icon={<Activity className="w-5 h-5 text-slate-500" />} />

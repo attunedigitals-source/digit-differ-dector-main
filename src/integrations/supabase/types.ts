@@ -109,6 +109,89 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          id: string
+          email: string
+          role: "user" | "admin" | "sub-admin"
+          subscription_status: "free" | "pending" | "active" | "expired" | "suspended"
+          subscription_expiry: string | null
+          is_suspended: boolean
+          device_id: string | null
+          last_login_ip: string | null
+          created_at: string
+          updated_at: string
+          timezone: string | null
+          deriv_loginid: string | null
+          deriv_email: string | null
+          enable_logs: boolean
+          trial_started_at: string | null
+          trial_duration_days: number
+        }
+        Insert: {
+          id: string
+          email: string
+          role?: "user" | "admin" | "sub-admin"
+          subscription_status?: "free" | "pending" | "active" | "expired" | "suspended"
+          subscription_expiry?: string | null
+          is_suspended?: boolean
+          device_id?: string | null
+          last_login_ip?: string | null
+          created_at?: string
+          updated_at?: string
+          timezone?: string | null
+          deriv_loginid?: string | null
+          deriv_email?: string | null
+          enable_logs?: boolean
+          trial_started_at?: string | null
+          trial_duration_days?: number
+        }
+        Update: {
+          id?: string
+          email?: string
+          role?: "user" | "admin" | "sub-admin"
+          subscription_status?: "free" | "pending" | "active" | "expired" | "suspended"
+          subscription_expiry?: string | null
+          is_suspended?: boolean
+          device_id?: string | null
+          last_login_ip?: string | null
+          created_at?: string
+          updated_at?: string
+          timezone?: string | null
+          deriv_loginid?: string | null
+          deriv_email?: string | null
+          enable_logs?: boolean
+          trial_started_at?: string | null
+          trial_duration_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      system_settings: {
+        Row: {
+          key: string
+          value: Json
+          updated_at: string | null
+        }
+        Insert: {
+          key: string
+          value: Json
+          updated_at?: string | null
+        }
+        Update: {
+          key?: string
+          value?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

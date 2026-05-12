@@ -16,6 +16,8 @@ export interface UserProfile {
   device_id: string | null;
   last_login_ip: string | null;
   timezone: string | null;
+  trial_started_at: string | null;
+  trial_duration_days: number;
 }
 
 export function useAuth() {
@@ -62,6 +64,34 @@ export function useAuth() {
             throw insertError;
           }
           userProfile = newProfile as UserProfile;
+        }
+      }
+
+      // Initialize trial if not started
+      if (!userProfile.trial_started_at && userProfile.subscription_status === 'free') {
+        console.log("Initializing demo trial for user...");
+        
+        // Fetch default duration from settings
+        const { data: settingData } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'default_trial_duration')
+          .maybeSingle();
+        
+        const defaultDuration = settingData ? Number(settingData.value) : 7;
+        const now = new Date().toISOString();
+        
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            trial_started_at: now,
+            trial_duration_days: defaultDuration
+          })
+          .eq('id', userId);
+          
+        if (!updateError) {
+          userProfile.trial_started_at = now;
+          userProfile.trial_duration_days = defaultDuration;
         }
       }
 
