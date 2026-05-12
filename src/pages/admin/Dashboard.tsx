@@ -69,9 +69,6 @@ export default function AdminDashboard() {
     }
   });
 
-    }
-  });
-  
   const [trialInput, setTrialInput] = useState("");
   
   useEffect(() => {

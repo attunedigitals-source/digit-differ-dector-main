@@ -219,9 +219,6 @@ export default function UserDetail() {
     enabled: !!profile && !!selectedAccountId,
     refetchInterval: 5000 
   });
-
-    }
-  });
  
   const updateTrialMutation = useMutation({
     mutationFn: async ({ days, reset }: { days?: number, reset?: boolean }) => {
