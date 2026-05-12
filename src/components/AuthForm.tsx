@@ -15,7 +15,7 @@ export function AuthForm() {
             <Zap className="w-4 h-4 md:w-5 md:h-5 text-primary" />
             <span className="text-xs md:text-sm font-semibold text-primary font-mono select-none">DIGIT DIFFERS</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Trading Signal System</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Automation Signal System</h1>
           <p className="text-sm md:text-base text-muted-foreground">Real-time synthetic index analysis</p>
         </div>
 

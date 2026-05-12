@@ -98,11 +98,11 @@ export function AccountSelector({ accounts, activeLoginId, onSelectAccount }: Ac
       <Dialog open={showPaywall} onOpenChange={setShowPaywall}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl text-center">Upgrade to Real Trading</DialogTitle>
+            <DialogTitle className="text-2xl text-center">Upgrade to Real Automation</DialogTitle>
             <DialogDescription className="text-center">
               {profile?.subscription_status === 'pending' 
                 ? "Your payment is being verified. Please wait for admin approval."
-                : "Select a plan to unlock live trading on Real accounts and maximize your strategy."}
+                : "Select a plan to unlock live automation on Real accounts and maximize your strategy."}
             </DialogDescription>
           </DialogHeader>
           <SubscriptionPaywall onClose={() => setShowPaywall(false)} />

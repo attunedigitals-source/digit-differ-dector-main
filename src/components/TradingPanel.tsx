@@ -85,7 +85,7 @@ export function TradingPanel({
 
       {!connected && (
         <p className="text-xs text-destructive bg-destructive/10 p-2 rounded">
-          Connect to Deriv first to enable trading.
+          Connect to Deriv first to enable automation.
         </p>
       )}
 
@@ -201,7 +201,7 @@ export function TradingPanel({
             <div className={`text-xs font-bold uppercase tracking-tight ${
               !config.enabled ? "text-destructive" : windDownMode ? "text-orange-500" : ""
             }`}>
-              {windDownMode ? "Stopping Gracefully..." : "AI-Trading Loop"}
+              {windDownMode ? "Stopping Gracefully..." : "AI-Automation Loop"}
             </div>
             <div className="text-[10px] text-muted-foreground font-medium">
               {config.enabled 

@@ -132,7 +132,7 @@ export default function AdminDashboard() {
             title="Free Accounts" 
             value={stats?.freeUsers || 0} 
             icon={AlertCircle} 
-            description="Limited to demo trading" 
+            description="Limited to demo automation" 
           />
         </div>
 

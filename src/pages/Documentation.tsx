@@ -30,18 +30,18 @@ const sections = [
 
 const highlights = [
   {
-    title: "AI-Trading Engine",
+    title: "AI-Automation Engine",
     description: "Harnesses predictive intelligence to execute disciplined digit-based strategies on synthetic indices.",
     icon: Zap,
   },
   {
     title: "Secure Connection",
-    description: "Connect safely using the official Deriv login. We prioritize security and only require basic trading permissions.",
+    description: "Connect safely using the official Deriv login. We prioritize security and only require basic automation permissions.",
     icon: KeyRound,
   },
   {
     title: "Built-in Risk Controls",
-    description: "Use daily limits, profit targets, and 'Wind Down' features to protect your capital and reduce emotional trading.",
+    description: "Use daily limits, profit targets, and 'Wind Down' features to protect your capital and reduce emotional automation.",
     icon: ShieldCheck,
   },
 ];
@@ -92,7 +92,7 @@ const Documentation = () => {
               Master Digit Bot Pro from setup to execution.
             </h1>
             <p className="text-lg leading-relaxed text-muted-foreground md:text-xl">
-              Digit Bot Pro is an advanced trading tool for Deriv synthetic indices. This guide provides step-by-step visual instructions to ensure your automation is configured for maximum discipline and capital safety.
+              Digit Bot Pro is an advanced automation tool for Deriv synthetic indices. This guide provides step-by-step visual instructions to ensure your automation is configured for maximum discipline and capital safety.
             </p>
           </div>
 
@@ -158,7 +158,7 @@ const Documentation = () => {
                   <div className="space-y-4">
                     <div className="flex gap-4 items-start p-4 bg-background/50 rounded-2xl border border-border/50">
                       <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</div>
-                      <p className="text-muted-foreground">Click <strong>"Launch Tool"</strong> to go to Deriv and start trading.</p>
+                      <p className="text-muted-foreground">Click <strong>"Launch Tool"</strong> to go to Deriv and start automation.</p>
                     </div>
                     <div className="flex gap-4 items-start p-4 bg-background/50 rounded-2xl border border-border/50">
                       <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</div>
@@ -189,7 +189,7 @@ const Documentation = () => {
                 </div>
                 <div className="bg-secondary/10 p-6 rounded-2xl border border-border">
                   <p className="text-sm text-muted-foreground">
-                    <strong>Secure & Seamless:</strong> Your Deriv account is secure. Digit Bot Pro only accesses your account with the secure permissions you grant through Deriv.
+                    <strong>Secure & Seamless:</strong> Your Deriv account is secure. Digit Bot Pro only accesses your account with the secure permissions you grant through Deriv. Your account access and automation activity stay on your device and are never stored on our servers.
                   </p>
                 </div>
               </div>
@@ -202,10 +202,10 @@ const Documentation = () => {
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <CircleDollarSign className="h-6 w-6" />
                   </div>
-                  <h2 className="text-3xl font-bold">2. Select account to trade & Fetch account Balance</h2>
+                  <h2 className="text-3xl font-bold">2. Select account to automate & Fetch account Balance</h2>
                 </div>
                 <p className="text-muted-foreground mb-8 text-lg">
-                  Before you begin trading, you must select the correct account and connect to Deriv. 
+                  Before you begin automation, you must select the correct account and connect to Deriv. 
                   <span className="block mt-2 text-primary font-semibold italic">Important: New users should always start with a Demo account to familiarize themselves with the engine.</span>
                 </p>
                 <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -247,7 +247,7 @@ const Documentation = () => {
                   </div>
                   <h2 className="text-3xl font-bold">3. Verify & Configure AI Engine</h2>
                 </div>
-                <p className="text-muted-foreground mb-8 text-lg">Once connected, verify your balance and configure the engine settings for your trading session.</p>
+                <p className="text-muted-foreground mb-8 text-lg">Once connected, verify your balance and configure the engine settings for your automation session.</p>
                 <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500 mb-8">
                   <img src="/doc-step-3-configure.png" alt="Configure AI Engine" className="w-full h-auto" />
                 </div>
@@ -278,7 +278,7 @@ const Documentation = () => {
                       </li>
                       <li className="flex gap-3 items-center text-muted-foreground">
                         <CheckCircle2 className="h-5 w-5 text-primary" />
-                        <span>Start the AI Trading Loop</span>
+                        <span>Start the AI Automation Loop</span>
                       </li>
                     </ul>
                   </div>
@@ -295,7 +295,7 @@ const Documentation = () => {
                   </div>
                   <h2 className="text-3xl font-bold text-warning">4. Graceful Exit: Wind Down</h2>
                 </div>
-                <p className="text-muted-foreground mb-8 text-lg">Let your bot finish strong. The bot will continue trading until the next profitable exit, then stop safely.</p>
+                <p className="text-muted-foreground mb-8 text-lg">Let your bot finish strong. The bot will continue automation until the next profitable exit, then stop safely.</p>
                 <div className="rounded-3xl overflow-hidden border border-border bg-secondary/5 shadow-2xl transition-transform hover:scale-[1.01] duration-500 mb-8">
                   <img src="/doc-step-4-wind-down.png" alt="Wind Down Feature" className="w-full h-auto" />
                 </div>
@@ -307,7 +307,7 @@ const Documentation = () => {
                     </p>
                     <div className="bg-amber-500/10 p-4 rounded-2xl border border-amber-500/20">
                       <p className="text-sm text-amber-600 font-bold">Important:</p>
-                      <p className="text-xs text-muted-foreground mt-1">Monitor your session and use this feature when you want to end trading on a profit-led exit.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Monitor your session and use this feature when you want to end automation on a profit-led exit.</p>
                     </div>
                   </div>
                   <div className="space-y-4 p-6 bg-secondary/10 rounded-3xl border border-border">
@@ -315,7 +315,7 @@ const Documentation = () => {
                     <ol className="space-y-4">
                       <li className="flex gap-4">
                         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-bold">1</div>
-                        <p className="text-sm text-muted-foreground">The bot keeps trading as usual after activation.</p>
+                        <p className="text-sm text-muted-foreground">The bot keeps automating as usual after activation.</p>
                       </li>
                       <li className="flex gap-4">
                         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-bold">2</div>
@@ -338,8 +338,8 @@ const Documentation = () => {
                     "Start small on a Demo account until you understand the engine's behavior.",
                     "Start with 0.35 as base stake with Max step of 12",
                     "Use a stable internet connection; the bot requires real-time data to execute safely.",
-                    "Review your trade history after each session to refine your stake and max steps.",
-                    "Never trade with funds that are essential for your daily living expenses."
+                    "Review your automation history after each session to refine your stake and max steps.",
+                    "Never automate with funds that are essential for your daily living expenses."
                   ].map((practice, i) => (
                     <div key={i} className="flex gap-4 items-start p-4 bg-background/50 rounded-2xl border border-border/50">
                       <CheckCircle2 className="h-6 w-6 text-primary shrink-0 mt-0.5" />
@@ -362,8 +362,8 @@ const Documentation = () => {
                     <p className="text-muted-foreground leading-relaxed">Verify that you are connected, if not click START to get connected</p>
                   </div>
                   <div className="space-y-3">
-                    <h4 className="font-bold text-foreground text-lg">No Trades Executing</h4>
-                    <p className="text-muted-foreground leading-relaxed">Check the Recent Trades section and see if there is no pending trades, if there is, wait for 5 minutes and if there is no change, log out and re-login</p>
+                    <h4 className="font-bold text-foreground text-lg">No Automation Executing</h4>
+                    <p className="text-muted-foreground leading-relaxed">Check the Recent Automation section and see if there is no pending automation, if there is, wait for 5 minutes and if there is no change, log out and re-login</p>
                   </div>
                   <div className="space-y-3">
                     <h4 className="font-bold text-foreground text-lg">Unexpected Stops</h4>

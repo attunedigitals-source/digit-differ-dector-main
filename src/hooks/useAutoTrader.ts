@@ -371,7 +371,7 @@ export function useAutoTrader(
       }
 
       if (nextStep >= config.maxMartingaleSteps) {
-        toast.error("Max Martingale Steps reached. Stopping trading.");
+        toast.error("Max Martingale Steps reached. Stopping automation.");
         setConfig(prev => ({ ...prev, enabled: false }));
         isExecutingRef.current = false;
         return;
@@ -610,7 +610,7 @@ export function useAutoTrader(
       ticksToWaitNext = 0;
       setConfig(prev => ({ ...prev, enabled: false }));
       setWindDownMode(false);
-      toast.success("Wind down complete: last confirmed trade closed in profit. Auto-trading stopped.");
+      toast.success("Wind down complete: last confirmed trade closed in profit. Auto-automation stopped.");
     }
 
     const nextSessionState = {
@@ -998,7 +998,7 @@ export function useAutoTrader(
 
   const activateWindDown = useCallback(() => {
     if (!config.enabled) {
-      toast.error("Enable auto-trading before activating wind down.");
+      toast.error("Enable auto-automation before activating wind down.");
       return;
     }
     setWindDownMode(true);

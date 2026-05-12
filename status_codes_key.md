@@ -1,14 +1,14 @@
-# AI-Trading Loop: Status Code Reference Key
+# AI-Automation Loop: Status Code Reference Key
 
-This document provides the mapping for the obfuscated status codes displayed under the Cooldown Timer in the Trading Panel. Use this as a reference for debugging and monitoring.
+This document provides the mapping for the obfuscated status codes displayed under the Cooldown Timer in the Automation Panel. Use this as a reference for debugging and monitoring.
 
 ## 1. Primary Status Codes
 
 | Code | Full Meaning | Description |
 | :--- | :--- | :--- |
-| **`IDLE_RDY`** | Idle & Ready | The system is active but no trading logic is currently running. |
-| **`TRD_LIV`** | Trade Live | A contract has been proposed or purchased; awaiting settlement. |
-| **`SKP_DIR`** | Skip Direction | Trade was skipped to avoid consecutive trades in the same direction on one symbol. |
+| **`IDLE_RDY`** | Idle & Ready | The system is active but no automation logic is currently running. |
+| **`ATM_LIV`** | Automation Live | A contract has been proposed or purchased; awaiting settlement. |
+| **`SKP_DIR`** | Skip Direction | Automation was skipped to avoid consecutive trades in the same direction on one symbol. |
 | **`W8_TCK`** | Waiting for Ticks | System is waiting for a fresh tick stream before initiating analysis. |
 | **`WD_CMP`** | Wind Down Complete | "Wind Down on Next Profit" was active and has finished successfully. |
 

@@ -78,7 +78,7 @@ const Landing = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
             </span>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">New: Ensemble Trading Engine v2.0</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">New: Ensemble Automation Engine v2.0</span>
           </div>
           
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
@@ -86,9 +86,7 @@ const Landing = () => {
             <span className="text-primary">Predictive Intelligence</span>
           </h1>
           
-          <p className="max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground mb-10 leading-relaxed">
-            Digit Bot Pro is an advanced trading tool that harnesses ensemble learning and adaptive volatility analysis to deliver data-driven precision in Deriv markets.
-          </p>
+            Digit Bot Pro is an advanced automation tool that harnesses ensemble learning and adaptive volatility analysis to deliver data-driven precision in Deriv markets.
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
             <Button onClick={handleLogin} size="lg" className="h-14 px-10 text-lg font-bold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 group">
@@ -121,7 +119,7 @@ const Landing = () => {
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Precision-Engineered Features</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">Everything you need from a focused trading tool for Deriv synthetic indices.</p>
+            <p className="text-muted-foreground max-w-xl mx-auto">Everything you need from a focused automation tool for Deriv synthetic indices.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -176,14 +174,14 @@ const Landing = () => {
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">2</div>
                   <div>
                     <h4 className="text-xl font-bold mb-1">Select & Configure</h4>
-                    <p className="text-muted-foreground">Choose between Demo or Real accounts and set your AI engine parameters for trading.</p>
+                    <p className="text-muted-foreground">Choose between Demo or Real accounts and set your AI engine parameters for automation.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold">3</div>
                   <div>
                     <h4 className="text-xl font-bold mb-1">Smart Execution</h4>
-                    <p className="text-muted-foreground">Initiate the AI trading loop and use the 'Wind Down' feature to exit safely on profit.</p>
+                    <p className="text-muted-foreground">Initiate the AI automation loop and use the 'Wind Down' feature to exit safely on profit.</p>
                   </div>
                 </div>
               </div>
@@ -200,7 +198,7 @@ const Landing = () => {
                     <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-background border border-border">
                       <div className="flex items-center gap-3">
                         <CheckCircle2 className="text-primary w-5 h-5" />
-                        <span className="text-sm font-medium">Trade #{2140 + i} Win</span>
+                        <span className="text-sm font-medium">Automation #{2140 + i} Win</span>
                       </div>
                       <span className="text-primary font-mono">+$0.95</span>
                     </div>
@@ -221,9 +219,7 @@ const Landing = () => {
                 <Lock className="w-8 h-8" />
               </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Your Security, <br />Our Priority.</h2>
-              <p className="text-muted-foreground text-lg mb-8 leading-relaxed">
-                Digit Bot Pro uses the official Deriv integration within a privacy-first, client-side architecture. Your account access and trade activity stay on your device and are never stored on our servers.
-              </p>
+                Digit Bot Pro uses the official Deriv integration within a privacy-first, client-side architecture. Your account access and automation activity stay on your device and are never stored on our servers.
               <ul className="space-y-4">
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
@@ -231,7 +227,7 @@ const Landing = () => {
                 </li>
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
-                  <span>Zero Server-Side Trade Storage</span>
+                  <span>Zero Server-Side Automation Storage</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <CheckCircle2 className="text-primary w-5 h-5" />
@@ -260,7 +256,7 @@ const Landing = () => {
                 <span className="text-xl font-bold tracking-tight text-white">Digit Bot Pro</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Digit Bot Pro is a trading tool for Deriv synthetic indices, built to support disciplined and data-driven execution.
+                Digit Bot Pro is an automation tool for Deriv synthetic indices, built to support disciplined and data-driven execution.
               </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-12">
@@ -292,7 +288,7 @@ const Landing = () => {
           
           <div className="pt-8 border-t border-border/50 text-center md:text-left">
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              <strong>Risk Warning:</strong> Trading synthetic indices involves significant risk of loss and is not suitable for all investors. The high degree of leverage can work against you as well as for you. Before deciding to trade, you should carefully consider your investment objectives, level of experience, and risk appetite. Past performance is not indicative of future results.
+              <strong>Risk Warning:</strong> Automating synthetic indices involves significant risk of loss and is not suitable for all investors. The high degree of leverage can work against you as well as for you. Before deciding to automate, you should carefully consider your investment objectives, level of experience, and risk appetite. Past performance is not indicative of future results.
             </p>
             <p className="text-xs text-muted-foreground">
               © {new Date().getFullYear()} Digit Bot Pro. All rights reserved. Not affiliated with Deriv.com.

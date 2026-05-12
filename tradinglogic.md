@@ -1,6 +1,6 @@
-# Trading Logic Documentation - Randomized Over/Under Auto-Trader
+# Automation Logic Documentation - Randomized Over/Under Auto-Automation
 
-This document outlines the technical trading logic, execution flow, and risk management strategies implemented in the current system following the Over/Under overhaul.
+This document outlines the technical automation logic, execution flow, and risk management strategies implemented in the current system following the Over/Under overhaul.
 
 ## 1. Strategy Engine (`useAutoTrader.ts`)
 The system has been refactored to use a **Randomized Over/Under** strategy, moving away from statistical digit avoidance.
@@ -17,7 +17,7 @@ The bot randomly selects a volatility index from the supported list for every tr
 
 ---
 
-## 2. Automated Trading Execution
+## 2. Automated Execution
 The execution flow is a continuous, state-aware loop driven by WebSocket responses and tick events.
 
 ### Execution Flow
@@ -51,6 +51,6 @@ Unlike time-based cooldowns, the bot uses real-time market ticks to pace executi
 ---
 
 ## 4. Logging & Diagnostics
-- **Trade Log**: Real-time history displayed in the UI with Win/Loss status and Martingale step tracking.
-- **Console Monitoring**: JSON-structured logs (`trade_initiated`, `trade_settled`) are outputted for external auditing and TradeMonitor integration.
-- **Supabase Sync**: Trade results are synchronized to the `trades` table for long-term performance tracking.
+- **Automation Log**: Real-time history displayed in the UI with Win/Loss status and Martingale step tracking.
+- **Console Monitoring**: JSON-structured logs (`automation_initiated`, `automation_settled`) are outputted for external auditing and Monitor integration.
+- **Supabase Sync**: Results are synchronized to the `trades` table for long-term performance tracking.
