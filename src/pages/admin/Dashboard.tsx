@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/AdminLayout";
@@ -46,7 +47,8 @@ export default function AdminDashboard() {
         { count: freeUsers },
         { count: pendingPayments },
         { data: recentRevenue },
-        { data: logSetting }
+        { data: logSetting },
+        { data: trialSetting }
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
