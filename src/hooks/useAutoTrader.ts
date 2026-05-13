@@ -8,6 +8,7 @@ import type { SymbolState } from "@/lib/signal-engine";
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
+const MAX_TICK_AGE_MS = 10000;
 const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
 const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
 const COOLDOWN_WAIT_MIN_SECONDS = 300;
@@ -230,6 +231,7 @@ export function useAutoTrader(
   const stepIndexRef = useRef<number>(0);
   const symbolTradeStreakRef = useRef<Map<string, { trade: TradeCategory; count: number }>>(new Map());
   const useReducedWindowSize = useRef(false);
+  const freshnessWarningShownRef = useRef(false);
 
   const select_random_symbol_with_history = useCallback((windowSize: number = 16) => {
     const symbols = [
@@ -238,13 +240,59 @@ export function useAutoTrader(
     ];
 
     const candidates = symbols
-      .map((symbol) => ({
-        symbol,
-        digits: getSymbolState(symbol)?.digits?.slice(-windowSize) ?? [],
-      }))
-      .filter(({ digits }) => digits.length >= windowSize);
+      .map((symbol) => {
+        const symbolState = getSymbolState(symbol);
+        const digits = symbolState?.digits?.slice(-windowSize) ?? [];
+        
+        // 1. Check history length
+        if (digits.length < windowSize) {
+          console.log("[AutoTrader] Symbol rejected: insufficient digit history", {
+            symbol,
+            availableDigits: digits.length,
+            requiredWindowSize: windowSize,
+          });
+          return null;
+        }
 
-    if (candidates.length === 0) return null;
+        // 2. Check freshness
+        if (symbolState?.updatedAt) {
+          const tickAgeMs = Date.now() - symbolState.updatedAt;
+          if (tickAgeMs > MAX_TICK_AGE_MS) {
+            console.log("[AutoTrader] Symbol rejected: stale tick data", {
+              symbol,
+              tickAgeMs,
+              maxTickAgeMs: MAX_TICK_AGE_MS,
+              requiredWindowSize: windowSize,
+            });
+            return null;
+          }
+          
+          console.log("[AutoTrader] Symbol passed freshness check", {
+            symbol,
+            requiredWindowSize: windowSize,
+            tickAgeMs,
+          });
+        } else {
+          // Fallback if updatedAt is missing
+          if (!freshnessWarningShownRef.current) {
+            console.warn("[AutoTrader] Market freshness check fallback: SymbolState has no updatedAt timestamp. Freshness could not be verified.");
+            freshnessWarningShownRef.current = true;
+          }
+        }
+
+        return {
+          symbol,
+          digits,
+        };
+      })
+      .filter((c): c is { symbol: string; digits: number[] } => c !== null);
+
+    if (candidates.length === 0) {
+      console.warn("[AutoTrader] Trade skipped: no symbol has fresh digit history for current window size.", {
+        requiredWindowSize: windowSize,
+      });
+      return null;
+    }
 
     const selected = candidates[Math.floor(Math.random() * candidates.length)];
     return { symbol: selected.symbol, history: selected.digits };
@@ -291,7 +339,18 @@ export function useAutoTrader(
       const windowSize = useReducedWindowSize.current ? 10 : 16;
       const selectedSymbolData = select_random_symbol_with_history(windowSize);
       if (!selectedSymbolData) {
-        console.warn(`[AutoTrader] Trade skipped: insufficient tick history across all configured volatilities. Need ${windowSize} digits per symbol.`);
+        console.warn("[AutoTrader] Trade skipped: no fresh symbol history available", {
+          requiredWindowSize: windowSize,
+          reducedWindowMode: useReducedWindowSize.current,
+        });
+
+        setSessionState(prev => ({
+          ...prev,
+          status: "SKIP",
+          nextAction: "SKP_STALE",
+        }));
+
+        setTicksToWait(3);
         isExecutingRef.current = false;
         return;
       }
