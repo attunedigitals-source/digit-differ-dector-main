@@ -348,7 +348,7 @@ export function useAutoTrader(
 
       console.log("[AutoTrader] Volatility selection", {
         symbol,
-        windowSize,
+        windowSize: usedWindowSize,
         history: history.join(""),
         historyArray: history,
       });
