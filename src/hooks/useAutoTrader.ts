@@ -20,25 +20,8 @@ const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
 interface SymbolStatus {
   lastDirection: TradeCategory | null;
-  hasRecentLoss: boolean;
-  useReducedWindow: boolean;
 }
 
-const selectTradeFromDigits = (digits: number[]) => {
-  const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
-  for (const digit of digits) {
-    if (digit < 4) counts.under4 += 1;
-    if (digit > 4) counts.over4 += 1;
-    if (digit < 5) counts.under5 += 1;
-    if (digit > 5) counts.over5 += 1;
-  }
-  const maxCount = Math.max(counts.under4, counts.over4, counts.under5, counts.over5);
-  const topCategories = (Object.entries(counts) as [TradeCategory, number][])
-    .filter(([, count]) => count === maxCount)
-    .map(([category]) => category);
-  const selectedTrade = topCategories[Math.floor(Math.random() * topCategories.length)];
-  return { counts, topCategories, selectedTrade };
-};
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Math.max(0.35, Number(incoming?.baseStake ?? 0.35));
@@ -239,7 +222,7 @@ export function useAutoTrader(
   const useReducedWindowSize = useRef(false);
   const freshnessWarningShownRef = useRef(false);
 
-  const select_random_symbol_with_history = useCallback(() => {
+  const select_random_active_symbol = useCallback(() => {
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
       "R_10", "R_25", "R_50", "R_75", "R_100",
@@ -247,38 +230,28 @@ export function useAutoTrader(
 
     const candidates = symbols
       .map((symbol) => {
-        const status = symbolTrackerRef.current.get(symbol) || { lastDirection: null, hasRecentLoss: false, useReducedWindow: false };
-        const windowSize = status.useReducedWindow ? 10 : 16;
         const symbolState = getSymbolState(symbol);
-        const digits = symbolState?.digits?.slice(-windowSize) ?? [];
         
-        // 1. Check history length
-        if (digits.length < windowSize) {
-          return null;
-        }
-
-        // 2. Check freshness
+        // Check freshness only - no need for 16 ticks
         if (symbolState?.updatedAt) {
           const tickAgeMs = Date.now() - symbolState.updatedAt;
           if (tickAgeMs > MAX_TICK_AGE_MS) {
             return null;
           }
+        } else {
+          // If no update timestamp, skip to be safe
+          return null;
         }
 
-        return {
-          symbol,
-          digits,
-          windowSize,
-        };
+        return { symbol };
       })
-      .filter((c): c is { symbol: string; digits: number[]; windowSize: number } => c !== null);
+      .filter((c): c is { symbol: string } => c !== null);
 
     if (candidates.length === 0) {
       return null;
     }
 
-    const selected = candidates[Math.floor(Math.random() * candidates.length)];
-    return { symbol: selected.symbol, history: selected.digits, usedWindowSize: selected.windowSize };
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }, [getSymbolState]);
 
   const randomCooldownSeconds = useCallback(() => {
@@ -319,9 +292,9 @@ export function useAutoTrader(
       let nextStep = state.martingaleStep;
       let seqStep = state.sequenceStep;
 
-      const selectedSymbolData = select_random_symbol_with_history();
-      if (!selectedSymbolData) {
-        console.warn("[AutoTrader] Trade skipped: no fresh symbol history available");
+      const selectedSymbol = select_random_active_symbol();
+      if (!selectedSymbol) {
+        console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
 
         setSessionState(prev => ({
           ...prev,
@@ -334,8 +307,16 @@ export function useAutoTrader(
         return;
       }
 
-      const { symbol, history, usedWindowSize } = selectedSymbolData;
-      const decision = selectTradeFromDigits(history);
+      const { symbol } = selectedSymbol;
+      const status = symbolTrackerRef.current.get(symbol) || { lastDirection: null };
+
+      // Random direction selection from the 4 options
+      const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
+      
+      // Memory check: Filter out the last direction used for this volatility
+      const availableCategories = allCategories.filter(cat => cat !== status.lastDirection);
+      
+      const trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
 
       const categoryLabels: Record<TradeCategory, string> = {
         under4: "Under 4",
@@ -343,65 +324,13 @@ export function useAutoTrader(
         under5: "Under 5",
         over5: "Over 5",
       };
-      const topLabels = decision.topCategories.map((category) => categoryLabels[category]);
 
-      console.log("[AutoTrader] Volatility selection", {
+      console.log("[AutoTrader] Volatility and Random Selection", {
         symbol,
-        windowSize: usedWindowSize,
-        history: history.join(""),
-        historyArray: history,
+        lastDirection: status.lastDirection ? categoryLabels[status.lastDirection] : "None",
+        selectedTrade: categoryLabels[trade],
+        availableOptions: availableCategories.map(c => categoryLabels[c]),
       });
-      console.log("[AutoTrader] Frequency of occurrence", {
-        "Under 4": decision.counts.under4,
-        "Over 4": decision.counts.over4,
-        "Under 5": decision.counts.under5,
-        "Over 5": decision.counts.over5,
-      });
-      if (topLabels.length > 2) {
-        console.log("[AutoTrader] Volatility skipped: Tie exceeds 2 categories", {
-          tiedCategories: topLabels,
-          tieCount: decision.counts[decision.topCategories[0]],
-        });
-        isExecutingRef.current = false;
-        return;
-      }
-      if (topLabels.length > 1) {
-        console.log("[AutoTrader] Tie detected (<= 2 categories)", {
-          tiedCategories: topLabels,
-          tieCount: decision.counts[decision.topCategories[0]],
-        });
-      }
-      console.log("[AutoTrader] Highest frequency selection", {
-        topCategories: topLabels,
-        selectedCategory: categoryLabels[decision.selectedTrade],
-      });
-
-      const trade = decision.selectedTrade;
-      const status = symbolTrackerRef.current.get(symbol) || { lastDirection: null, hasRecentLoss: false, useReducedWindow: false };
-
-      // Direction check: Always skip if same direction as previous trade on this volatility
-      if (status.lastDirection === trade) {
-        console.log("[AutoTrader] Trade skipped: Same direction as previous trade on volatility", {
-          symbol,
-          direction: categoryLabels[trade],
-          hasRecentLoss: status.hasRecentLoss,
-          inRecoveryMode: status.useReducedWindow,
-        });
-
-        // Trigger recovery window reduction (10 ticks) only after [Loss] then [Skip]
-        if (status.hasRecentLoss && !status.useReducedWindow) {
-          symbolTrackerRef.current.set(symbol, { ...status, useReducedWindow: true });
-          console.log(`[AutoTrader] Recovery mode triggered for ${symbol}: Window size reduced to 10 ticks.`);
-        }
-
-        setSessionState(prev => ({
-          ...prev,
-          nextAction: "SKP_SAME_DIR"
-        }));
-        setTicksToWait(1);
-        isExecutingRef.current = false;
-        return;
-      }
 
       if (state.status === "WIN" || state.status === "IDLE") {
         nextStep = 0;
@@ -444,7 +373,7 @@ export function useAutoTrader(
         nextStake = config.baseStake;
       }
 
-      console.log("[AutoTrader] Trade decision", decision);
+      console.log("[AutoTrader] Trade selection finalized", { symbol, trade: categoryLabels[trade], stake: nextStake });
 
       setSessionState(prev => ({
         ...prev,
@@ -562,22 +491,16 @@ export function useAutoTrader(
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
-  }, [config, wsRef, accountInfo, select_random_symbol_with_history]);
+  }, [config, wsRef, accountInfo, select_random_active_symbol]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
     
     // Update per-symbol tracker
-    const currentStatus = symbolTrackerRef.current.get(symbol) || { lastDirection: null, hasRecentLoss: false, useReducedWindow: false };
     symbolTrackerRef.current.set(symbol, {
       lastDirection: state.currentCategory,
-      hasRecentLoss: !isWin,
-      useReducedWindow: isWin ? false : currentStatus.useReducedWindow,
     });
 
-    if (isWin) {
-      useReducedWindowSize.current = false;
-    }
     const newStatus = isWin ? "WIN" : "LOSS";
     let ticksToWaitNext = randomTradeCooldownTicks(isWin);
     let nextAction = isWin
