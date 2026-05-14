@@ -18,6 +18,11 @@ const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
+interface SymbolStatus {
+  lastDirection: TradeCategory | null;
+  hasRecentLoss: boolean;
+  useReducedWindow: boolean;
+}
 
 const selectTradeFromDigits = (digits: number[]) => {
   const counts = { under4: 0, over4: 0, under5: 0, over5: 0 };
@@ -105,6 +110,7 @@ export function useAutoTrader(
     currentBarrier: 5,
     status: "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
     nextAction: "IDLE_RDY",
+    currentCategory: null as TradeCategory | null,
   });
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
@@ -230,10 +236,11 @@ export function useAutoTrader(
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
   const symbolTradeStreakRef = useRef<Map<string, { trade: TradeCategory; count: number }>>(new Map());
+  const symbolTrackerRef = useRef<Map<string, SymbolStatus>>(new Map());
   const useReducedWindowSize = useRef(false);
   const freshnessWarningShownRef = useRef(false);
 
-  const select_random_symbol_with_history = useCallback((windowSize: number = 16) => {
+  const select_random_symbol_with_history = useCallback(() => {
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
       "R_10", "R_25", "R_50", "R_75", "R_100",
@@ -241,16 +248,13 @@ export function useAutoTrader(
 
     const candidates = symbols
       .map((symbol) => {
+        const status = symbolTrackerRef.current.get(symbol) || { lastDirection: null, hasRecentLoss: false, useReducedWindow: false };
+        const windowSize = status.useReducedWindow ? 10 : 16;
         const symbolState = getSymbolState(symbol);
         const digits = symbolState?.digits?.slice(-windowSize) ?? [];
         
         // 1. Check history length
         if (digits.length < windowSize) {
-          console.log("[AutoTrader] Symbol rejected: insufficient digit history", {
-            symbol,
-            availableDigits: digits.length,
-            requiredWindowSize: windowSize,
-          });
           return null;
         }
 
@@ -258,44 +262,24 @@ export function useAutoTrader(
         if (symbolState?.updatedAt) {
           const tickAgeMs = Date.now() - symbolState.updatedAt;
           if (tickAgeMs > MAX_TICK_AGE_MS) {
-            console.log("[AutoTrader] Symbol rejected: stale tick data", {
-              symbol,
-              tickAgeMs,
-              maxTickAgeMs: MAX_TICK_AGE_MS,
-              requiredWindowSize: windowSize,
-            });
             return null;
-          }
-          
-          console.log("[AutoTrader] Symbol passed freshness check", {
-            symbol,
-            requiredWindowSize: windowSize,
-            tickAgeMs,
-          });
-        } else {
-          // Fallback if updatedAt is missing
-          if (!freshnessWarningShownRef.current) {
-            console.warn("[AutoTrader] Market freshness check fallback: SymbolState has no updatedAt timestamp. Freshness could not be verified.");
-            freshnessWarningShownRef.current = true;
           }
         }
 
         return {
           symbol,
           digits,
+          windowSize,
         };
       })
-      .filter((c): c is { symbol: string; digits: number[] } => c !== null);
+      .filter((c): c is { symbol: string; digits: number[]; windowSize: number } => c !== null);
 
     if (candidates.length === 0) {
-      console.warn("[AutoTrader] Trade skipped: no symbol has fresh digit history for current window size.", {
-        requiredWindowSize: windowSize,
-      });
       return null;
     }
 
     const selected = candidates[Math.floor(Math.random() * candidates.length)];
-    return { symbol: selected.symbol, history: selected.digits };
+    return { symbol: selected.symbol, history: selected.digits, usedWindowSize: selected.windowSize };
   }, [getSymbolState]);
 
   const randomCooldownSeconds = useCallback(() => {
@@ -336,13 +320,9 @@ export function useAutoTrader(
       let nextStep = state.martingaleStep;
       let seqStep = state.sequenceStep;
 
-      const windowSize = useReducedWindowSize.current ? 10 : 16;
-      const selectedSymbolData = select_random_symbol_with_history(windowSize);
+      const selectedSymbolData = select_random_symbol_with_history();
       if (!selectedSymbolData) {
-        console.warn("[AutoTrader] Trade skipped: no fresh symbol history available", {
-          requiredWindowSize: windowSize,
-          reducedWindowMode: useReducedWindowSize.current,
-        });
+        console.warn("[AutoTrader] Trade skipped: no fresh symbol history available");
 
         setSessionState(prev => ({
           ...prev,
@@ -355,7 +335,7 @@ export function useAutoTrader(
         return;
       }
 
-      const { symbol, history } = selectedSymbolData;
+      const { symbol, history, usedWindowSize } = selectedSymbolData;
       const decision = selectTradeFromDigits(history);
 
       const categoryLabels: Record<TradeCategory, string> = {
@@ -398,22 +378,26 @@ export function useAutoTrader(
       });
 
       const trade = decision.selectedTrade;
-      const streak = symbolTradeStreakRef.current.get(symbol);
-      if (streak && streak.trade === trade && streak.count >= 1) {
-        console.log("[AutoTrader] Trade skipped by consecutive-direction guard", {
+      const status = symbolTrackerRef.current.get(symbol) || { lastDirection: null, hasRecentLoss: false, useReducedWindow: false };
+
+      // Direction check: Always skip if same direction as previous trade on this volatility
+      if (status.lastDirection === trade) {
+        console.log("[AutoTrader] Trade skipped: Same direction as previous trade on volatility", {
           symbol,
-          attemptedTrade: categoryLabels[trade],
-          trackedTrade: categoryLabels[streak.trade],
-          trackedCount: streak.count,
-          reason: "Same trade type was already taken last for this volatility; waiting for a different trade type before allowing another of the same type.",
+          direction: categoryLabels[trade],
+          hasRecentLoss: status.hasRecentLoss,
+          inRecoveryMode: status.useReducedWindow,
         });
-        if (state.status === "LOSS") {
-          useReducedWindowSize.current = true;
-          console.log("[AutoTrader] Recovery mode: skipped same direction after loss, reducing window size to 10 for next attempt.");
+
+        // Trigger recovery window reduction (10 ticks) only after [Loss] then [Skip]
+        if (status.hasRecentLoss && !status.useReducedWindow) {
+          symbolTrackerRef.current.set(symbol, { ...status, useReducedWindow: true });
+          console.log(`[AutoTrader] Recovery mode triggered for ${symbol}: Window size reduced to 10 ticks.`);
         }
+
         setSessionState(prev => ({
           ...prev,
-          nextAction: "SKP_DIR"
+          nextAction: "SKP_SAME_DIR"
         }));
         setTicksToWait(1);
         isExecutingRef.current = false;
@@ -472,6 +456,7 @@ export function useAutoTrader(
         currentSymbol: symbol,
         currentContract: type,
         currentBarrier: barrier,
+        currentCategory: trade,
         status: "PENDING",
         nextAction: "TRD_LIV",
       }));
@@ -607,10 +592,19 @@ export function useAutoTrader(
   }, [config, wsRef, accountInfo, select_random_symbol_with_history]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
+    const state = sessionStateRef.current;
+    
+    // Update per-symbol tracker
+    const currentStatus = symbolTrackerRef.current.get(symbol) || { lastDirection: null, hasRecentLoss: false, useReducedWindow: false };
+    symbolTrackerRef.current.set(symbol, {
+      lastDirection: state.currentCategory,
+      hasRecentLoss: !isWin,
+      useReducedWindow: isWin ? false : currentStatus.useReducedWindow,
+    });
+
     if (isWin) {
       useReducedWindowSize.current = false;
     }
-    const state = sessionStateRef.current;
     const newStatus = isWin ? "WIN" : "LOSS";
     let ticksToWaitNext = randomTradeCooldownTicks(isWin);
     let nextAction = isWin
