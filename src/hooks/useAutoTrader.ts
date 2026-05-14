@@ -235,7 +235,6 @@ export function useAutoTrader(
 
   const activeSequenceNameRef = useRef<string>("LAST16_HYBRID");
   const stepIndexRef = useRef<number>(0);
-  const symbolTradeStreakRef = useRef<Map<string, { trade: TradeCategory; count: number }>>(new Map());
   const symbolTrackerRef = useRef<Map<string, SymbolStatus>>(new Map());
   const useReducedWindowSize = useRef(false);
   const freshnessWarningShownRef = useRef(false);
@@ -507,31 +506,7 @@ export function useAutoTrader(
         timestamp: Date.now(),
         supabaseId: undefined,
       });
-      if (!streak) {
-        symbolTradeStreakRef.current.set(symbol, { trade, count: 1 });
-        console.log("[AutoTrader] Trade tracker initialized for volatility", {
-          symbol,
-          acceptedTrade: categoryLabels[trade],
-          trackerMode: "single-trade-memory",
-        });
-      } else if (streak.trade !== trade) {
-        console.log("[AutoTrader] Trade tracker reset on direction change", {
-          symbol,
-          previousTrade: categoryLabels[streak.trade],
-          acceptedTrade: categoryLabels[trade],
-          trackerMode: "single-trade-memory",
-        });
-        symbolTradeStreakRef.current.set(symbol, { trade, count: 1 });
-      } else {
-        symbolTradeStreakRef.current.set(symbol, { trade, count: streak.count + 1 });
-      }
-      const updatedStreak = symbolTradeStreakRef.current.get(symbol);
-      console.log("[AutoTrader] Consecutive trade tracker updated", {
-        symbol,
-        tradeType: categoryLabels[trade],
-        consecutiveCount: updatedStreak?.count ?? 1,
-        trackerMode: "single-trade-memory",
-      });
+      // Fix 1: Send WS proposal immediately — do NOT block on Supabase
 
       // Fix 1: Send WS proposal immediately — do NOT block on Supabase
       ws.send(JSON.stringify(proposalReq));
