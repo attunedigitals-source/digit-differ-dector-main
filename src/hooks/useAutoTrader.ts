@@ -507,8 +507,6 @@ export function useAutoTrader(
         supabaseId: undefined,
       });
       // Fix 1: Send WS proposal immediately — do NOT block on Supabase
-
-      // Fix 1: Send WS proposal immediately — do NOT block on Supabase
       ws.send(JSON.stringify(proposalReq));
       toast.info(`Initiating trade: ${type} on ${symbol}`);
 
@@ -1011,8 +1009,8 @@ export function useAutoTrader(
 
   useEffect(() => {
     if (!config.enabled) {
-      symbolTradeStreakRef.current.clear();
-      console.log("[AutoTrader] Consecutive trade tracker reset (auto-trading disabled)");
+      symbolTrackerRef.current.clear();
+      console.log("[AutoTrader] Symbol state trackers reset (auto-trading disabled)");
     }
   }, [config.enabled]);
 
