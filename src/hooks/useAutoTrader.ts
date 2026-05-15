@@ -31,7 +31,7 @@ const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Math.max(0.35, Number(incoming?.baseStake ?? 0.35));
-  const maxMartingaleSteps = Math.max(12, Number(incoming?.maxMartingaleSteps ?? 12));
+  const maxMartingaleSteps = Math.max(1, Number(incoming?.maxMartingaleSteps ?? 12));
   const rawCooldownMinutes = Number(incoming?.cooldownIntervalMinutes ?? DEFAULT_COOLDOWN_INTERVAL_MINUTES);
   const cooldownIntervalMinutes = COOLDOWN_INTERVAL_OPTIONS.includes(rawCooldownMinutes as AutoTraderConfig["cooldownIntervalMinutes"])
     ? (rawCooldownMinutes as AutoTraderConfig["cooldownIntervalMinutes"])

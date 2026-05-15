@@ -65,7 +65,7 @@ export function TradingPanel({
   const stakeVal = parseFloat(localStake);
   const stepsVal = parseInt(localSteps);
   const isStakeValid = !isNaN(stakeVal) && stakeVal >= 0.35;
-  const isStepsValid = !isNaN(stepsVal) && stepsVal >= 12;
+  const isStepsValid = !isNaN(stepsVal) && stepsVal >= 1;
 
   const isTrialExpired = (() => {
     if (!profile || profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
@@ -124,8 +124,7 @@ export function TradingPanel({
           </label>
           <Input
             type="number"
-            min={12}
-            max={20}
+            min={1}
             step={1}
             value={localSteps}
             onChange={(e) => setLocalSteps(e.target.value)}
@@ -133,7 +132,7 @@ export function TradingPanel({
             className={`bg-muted border-border font-mono text-sm h-8 ${!isStepsValid && localSteps !== "" ? "border-destructive text-destructive" : ""}`}
           />
           {!isStepsValid && localSteps !== "" && (
-            <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min 12 Steps</p>
+            <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min 1 Step</p>
           )}
         </div>
       </div>
