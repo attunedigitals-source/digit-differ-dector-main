@@ -19,8 +19,13 @@ const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
 type TradeCategory = "under4" | "over4" | "under5" | "over5";
 interface SymbolStatus {
-  lastDirection: TradeCategory | null;
+  lastGroup: "NORMAL" | "SPECIAL" | null;
 }
+
+const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
+  if (cat === "under4" || cat === "over5") return "NORMAL";
+  return "SPECIAL";
+};
 
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
@@ -308,15 +313,28 @@ export function useAutoTrader(
       }
 
       const { symbol } = selectedSymbol;
-      const status = symbolTrackerRef.current.get(symbol) || { lastDirection: null };
+      const status = symbolTrackerRef.current.get(symbol) || { lastGroup: null };
 
-      // Random direction selection from the 4 options
-      const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
+      // Groups definition
+      const normalGroup: TradeCategory[] = ["under4", "over5"];
+      const specialGroup: TradeCategory[] = ["over4", "under5"];
       
-      // Memory check: Filter out the last direction used for this volatility
-      const availableCategories = allCategories.filter(cat => cat !== status.lastDirection);
+      let availableCategories: TradeCategory[];
+      let chosenGroup: "NORMAL" | "SPECIAL";
+
+      if (!status.lastGroup) {
+        // First trade for this volatility: random from all 4
+        availableCategories = ["under4", "over4", "under5", "over5"];
+      } else if (status.lastGroup === "NORMAL") {
+        // Last was Normal, now pick from Special
+        availableCategories = specialGroup;
+      } else {
+        // Last was Special, now pick from Normal
+        availableCategories = normalGroup;
+      }
       
       const trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+      chosenGroup = getCategoryGroup(trade);
 
       const categoryLabels: Record<TradeCategory, string> = {
         under4: "Under 4",
@@ -325,11 +343,12 @@ export function useAutoTrader(
         over5: "Over 5",
       };
 
-      console.log("[AutoTrader] Volatility and Random Selection", {
+      console.log("[AutoTrader] Volatility and Alternating Group Selection", {
         symbol,
-        lastDirection: status.lastDirection ? categoryLabels[status.lastDirection] : "None",
+        lastGroup: status.lastGroup || "None",
+        nextGroup: chosenGroup,
         selectedTrade: categoryLabels[trade],
-        availableOptions: availableCategories.map(c => categoryLabels[c]),
+        availableOptionsInGroup: availableCategories.map(c => categoryLabels[c]),
       });
 
       if (state.status === "WIN" || state.status === "IDLE") {
@@ -498,7 +517,7 @@ export function useAutoTrader(
     
     // Update per-symbol tracker
     symbolTrackerRef.current.set(symbol, {
-      lastDirection: state.currentCategory,
+      lastGroup: state.currentCategory ? getCategoryGroup(state.currentCategory) : null,
     });
 
     const newStatus = isWin ? "WIN" : "LOSS";
