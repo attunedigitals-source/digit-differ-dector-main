@@ -168,6 +168,36 @@ export function TradingPanel({
         </p>
       </div>
 
+      {/* Strategy Selection */}
+      <div className="space-y-1.5 bg-muted/20 p-3 rounded-md border border-border/50">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+          <TrendingUp className="w-3 h-3" /> Trading Strategy
+        </label>
+        <Select
+          value={config.strategy || "alternating"}
+          disabled={config.enabled}
+          onValueChange={(value) =>
+            onConfigChange({
+              ...config,
+              strategy: value as any,
+            })
+          }
+        >
+          <SelectTrigger className="bg-muted border-border font-mono text-sm h-8">
+            <SelectValue placeholder="Select strategy" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="alternating">Alternating Groups</SelectItem>
+            <SelectItem value="recovery">Hybrid Recovery</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[9px] text-muted-foreground">
+          {config.strategy === "recovery" 
+            ? "Over 5/Under 4 initial. If loss, switches to Over 0/Under 9 recovery." 
+            : "Alternates between Normal (O5/U4) and Special (U5/O4) groups."}
+        </p>
+      </div>
+
       {/* Stats & Current Session */}
       <div className="grid grid-cols-3 gap-2 bg-muted/30 p-3 rounded-md border border-border/50">
         <div className="text-center">

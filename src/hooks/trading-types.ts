@@ -12,9 +12,12 @@ export interface TradeRecord {
   timestamp: Date;
 }
 
+export type TradingStrategy = "alternating" | "recovery";
+
 export interface AutoTraderConfig {
   enabled: boolean;
   baseStake: number;
   maxMartingaleSteps: number;
   cooldownIntervalMinutes: 30 | 40 | 50 | 60;
+  strategy: TradingStrategy;
 }

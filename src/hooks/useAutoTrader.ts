@@ -8,6 +8,7 @@ import type { SymbolState } from "@/lib/signal-engine";
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
+const RECOVERY_MARTINGALE_MULTIPLIER = 9.0;
 const MAX_TICK_AGE_MS = 10000;
 const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
 const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
@@ -17,7 +18,7 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-type TradeCategory = "under4" | "over4" | "under5" | "over5";
+type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9";
 interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
@@ -41,6 +42,7 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
     baseStake,
     maxMartingaleSteps,
     cooldownIntervalMinutes,
+    strategy: incoming?.strategy || "alternating",
   };
 };
 
@@ -83,8 +85,9 @@ export function useAutoTrader(
     return sanitizeConfig({
       enabled: false,
       baseStake: 0.35,
-      maxMartingaleSteps: 10,
+      maxMartingaleSteps: 12,
       cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
+      strategy: "alternating",
     });
   });
 
@@ -315,40 +318,53 @@ export function useAutoTrader(
       const { symbol } = selectedSymbol;
       const status = symbolTrackerRef.current.get(symbol) || { lastGroup: null };
 
-      // Groups definition
-      const normalGroup: TradeCategory[] = ["under4", "over5"];
-      const specialGroup: TradeCategory[] = ["over4", "under5"];
-      
-      let availableCategories: TradeCategory[];
-      let chosenGroup: "NORMAL" | "SPECIAL";
+      let trade: TradeCategory;
+      let chosenGroup: "NORMAL" | "SPECIAL" | "RECOVERY";
 
-      if (!status.lastGroup) {
-        // First trade for this volatility: random from all 4
-        availableCategories = ["under4", "over4", "under5", "over5"];
-      } else if (status.lastGroup === "NORMAL") {
-        // Last was Normal, now pick from Special
-        availableCategories = specialGroup;
+      if (config.strategy === "recovery") {
+        if (state.status === "IDLE" || state.status === "WIN") {
+          // Normal selection for recovery strategy start: O5/U4
+          const initialOptions: TradeCategory[] = ["under4", "over5"];
+          trade = initialOptions[Math.floor(Math.random() * initialOptions.length)];
+          chosenGroup = "NORMAL";
+        } else {
+          // Recovery mode: O0/U9
+          const recoveryOptions: TradeCategory[] = ["over0", "under9"];
+          trade = recoveryOptions[Math.floor(Math.random() * recoveryOptions.length)];
+          chosenGroup = "RECOVERY";
+        }
       } else {
-        // Last was Special, now pick from Normal
-        availableCategories = normalGroup;
+        // Alternating Strategy logic
+        const normalGroup: TradeCategory[] = ["under4", "over5"];
+        const specialGroup: TradeCategory[] = ["over4", "under5"];
+        
+        let availableCategories: TradeCategory[];
+        if (!status.lastGroup) {
+          availableCategories = ["under4", "over4", "under5", "over5"];
+        } else if (status.lastGroup === "NORMAL") {
+          availableCategories = specialGroup;
+        } else {
+          availableCategories = normalGroup;
+        }
+        trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+        chosenGroup = getCategoryGroup(trade as any);
       }
-      
-      const trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
-      chosenGroup = getCategoryGroup(trade);
 
       const categoryLabels: Record<TradeCategory, string> = {
         under4: "Under 4",
         over4: "Over 4",
         under5: "Under 5",
         over5: "Over 5",
+        over0: "Over 0",
+        under9: "Under 9",
       };
 
-      console.log("[AutoTrader] Volatility and Alternating Group Selection", {
+      console.log("[AutoTrader] Volatility and Strategy Selection", {
+        strategy: config.strategy,
         symbol,
         lastGroup: status.lastGroup || "None",
-        nextGroup: chosenGroup,
+        selectedGroup: chosenGroup,
         selectedTrade: categoryLabels[trade],
-        availableOptionsInGroup: availableCategories.map(c => categoryLabels[c]),
       });
 
       if (state.status === "WIN" || state.status === "IDLE") {
@@ -372,7 +388,9 @@ export function useAutoTrader(
       if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
       else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
       else if (trade === "under5") { type = "DIGITUNDER"; barrier = 5; }
-      else { type = "DIGITOVER"; barrier = 5; }
+      else if (trade === "over5") { type = "DIGITOVER"; barrier = 5; }
+      else if (trade === "over0") { type = "DIGITOVER"; barrier = 0; }
+      else { type = "DIGITUNDER"; barrier = 9; }
 
       const isFirstTrade = state.status === "IDLE";
       const isSpecialStakeTrade = trade === "under5" || trade === "over4";
@@ -383,10 +401,11 @@ export function useAutoTrader(
       } else if (isWin) {
         nextStake = config.baseStake;
       } else if (state.status === "LOSS") {
+        const multiplier = config.strategy === "recovery" ? RECOVERY_MARTINGALE_MULTIPLIER : MARTINGALE_MULTIPLIER;
         if (isSpecialStakeTrade) {
-          nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2));
+          nextStake = Number((state.currentStake * multiplier * 1.26).toFixed(2));
         } else {
-          nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+          nextStake = Number((state.currentStake * multiplier).toFixed(2));
         }
       } else {
         nextStake = config.baseStake;
@@ -517,7 +536,9 @@ export function useAutoTrader(
     
     // Update per-symbol tracker
     symbolTrackerRef.current.set(symbol, {
-      lastGroup: state.currentCategory ? getCategoryGroup(state.currentCategory) : null,
+      lastGroup: state.currentCategory && (state.currentCategory !== "over0" && state.currentCategory !== "under9") 
+        ? getCategoryGroup(state.currentCategory as any) 
+        : null,
     });
 
     const newStatus = isWin ? "WIN" : "LOSS";
