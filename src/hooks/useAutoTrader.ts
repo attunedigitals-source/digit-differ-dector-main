@@ -8,7 +8,7 @@ import type { SymbolState } from "@/lib/signal-engine";
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
-const RECOVERY_MARTINGALE_MULTIPLIER = 9.0;
+const RECOVERY_MARTINGALE_MULTIPLIER = 11.43;
 const MAX_TICK_AGE_MS = 10000;
 const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
 const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
