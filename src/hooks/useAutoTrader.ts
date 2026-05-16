@@ -323,10 +323,10 @@ export function useAutoTrader(
 
       if (config.strategy === "recovery") {
         if (state.status === "IDLE" || state.status === "WIN") {
-          // Normal selection for recovery strategy start: O5/U4
-          const initialOptions: TradeCategory[] = ["under4", "over5"];
+          // Normal selection for recovery strategy start: U4, O4, U5, O5
+          const initialOptions: TradeCategory[] = ["under4", "over4", "under5", "over5"];
           trade = initialOptions[Math.floor(Math.random() * initialOptions.length)];
-          chosenGroup = "NORMAL";
+          chosenGroup = getCategoryGroup(trade);
         } else {
           // Recovery mode: O0/U9
           const recoveryOptions: TradeCategory[] = ["over0", "under9"];
@@ -376,8 +376,8 @@ export function useAutoTrader(
         stepIndexRef.current += 1;
       }
 
-      if (nextStep >= config.maxMartingaleSteps) {
-        toast.error("Max Martingale Steps reached. Stopping automation.");
+      if (nextStep > config.maxMartingaleSteps) {
+        toast.error(`Max Martingale Steps (${config.maxMartingaleSteps}) reached. Stopping automation.`);
         setConfig(prev => ({ ...prev, enabled: false }));
         isExecutingRef.current = false;
         return;
