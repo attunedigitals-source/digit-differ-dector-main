@@ -188,11 +188,14 @@ export function TradingPanel({
           <SelectContent>
             <SelectItem value="alternating">Alternating Groups</SelectItem>
             <SelectItem value="recovery">Hybrid Recovery</SelectItem>
+            <SelectItem value="random_even_odd">Even/Odd Randomizer</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
           {config.strategy === "recovery" 
             ? "Over 5/Under 4 initial. If loss, switches to Over 0/Under 9 recovery." 
+            : config.strategy === "random_even_odd"
+            ? "Random Even/Odd with 2-step Martingale (2.0x multiplier) that continues continuously."
             : "Alternates between Normal (O5/U4) and Special (U5/O4) groups."}
         </p>
       </div>
@@ -334,7 +337,10 @@ export function TradingPanel({
                 <div className="flex flex-col">
                   <span className="font-semibold">{getSymbolName(trade.symbol)}</span>
                   {/* Sequence name removed as it is common to all trades */}
-                  <span className="text-[8px] opacity-70">{trade.contract} B:{trade.barrier}</span>
+                  <span className="text-[8px] opacity-70">
+                    {trade.contract}
+                    {trade.contract !== "DIGITEVEN" && trade.contract !== "DIGITODD" && ` B:${trade.barrier}`}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-right">
                   <div className="flex flex-col">
