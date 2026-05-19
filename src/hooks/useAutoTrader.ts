@@ -384,9 +384,7 @@ export function useAutoTrader(
       const isWin = state.status === "WIN";
 
       if (isFirstTrade || isWin) {
-        nextStake = isSpecialStakeTrade 
-          ? Number((config.baseStake * MARTINGALE_MULTIPLIER).toFixed(2)) 
-          : config.baseStake;
+        nextStake = config.baseStake;
       } else if (state.status === "LOSS") {
         nextStake = isSpecialStakeTrade
           ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
