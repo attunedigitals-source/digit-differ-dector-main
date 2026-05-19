@@ -300,40 +300,41 @@ export function useAutoTrader(
       let nextStep = state.martingaleStep;
       let seqStep = state.sequenceStep;
 
-      const selectedSymbol = select_random_active_symbol();
-      if (!selectedSymbol) {
-        console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
+      let symbol: string;
+      if (state.status === "LOSS" && state.currentSymbol) {
+        symbol = state.currentSymbol;
+      } else {
+        const selectedSymbol = select_random_active_symbol();
+        if (!selectedSymbol) {
+          console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
 
-        setSessionState(prev => ({
-          ...prev,
-          status: "SKIP",
-          nextAction: "SKP_STALE",
-        }));
+          setSessionState(prev => ({
+            ...prev,
+            status: "SKIP",
+            nextAction: "SKP_STALE",
+          }));
 
-        setTicksToWait(3);
-        isExecutingRef.current = false;
-        return;
+          setTicksToWait(3);
+          isExecutingRef.current = false;
+          return;
+        }
+        symbol = selectedSymbol.symbol;
       }
-
-      const { symbol } = selectedSymbol;
-      const status = symbolTrackerRef.current.get(symbol) || { lastGroup: null };
 
       let trade: TradeCategory;
       let chosenGroup: "NORMAL" | "SPECIAL";
 
-      // Alternating Strategy logic
       const normalGroup: TradeCategory[] = ["under4", "over5"];
       const specialGroup: TradeCategory[] = ["over4", "under5"];
       
-      let availableCategories: TradeCategory[];
-      if (!status.lastGroup) {
-        availableCategories = ["under4", "over4", "under5", "over5"];
-      } else if (status.lastGroup === "NORMAL") {
-        availableCategories = specialGroup;
+      if (state.status === "LOSS" && state.currentCategory) {
+        const lastGroup = getCategoryGroup(state.currentCategory);
+        const availableCategories = lastGroup === "NORMAL" ? specialGroup : normalGroup;
+        trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
       } else {
-        availableCategories = normalGroup;
+        const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
+        trade = allCategories[Math.floor(Math.random() * allCategories.length)];
       }
-      trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
       chosenGroup = getCategoryGroup(trade as any);
 
       const categoryLabels: Record<TradeCategory, string> = {
@@ -348,7 +349,7 @@ export function useAutoTrader(
       console.log("[AutoTrader] Volatility and Strategy Selection", {
         strategy: config.strategy,
         symbol,
-        lastGroup: status.lastGroup || "None",
+        lastGroup: state.status === "LOSS" && state.currentCategory ? getCategoryGroup(state.currentCategory) : "None (Random)",
         selectedGroup: chosenGroup,
         selectedTrade: categoryLabels[trade],
       });
@@ -387,7 +388,9 @@ export function useAutoTrader(
           ? Number((config.baseStake * MARTINGALE_MULTIPLIER).toFixed(2)) 
           : config.baseStake;
       } else if (state.status === "LOSS") {
-        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+        nextStake = isSpecialStakeTrade
+          ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
+          : Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
       } else {
         nextStake = config.baseStake;
       }
