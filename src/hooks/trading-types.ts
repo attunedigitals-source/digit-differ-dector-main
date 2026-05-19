@@ -12,7 +12,7 @@ export interface TradeRecord {
   timestamp: Date;
 }
 
-export type TradingStrategy = "alternating" | "recovery" | "random_even_odd";
+export type TradingStrategy = "alternating";
 
 export interface AutoTraderConfig {
   enabled: boolean;

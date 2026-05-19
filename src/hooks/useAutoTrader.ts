@@ -18,13 +18,13 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd";
+type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9";
 interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
 
 const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
-  if (cat === "under4" || cat === "over5" || cat === "even" || cat === "odd") return "NORMAL";
+  if (cat === "under4" || cat === "over5") return "NORMAL";
   return "SPECIAL";
 };
 
@@ -319,40 +319,22 @@ export function useAutoTrader(
       const status = symbolTrackerRef.current.get(symbol) || { lastGroup: null };
 
       let trade: TradeCategory;
-      let chosenGroup: "NORMAL" | "SPECIAL" | "RECOVERY";
+      let chosenGroup: "NORMAL" | "SPECIAL";
 
-      if (config.strategy === "random_even_odd") {
-        const evenOddOptions: TradeCategory[] = ["even", "odd"];
-        trade = evenOddOptions[Math.floor(Math.random() * evenOddOptions.length)];
-        chosenGroup = "NORMAL";
-      } else if (config.strategy === "recovery") {
-        if (state.status === "IDLE" || state.status === "WIN") {
-          // Normal selection for recovery strategy start: U4, O4, U5, O5
-          const initialOptions: TradeCategory[] = ["under4", "over4", "under5", "over5"];
-          trade = initialOptions[Math.floor(Math.random() * initialOptions.length)];
-          chosenGroup = getCategoryGroup(trade);
-        } else {
-          // Recovery mode: O0/U9
-          const recoveryOptions: TradeCategory[] = ["over0", "under9"];
-          trade = recoveryOptions[Math.floor(Math.random() * recoveryOptions.length)];
-          chosenGroup = "RECOVERY";
-        }
+      // Alternating Strategy logic
+      const normalGroup: TradeCategory[] = ["under4", "over5"];
+      const specialGroup: TradeCategory[] = ["over4", "under5"];
+      
+      let availableCategories: TradeCategory[];
+      if (!status.lastGroup) {
+        availableCategories = ["under4", "over4", "under5", "over5"];
+      } else if (status.lastGroup === "NORMAL") {
+        availableCategories = specialGroup;
       } else {
-        // Alternating Strategy logic
-        const normalGroup: TradeCategory[] = ["under4", "over5"];
-        const specialGroup: TradeCategory[] = ["over4", "under5"];
-        
-        let availableCategories: TradeCategory[];
-        if (!status.lastGroup) {
-          availableCategories = ["under4", "over4", "under5", "over5"];
-        } else if (status.lastGroup === "NORMAL") {
-          availableCategories = specialGroup;
-        } else {
-          availableCategories = normalGroup;
-        }
-        trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
-        chosenGroup = getCategoryGroup(trade as any);
+        availableCategories = normalGroup;
       }
+      trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+      chosenGroup = getCategoryGroup(trade as any);
 
       const categoryLabels: Record<TradeCategory, string> = {
         under4: "Under 4",
@@ -360,9 +342,7 @@ export function useAutoTrader(
         under5: "Under 5",
         over5: "Over 5",
         over0: "Over 0",
-        under9: "Under 9",
-        even: "Even",
-        odd: "Odd",
+        under9: "Under 9"
       };
 
       console.log("[AutoTrader] Volatility and Strategy Selection", {
@@ -373,80 +353,43 @@ export function useAutoTrader(
         selectedTrade: categoryLabels[trade],
       });
 
-      if (config.strategy === "random_even_odd") {
-        if (state.status === "WIN" || state.status === "IDLE") {
-          nextStep = 0;
-          seqStep = 0;
-        } else if (state.status === "LOSS") {
-          if (state.martingaleStep >= 2) {
-            nextStep = 0;
-            seqStep = 0;
-          } else {
-            nextStep = state.martingaleStep + 1;
-            seqStep = state.sequenceStep + 1;
-            stepIndexRef.current += 1;
-          }
-        }
-      } else {
-        if (state.status === "WIN" || state.status === "IDLE") {
-          nextStep = 0;
-          seqStep = 0;
-        } else if (state.status === "LOSS") {
-          nextStep = state.martingaleStep + 1;
-          seqStep = state.sequenceStep + 1;
-          stepIndexRef.current += 1;
-        }
+      if (state.status === "WIN" || state.status === "IDLE") {
+        nextStep = 0;
+        seqStep = 0;
+      } else if (state.status === "LOSS") {
+        nextStep = state.martingaleStep + 1;
+        seqStep = state.sequenceStep + 1;
+        stepIndexRef.current += 1;
       }
 
-      if (config.strategy !== "random_even_odd" && nextStep > config.maxMartingaleSteps) {
+      if (nextStep > config.maxMartingaleSteps) {
         toast.error(`Max Martingale Steps (${config.maxMartingaleSteps}) reached. Stopping automation.`);
         setConfig(prev => ({ ...prev, enabled: false }));
         isExecutingRef.current = false;
         return;
       }
 
-      let type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD";
+      let type: "DIGITOVER" | "DIGITUNDER";
       let barrier: number;
       if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
       else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
       else if (trade === "under5") { type = "DIGITUNDER"; barrier = 5; }
       else if (trade === "over5") { type = "DIGITOVER"; barrier = 5; }
       else if (trade === "over0") { type = "DIGITOVER"; barrier = 0; }
-      else if (trade === "under9") { type = "DIGITUNDER"; barrier = 9; }
-      else if (trade === "even") { type = "DIGITEVEN"; barrier = 0; }
-      else { type = "DIGITODD"; barrier = 0; }
+      else { type = "DIGITUNDER"; barrier = 9; }
 
       const isFirstTrade = state.status === "IDLE";
       const isSpecialStakeTrade = trade === "under5" || trade === "over4";
       const isWin = state.status === "WIN";
 
-      if (config.strategy === "random_even_odd") {
-        if (isFirstTrade || isWin) {
-          nextStake = config.baseStake;
-        } else if (state.status === "LOSS") {
-          if (state.martingaleStep >= 2) {
-            nextStake = config.baseStake;
-          } else {
-            nextStake = Number((state.currentStake * 2.0).toFixed(2));
-          }
-        } else {
-          nextStake = config.baseStake;
-        }
+      if (isFirstTrade || isWin) {
+        nextStake = isSpecialStakeTrade 
+          ? Number((config.baseStake * MARTINGALE_MULTIPLIER).toFixed(2)) 
+          : config.baseStake;
+      } else if (state.status === "LOSS") {
+        nextStake = Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
       } else {
-        if (isFirstTrade) {
-          nextStake = config.baseStake;
-        } else if (isWin) {
-          nextStake = config.baseStake;
-        } else if (state.status === "LOSS") {
-          const multiplier = config.strategy === "recovery" ? RECOVERY_MARTINGALE_MULTIPLIER : MARTINGALE_MULTIPLIER;
-          if (isSpecialStakeTrade) {
-            nextStake = Number((state.currentStake * multiplier * 1.26).toFixed(2));
-          } else {
-            nextStake = Number((state.currentStake * multiplier).toFixed(2));
-          }
-        } else {
-          nextStake = config.baseStake;
-        }
+        nextStake = config.baseStake;
       }
 
       console.log("[AutoTrader] Trade selection finalized", { symbol, trade: categoryLabels[trade], stake: nextStake });
@@ -496,9 +439,7 @@ export function useAutoTrader(
         req_id: reqId,
       };
 
-      if (type !== "DIGITEVEN" && type !== "DIGITODD") {
-        proposalReq.barrier = String(barrier);
-      }
+      proposalReq.barrier = String(barrier);
 
       if (isV4) {
         proposalReq.underlying_symbol = symbol;
@@ -577,15 +518,13 @@ export function useAutoTrader(
     
     // Update per-symbol tracker
     symbolTrackerRef.current.set(symbol, {
-      lastGroup: state.currentCategory && (state.currentCategory !== "over0" && state.currentCategory !== "under9" && state.currentCategory !== "even" && state.currentCategory !== "odd") 
+      lastGroup: state.currentCategory && (state.currentCategory !== "over0" && state.currentCategory !== "under9") 
         ? getCategoryGroup(state.currentCategory as any) 
         : null,
     });
 
     const newStatus = isWin ? "WIN" : "LOSS";
-    let ticksToWaitNext = config.strategy === "random_even_odd"
-      ? Math.floor(Math.random() * 3) + 1
-      : randomTradeCooldownTicks(isWin);
+    let ticksToWaitNext = randomTradeCooldownTicks(isWin);
     let nextAction = isWin
       ? `P_CD_${ticksToWaitNext}T`
       : `L_CD_${ticksToWaitNext}T`;
