@@ -103,6 +103,7 @@ export function useAutoTrader(
     nextAction: "IDLE_RDY",
     currentCategory: null as TradeCategory | null,
     symbolLossStreak: 0,
+    usedCategories: [] as TradeCategory[],
   });
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
@@ -339,17 +340,16 @@ export function useAutoTrader(
       let trade: TradeCategory;
       let chosenGroup: "NORMAL" | "SPECIAL";
 
-      const normalGroup: TradeCategory[] = ["under4", "over5"];
-      const specialGroup: TradeCategory[] = ["over4", "under5"];
-      
-      if (state.status === "LOSS" && state.currentCategory) {
-        const lastGroup = getCategoryGroup(state.currentCategory);
-        const availableCategories = lastGroup === "NORMAL" ? specialGroup : normalGroup;
-        trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+      const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
+      const previousUsed = mustChangeSymbol ? [] : (state.usedCategories || []);
+      const remainingCategories = allCategories.filter(cat => !previousUsed.includes(cat));
+
+      if (remainingCategories.length > 0) {
+        trade = remainingCategories[Math.floor(Math.random() * remainingCategories.length)];
       } else {
-        const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
         trade = allCategories[Math.floor(Math.random() * allCategories.length)];
       }
+      const nextUsedCategories = [...previousUsed, trade];
       chosenGroup = getCategoryGroup(trade as any);
 
       const categoryLabels: Record<TradeCategory, string> = {
@@ -364,9 +364,9 @@ export function useAutoTrader(
       console.log("[AutoTrader] Volatility and Strategy Selection", {
         strategy: config.strategy,
         symbol,
-        lastGroup: state.status === "LOSS" && state.currentCategory ? getCategoryGroup(state.currentCategory) : "None (Random)",
-        selectedGroup: chosenGroup,
+        remainingCategories,
         selectedTrade: categoryLabels[trade],
+        usedSoFar: nextUsedCategories,
       });
 
       if (state.status === "WIN" || state.status === "IDLE") {
@@ -423,6 +423,7 @@ export function useAutoTrader(
         status: "PENDING",
         nextAction: "TRD_LIV",
         symbolLossStreak: mustChangeSymbol ? 0 : prev.symbolLossStreak,
+        usedCategories: nextUsedCategories,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -609,6 +610,7 @@ export function useAutoTrader(
       martingaleStep: isWin ? 0 : state.martingaleStep,
       sequenceStep: isWin ? 0 : state.sequenceStep,
       symbolLossStreak: isWin ? 0 : (state.symbolLossStreak ?? 0) + 1,
+      usedCategories: isWin ? [] : (state.usedCategories || []),
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
@@ -1007,6 +1009,7 @@ export function useAutoTrader(
       status: "IDLE",
       nextAction: "W8_TCK",
       symbolLossStreak: 0,
+      usedCategories: [],
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
