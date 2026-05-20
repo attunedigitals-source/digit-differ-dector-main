@@ -102,6 +102,7 @@ export function useAutoTrader(
     status: "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
     nextAction: "IDLE_RDY",
     currentCategory: null as TradeCategory | null,
+    symbolLossStreak: 0,
   });
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
@@ -230,7 +231,7 @@ export function useAutoTrader(
   const useReducedWindowSize = useRef(false);
   const freshnessWarningShownRef = useRef(false);
 
-  const select_random_active_symbol = useCallback(() => {
+  const select_random_active_symbol = useCallback((excludeSymbol?: string) => {
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
       "R_10", "R_25", "R_50", "R_75", "R_100",
@@ -238,6 +239,9 @@ export function useAutoTrader(
 
     const candidates = symbols
       .map((symbol) => {
+        if (excludeSymbol && symbol === excludeSymbol) {
+          return null;
+        }
         const symbolState = getSymbolState(symbol);
         
         // Check freshness only - no need for 16 ticks
@@ -256,6 +260,15 @@ export function useAutoTrader(
       .filter((c): c is { symbol: string } => c !== null);
 
     if (candidates.length === 0) {
+      if (excludeSymbol) {
+        const fallbackState = getSymbolState(excludeSymbol);
+        if (fallbackState?.updatedAt) {
+          const tickAgeMs = Date.now() - fallbackState.updatedAt;
+          if (tickAgeMs <= MAX_TICK_AGE_MS) {
+            return { symbol: excludeSymbol };
+          }
+        }
+      }
       return null;
     }
 
@@ -301,10 +314,12 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      if (state.status === "LOSS" && state.currentSymbol) {
+      const mustChangeSymbol = state.status === "WIN" || state.status === "IDLE" || (state.status === "LOSS" && (state.symbolLossStreak ?? 0) >= 4);
+
+      if (!mustChangeSymbol && state.currentSymbol) {
         symbol = state.currentSymbol;
       } else {
-        const selectedSymbol = select_random_active_symbol();
+        const selectedSymbol = select_random_active_symbol(state.currentSymbol);
         if (!selectedSymbol) {
           console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
 
@@ -407,6 +422,7 @@ export function useAutoTrader(
         currentCategory: trade,
         status: "PENDING",
         nextAction: "TRD_LIV",
+        symbolLossStreak: mustChangeSymbol ? 0 : prev.symbolLossStreak,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -592,6 +608,7 @@ export function useAutoTrader(
       currentStake: isWin ? config.baseStake : state.currentStake,
       martingaleStep: isWin ? 0 : state.martingaleStep,
       sequenceStep: isWin ? 0 : state.sequenceStep,
+      symbolLossStreak: isWin ? 0 : (state.symbolLossStreak ?? 0) + 1,
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
@@ -989,6 +1006,7 @@ export function useAutoTrader(
       currentBarrier: 5,
       status: "IDLE",
       nextAction: "W8_TCK",
+      symbolLossStreak: 0,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);

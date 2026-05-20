@@ -17,6 +17,7 @@ interface TradingPanelProps {
     currentStake: number;
     martingaleStep: number;
     nextAction: string;
+    symbolLossStreak?: number;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -169,23 +170,29 @@ export function TradingPanel({
 
 
       {/* Stats & Current Session */}
-      <div className="grid grid-cols-3 gap-2 bg-muted/30 p-3 rounded-md border border-border/50">
+      <div className="grid grid-cols-4 gap-1 bg-muted/30 p-2.5 rounded-md border border-border/50 animate-in fade-in">
         <div className="text-center">
           <div className="text-[9px] text-muted-foreground uppercase">Daily P/L</div>
-          <div className={`text-sm font-bold ${dailyPL >= 0 ? "text-green-500" : "text-destructive"}`}>
+          <div className={`text-xs sm:text-sm font-bold ${dailyPL >= 0 ? "text-green-500" : "text-destructive"}`}>
             ${dailyPL.toFixed(2)}
           </div>
         </div>
-        <div className="text-center border-x border-border/50">
+        <div className="text-center border-l border-border/50">
           <div className="text-[9px] text-muted-foreground uppercase">Cur Stake</div>
-          <div className="text-sm font-bold text-foreground">
+          <div className="text-xs sm:text-sm font-bold text-foreground">
             ${sessionState.currentStake.toFixed(2)}
           </div>
         </div>
-        <div className="text-center">
+        <div className="text-center border-l border-border/50">
           <div className="text-[9px] text-muted-foreground uppercase">Step</div>
-          <div className="text-sm font-bold text-foreground">
+          <div className="text-xs sm:text-sm font-bold text-foreground">
             {sessionState.martingaleStep}
+          </div>
+        </div>
+        <div className="text-center border-l border-border/50">
+          <div className="text-[9px] text-muted-foreground uppercase">Loss Streak</div>
+          <div className="text-xs sm:text-sm font-bold text-foreground">
+            {sessionState.symbolLossStreak ?? 0} / 4
           </div>
         </div>
       </div>
