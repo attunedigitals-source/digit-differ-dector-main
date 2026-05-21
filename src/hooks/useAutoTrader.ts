@@ -680,6 +680,14 @@ export function useAutoTrader(
         const nextArrangement = nextStep >= 12
           ? { ...existing, current_step: 0, current_index: wrappedIndex }
           : { ...existing, current_step: nextStep };
+
+        const sequenceZeroBased = Math.max(0, Math.min(ARRANGEMENT_TOTAL - 1, nextArrangement.current_index - 1));
+        const arrangementIndex = nextArrangement.mode === "scrambled"
+          ? getScrambledArrangementIndex(sequenceZeroBased)
+          : sequenceZeroBased + 1;
+        const displayStep = Math.max(0, Math.min(11, nextArrangement.current_step));
+        setActiveSequenceSnapshot(buildActiveSequenceSnapshot(arrangementIndex, displayStep, nextArrangement.mode));
+
         const nextConfig = {
           ...prev,
           arrangement_states: {
