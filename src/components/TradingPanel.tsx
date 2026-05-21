@@ -26,6 +26,12 @@ interface TradingPanelProps {
   dailyPL: number;
   windDownMode: boolean;
   onActivateWindDown: () => void;
+  activeSequenceSnapshot: {
+    name: string;
+    arrangementIndex: number;
+    arrangementStep: number;
+    arrangementMode: "scrambled" | "sequential";
+  };
   profile?: UserProfile | null;
 }
 
@@ -40,6 +46,7 @@ export function TradingPanel({
   dailyPL,
   windDownMode,
   onActivateWindDown,
+  activeSequenceSnapshot,
   profile,
 }: TradingPanelProps) {
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
@@ -269,6 +276,18 @@ export function TradingPanel({
       {/* Status Bar */}
       {config.enabled && (
         <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+          <div className="rounded-md border border-primary/20 bg-primary/5 px-2 py-1.5 text-[10px]">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Sequence</span>
+              <span className="font-mono font-bold text-primary">{activeSequenceSnapshot.name}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Arrangement</span>
+              <span className="font-mono">
+                #{activeSequenceSnapshot.arrangementIndex} · Step {activeSequenceSnapshot.arrangementStep + 1}/12 · {activeSequenceSnapshot.arrangementMode}
+              </span>
+            </div>
+          </div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground flex items-center gap-1">
               <Clock className="w-3 h-3" /> Cooldown:

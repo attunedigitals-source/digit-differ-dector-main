@@ -110,6 +110,12 @@ export function useAutoTrader(
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
   const [windDownMode, setWindDownMode] = useState(false);
+  const [activeSequenceSnapshot, setActiveSequenceSnapshot] = useState({
+    name: "LAST16_HYBRID",
+    arrangementIndex: 1,
+    arrangementStep: 0,
+    arrangementMode: "scrambled" as "scrambled" | "sequential",
+  });
   const [continuousTradeStartAt, setContinuousTradeStartAt] = useState<number | null>(null);
   const continuousTradeStartAtRef = useRef<number | null>(null);
 
@@ -354,6 +360,12 @@ export function useAutoTrader(
         const arrangement = getArrangementPermutation(arrangementIndex);
         const step = Math.max(0, Math.min(11, prevArrangement.current_step));
         trade = arrangement[step];
+        setActiveSequenceSnapshot({
+          name: activeSequenceNameRef.current,
+          arrangementIndex,
+          arrangementStep: step,
+          arrangementMode: prevArrangement.mode,
+        });
         nextUsedCategories = mustChangeSymbol ? [trade] : [...(state.usedCategories || []), trade];
       } else {
         const previousUsed = mustChangeSymbol ? [] : (state.usedCategories || []);
@@ -1133,5 +1145,6 @@ export function useAutoTrader(
     execute_trade,
     windDownMode,
     activateWindDown,
+    activeSequenceSnapshot,
   };
 }
