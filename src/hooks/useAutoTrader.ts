@@ -115,6 +115,7 @@ export function useAutoTrader(
     arrangementIndex: 1,
     arrangementStep: 0,
     arrangementMode: "scrambled" as "scrambled" | "sequential",
+    arrangementSequence: "",
   });
   const [continuousTradeStartAt, setContinuousTradeStartAt] = useState<number | null>(null);
   const continuousTradeStartAtRef = useRef<number | null>(null);
@@ -359,12 +360,21 @@ export function useAutoTrader(
           : sequenceZeroBased + 1;
         const arrangement = getArrangementPermutation(arrangementIndex);
         const step = Math.max(0, Math.min(11, prevArrangement.current_step));
+        const tokenLabelMap: Record<TradeCategory, string> = {
+          under4: "U4",
+          over4: "O4",
+          under5: "U5",
+          over5: "O5",
+          over0: "O0",
+          under9: "U9",
+        };
         trade = arrangement[step];
         setActiveSequenceSnapshot({
           name: activeSequenceNameRef.current,
           arrangementIndex,
           arrangementStep: step,
           arrangementMode: prevArrangement.mode,
+          arrangementSequence: arrangement.map((token) => tokenLabelMap[token]).join(", "),
         });
         nextUsedCategories = mustChangeSymbol ? [trade] : [...(state.usedCategories || []), trade];
       } else {
