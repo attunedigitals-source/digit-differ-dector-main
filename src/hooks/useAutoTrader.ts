@@ -138,12 +138,16 @@ export function useAutoTrader(
 
   const executionStartedAtRef = useRef<number>(0);
   const enabledRef = useRef<boolean>(config.enabled);
+  const configRef = useRef<AutoTraderConfig>(config);
   const lastManualActionRef = useRef<number>(0);
 
   // Keep enabledRef in sync with config.enabled
   useEffect(() => {
     enabledRef.current = config.enabled;
   }, [config.enabled]);
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
 
   useEffect(() => {
     if (config.strategy !== "arrangement_a" || !accountInfo?.loginid) return;
@@ -378,9 +382,11 @@ export function useAutoTrader(
       let nextUsedCategories: TradeCategory[];
       const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
 
-      if (config.strategy === "arrangement_a" && accountInfo?.loginid) {
+      const latestConfig = configRef.current;
+
+      if (latestConfig.strategy === "arrangement_a" && accountInfo?.loginid) {
         const loginId = accountInfo.loginid;
-        const prevArrangement = config.arrangement_states?.[loginId] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
+        const prevArrangement = latestConfig.arrangement_states?.[loginId] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
         const sequenceZeroBased = Math.max(0, Math.min(ARRANGEMENT_TOTAL - 1, prevArrangement.current_index - 1));
         const arrangementIndex = prevArrangement.mode === "scrambled"
           ? getScrambledArrangementIndex(sequenceZeroBased)
@@ -412,7 +418,7 @@ export function useAutoTrader(
       };
 
       console.log("[AutoTrader] Volatility and Strategy Selection", {
-        strategy: config.strategy,
+        strategy: latestConfig.strategy,
         symbol,
         selectedTrade: categoryLabels[trade],
         usedSoFar: nextUsedCategories,
@@ -427,8 +433,8 @@ export function useAutoTrader(
         stepIndexRef.current += 1;
       }
 
-      if (nextStep > config.maxMartingaleSteps) {
-        toast.error(`Max Martingale Steps (${config.maxMartingaleSteps}) reached. Stopping automation.`);
+      if (nextStep > latestConfig.maxMartingaleSteps) {
+        toast.error(`Max Martingale Steps (${latestConfig.maxMartingaleSteps}) reached. Stopping automation.`);
         setConfig(prev => ({ ...prev, enabled: false }));
         isExecutingRef.current = false;
         return;
@@ -448,13 +454,13 @@ export function useAutoTrader(
       const isWin = state.status === "WIN";
 
       if (isFirstTrade || isWin) {
-        nextStake = config.baseStake;
+        nextStake = latestConfig.baseStake;
       } else if (state.status === "LOSS") {
         nextStake = isSpecialStakeTrade
           ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
           : Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
       } else {
-        nextStake = config.baseStake;
+        nextStake = latestConfig.baseStake;
       }
 
       console.log("[AutoTrader] Trade selection finalized", { symbol, trade: categoryLabels[trade], stake: nextStake });
