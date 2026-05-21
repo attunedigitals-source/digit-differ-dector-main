@@ -24,6 +24,26 @@ interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
 
+const tokenLabelMap: Record<TradeCategory, string> = {
+  under4: "U4",
+  over4: "O4",
+  under5: "U5",
+  over5: "O5",
+  over0: "O0",
+  under9: "U9",
+};
+
+const buildActiveSequenceSnapshot = (arrangementIndex: number, arrangementStep: number, arrangementMode: "scrambled" | "sequential") => {
+  const arrangement = getArrangementPermutation(arrangementIndex);
+  return {
+    name: "LAST16_HYBRID",
+    arrangementIndex,
+    arrangementStep,
+    arrangementMode,
+    arrangementSequence: arrangement.map((token) => tokenLabelMap[token]).join(", "),
+  };
+};
+
 const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
   if (cat === "under4" || cat === "over5") return "NORMAL";
   return "SPECIAL";
@@ -111,11 +131,7 @@ export function useAutoTrader(
   const [martingaleCycles, setMartingaleCycles] = useState(0);
   const [windDownMode, setWindDownMode] = useState(false);
   const [activeSequenceSnapshot, setActiveSequenceSnapshot] = useState({
-    name: "LAST16_HYBRID",
-    arrangementIndex: 1,
-    arrangementStep: 0,
-    arrangementMode: "scrambled" as "scrambled" | "sequential",
-    arrangementSequence: "",
+    ...buildActiveSequenceSnapshot(1, 0, "scrambled"),
   });
   const [continuousTradeStartAt, setContinuousTradeStartAt] = useState<number | null>(null);
   const continuousTradeStartAtRef = useRef<number | null>(null);
@@ -128,6 +144,17 @@ export function useAutoTrader(
   useEffect(() => {
     enabledRef.current = config.enabled;
   }, [config.enabled]);
+
+  useEffect(() => {
+    if (config.strategy !== "arrangement_a" || !accountInfo?.loginid) return;
+    const prevArrangement = config.arrangement_states?.[accountInfo.loginid] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
+    const sequenceZeroBased = Math.max(0, Math.min(ARRANGEMENT_TOTAL - 1, prevArrangement.current_index - 1));
+    const arrangementIndex = prevArrangement.mode === "scrambled"
+      ? getScrambledArrangementIndex(sequenceZeroBased)
+      : sequenceZeroBased + 1;
+    const step = Math.max(0, Math.min(11, prevArrangement.current_step));
+    setActiveSequenceSnapshot(buildActiveSequenceSnapshot(arrangementIndex, step, prevArrangement.mode));
+  }, [accountInfo?.loginid, config.arrangement_states, config.strategy]);
 
 
   const requestContractStatus = useCallback((contractId: string) => {
@@ -358,24 +385,10 @@ export function useAutoTrader(
         const arrangementIndex = prevArrangement.mode === "scrambled"
           ? getScrambledArrangementIndex(sequenceZeroBased)
           : sequenceZeroBased + 1;
-        const arrangement = getArrangementPermutation(arrangementIndex);
         const step = Math.max(0, Math.min(11, prevArrangement.current_step));
-        const tokenLabelMap: Record<TradeCategory, string> = {
-          under4: "U4",
-          over4: "O4",
-          under5: "U5",
-          over5: "O5",
-          over0: "O0",
-          under9: "U9",
-        };
+        const arrangement = getArrangementPermutation(arrangementIndex);
         trade = arrangement[step];
-        setActiveSequenceSnapshot({
-          name: activeSequenceNameRef.current,
-          arrangementIndex,
-          arrangementStep: step,
-          arrangementMode: prevArrangement.mode,
-          arrangementSequence: arrangement.map((token) => tokenLabelMap[token]).join(", "),
-        });
+        setActiveSequenceSnapshot(buildActiveSequenceSnapshot(arrangementIndex, step, prevArrangement.mode));
         nextUsedCategories = mustChangeSymbol ? [trade] : [...(state.usedCategories || []), trade];
       } else {
         const previousUsed = mustChangeSymbol ? [] : (state.usedCategories || []);
