@@ -680,13 +680,16 @@ export function useAutoTrader(
         const nextArrangement = nextStep >= 12
           ? { ...existing, current_step: 0, current_index: wrappedIndex }
           : { ...existing, current_step: nextStep };
-        return {
+        const nextConfig = {
           ...prev,
           arrangement_states: {
             ...(prev.arrangement_states ?? {}),
             [loginId]: nextArrangement,
           },
         };
+        // Keep ref in sync immediately so the next trade uses the updated arrangement state
+        configRef.current = nextConfig;
+        return nextConfig;
       });
     }
     
