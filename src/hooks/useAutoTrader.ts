@@ -4,6 +4,7 @@ import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import type { SymbolState } from "@/lib/signal-engine";
+import { ARRANGEMENT_TOTAL, getArrangementPermutation, getScrambledArrangementIndex } from "@/lib/arrangements";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -43,6 +44,7 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
     maxMartingaleSteps,
     cooldownIntervalMinutes,
     strategy: incoming?.strategy || "alternating",
+    arrangement_states: incoming?.arrangement_states ?? {},
   };
 };
 
@@ -339,17 +341,30 @@ export function useAutoTrader(
 
       let trade: TradeCategory;
       let chosenGroup: "NORMAL" | "SPECIAL";
-
+      let nextUsedCategories: TradeCategory[];
       const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
-      const previousUsed = mustChangeSymbol ? [] : (state.usedCategories || []);
-      const remainingCategories = allCategories.filter(cat => !previousUsed.includes(cat));
 
-      if (remainingCategories.length > 0) {
-        trade = remainingCategories[Math.floor(Math.random() * remainingCategories.length)];
+      if (config.strategy === "arrangement_a" && accountInfo?.loginid) {
+        const loginId = accountInfo.loginid;
+        const prevArrangement = config.arrangement_states?.[loginId] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
+        const sequenceZeroBased = Math.max(0, Math.min(ARRANGEMENT_TOTAL - 1, prevArrangement.current_index - 1));
+        const arrangementIndex = prevArrangement.mode === "scrambled"
+          ? getScrambledArrangementIndex(sequenceZeroBased)
+          : sequenceZeroBased + 1;
+        const arrangement = getArrangementPermutation(arrangementIndex);
+        const step = Math.max(0, Math.min(11, prevArrangement.current_step));
+        trade = arrangement[step];
+        nextUsedCategories = mustChangeSymbol ? [trade] : [...(state.usedCategories || []), trade];
       } else {
-        trade = allCategories[Math.floor(Math.random() * allCategories.length)];
+        const previousUsed = mustChangeSymbol ? [] : (state.usedCategories || []);
+        const remainingCategories = allCategories.filter(cat => !previousUsed.includes(cat));
+        if (remainingCategories.length > 0) {
+          trade = remainingCategories[Math.floor(Math.random() * remainingCategories.length)];
+        } else {
+          trade = allCategories[Math.floor(Math.random() * allCategories.length)];
+        }
+        nextUsedCategories = [...previousUsed, trade];
       }
-      const nextUsedCategories = [...previousUsed, trade];
       chosenGroup = getCategoryGroup(trade as any);
 
       const categoryLabels: Record<TradeCategory, string> = {
@@ -364,7 +379,6 @@ export function useAutoTrader(
       console.log("[AutoTrader] Volatility and Strategy Selection", {
         strategy: config.strategy,
         symbol,
-        remainingCategories,
         selectedTrade: categoryLabels[trade],
         usedSoFar: nextUsedCategories,
       });
@@ -615,6 +629,25 @@ export function useAutoTrader(
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
     setTicksToWait(ticksToWaitNext);
+
+    if (config.strategy === "arrangement_a" && accountInfo?.loginid) {
+      const loginId = accountInfo.loginid;
+      setConfig(prev => {
+        const existing = prev.arrangement_states?.[loginId] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
+        const nextStep = existing.current_step + 1;
+        const wrappedIndex = existing.current_index >= ARRANGEMENT_TOTAL ? 1 : existing.current_index + 1;
+        const nextArrangement = nextStep >= 12
+          ? { ...existing, current_step: 0, current_index: wrappedIndex }
+          : { ...existing, current_step: nextStep };
+        return {
+          ...prev,
+          arrangement_states: {
+            ...(prev.arrangement_states ?? {}),
+            [loginId]: nextArrangement,
+          },
+        };
+      });
+    }
     
     // Crucial: Reset the execution lock only AFTER the result is processed
     isExecutingRef.current = false;
