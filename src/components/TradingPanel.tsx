@@ -31,6 +31,7 @@ interface TradingPanelProps {
     arrangementIndex: number;
     arrangementStep: number;
     arrangementMode: "scrambled" | "sequential";
+    arrangementSequence: string;
   };
   profile?: UserProfile | null;
 }
@@ -281,11 +282,17 @@ export function TradingPanel({
               <span className="text-muted-foreground">Sequence</span>
               <span className="font-mono font-bold text-primary">{activeSequenceSnapshot.name}</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground">Arrangement</span>
-              <span className="font-mono">
+              <span className="font-mono text-right">
                 #{activeSequenceSnapshot.arrangementIndex} · Step {activeSequenceSnapshot.arrangementStep + 1}/12 · {activeSequenceSnapshot.arrangementMode}
               </span>
+            </div>
+            <div className="mt-1">
+              <div className="text-muted-foreground">Sequence</div>
+              <div className="font-mono text-primary/90 break-words">
+                {activeSequenceSnapshot.arrangementSequence || "Loading sequence..."}
+              </div>
             </div>
           </div>
           <div className="flex items-center justify-between text-[11px]">
