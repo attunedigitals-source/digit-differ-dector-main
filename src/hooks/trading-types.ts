@@ -12,14 +12,7 @@ export interface TradeRecord {
   timestamp: Date;
 }
 
-export type TradingStrategy = "alternating" | "arrangement_a";
-
-export interface ArrangementState {
-  current_index: number;
-  current_step: number;
-  mode: "sequential" | "scrambled";
-}
-
+export type TradingStrategy = "alternating";
 
 export interface AutoTraderConfig {
   enabled: boolean;
@@ -27,5 +20,4 @@ export interface AutoTraderConfig {
   maxMartingaleSteps: number;
   cooldownIntervalMinutes: 30 | 40 | 50 | 60;
   strategy: TradingStrategy;
-  arrangement_states?: Record<string, ArrangementState>;
 }

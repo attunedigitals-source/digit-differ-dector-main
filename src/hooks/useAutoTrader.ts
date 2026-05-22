@@ -4,7 +4,6 @@ import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import type { SymbolState } from "@/lib/signal-engine";
-import { ARRANGEMENT_TOTAL, getArrangementPermutation, getScrambledArrangementIndex } from "@/lib/arrangements";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -23,26 +22,6 @@ type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9
 interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
-
-const tokenLabelMap: Record<TradeCategory, string> = {
-  under4: "U4",
-  over4: "O4",
-  under5: "U5",
-  over5: "O5",
-  over0: "O0",
-  under9: "U9",
-};
-
-const buildActiveSequenceSnapshot = (arrangementIndex: number, arrangementStep: number, arrangementMode: "scrambled" | "sequential") => {
-  const arrangement = getArrangementPermutation(arrangementIndex);
-  return {
-    name: "LAST16_HYBRID",
-    arrangementIndex,
-    arrangementStep,
-    arrangementMode,
-    arrangementSequence: arrangement.map((token) => tokenLabelMap[token]).join(", "),
-  };
-};
 
 const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
   if (cat === "under4" || cat === "over5") return "NORMAL";
@@ -64,7 +43,6 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
     maxMartingaleSteps,
     cooldownIntervalMinutes,
     strategy: incoming?.strategy || "alternating",
-    arrangement_states: incoming?.arrangement_states ?? {},
   };
 };
 
@@ -124,41 +102,21 @@ export function useAutoTrader(
     status: "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
     nextAction: "IDLE_RDY",
     currentCategory: null as TradeCategory | null,
-    symbolLossStreak: 0,
-    usedCategories: [] as TradeCategory[],
   });
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
   const [windDownMode, setWindDownMode] = useState(false);
-  const [activeSequenceSnapshot, setActiveSequenceSnapshot] = useState({
-    ...buildActiveSequenceSnapshot(1, 0, "scrambled"),
-  });
   const [continuousTradeStartAt, setContinuousTradeStartAt] = useState<number | null>(null);
   const continuousTradeStartAtRef = useRef<number | null>(null);
 
   const executionStartedAtRef = useRef<number>(0);
   const enabledRef = useRef<boolean>(config.enabled);
-  const configRef = useRef<AutoTraderConfig>(config);
   const lastManualActionRef = useRef<number>(0);
 
   // Keep enabledRef in sync with config.enabled
   useEffect(() => {
     enabledRef.current = config.enabled;
   }, [config.enabled]);
-  useEffect(() => {
-    configRef.current = config;
-  }, [config]);
-
-  useEffect(() => {
-    if (config.strategy !== "arrangement_a" || !accountInfo?.loginid) return;
-    const prevArrangement = config.arrangement_states?.[accountInfo.loginid] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
-    const sequenceZeroBased = Math.max(0, Math.min(ARRANGEMENT_TOTAL - 1, prevArrangement.current_index - 1));
-    const arrangementIndex = prevArrangement.mode === "scrambled"
-      ? getScrambledArrangementIndex(sequenceZeroBased)
-      : sequenceZeroBased + 1;
-    const step = Math.max(0, Math.min(11, prevArrangement.current_step));
-    setActiveSequenceSnapshot(buildActiveSequenceSnapshot(arrangementIndex, step, prevArrangement.mode));
-  }, [accountInfo?.loginid, config.arrangement_states, config.strategy]);
 
 
   const requestContractStatus = useCallback((contractId: string) => {
@@ -272,7 +230,7 @@ export function useAutoTrader(
   const useReducedWindowSize = useRef(false);
   const freshnessWarningShownRef = useRef(false);
 
-  const select_random_active_symbol = useCallback((excludeSymbol?: string) => {
+  const select_random_active_symbol = useCallback(() => {
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
       "R_10", "R_25", "R_50", "R_75", "R_100",
@@ -280,9 +238,6 @@ export function useAutoTrader(
 
     const candidates = symbols
       .map((symbol) => {
-        if (excludeSymbol && symbol === excludeSymbol) {
-          return null;
-        }
         const symbolState = getSymbolState(symbol);
         
         // Check freshness only - no need for 16 ticks
@@ -301,15 +256,6 @@ export function useAutoTrader(
       .filter((c): c is { symbol: string } => c !== null);
 
     if (candidates.length === 0) {
-      if (excludeSymbol) {
-        const fallbackState = getSymbolState(excludeSymbol);
-        if (fallbackState?.updatedAt) {
-          const tickAgeMs = Date.now() - fallbackState.updatedAt;
-          if (tickAgeMs <= MAX_TICK_AGE_MS) {
-            return { symbol: excludeSymbol };
-          }
-        }
-      }
       return null;
     }
 
@@ -355,12 +301,10 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      const mustChangeSymbol = state.status === "WIN" || state.status === "IDLE" || (state.status === "LOSS" && (state.symbolLossStreak ?? 0) >= 4);
-
-      if (!mustChangeSymbol && state.currentSymbol) {
+      if (state.status === "LOSS" && state.currentSymbol) {
         symbol = state.currentSymbol;
       } else {
-        const selectedSymbol = select_random_active_symbol(state.currentSymbol);
+        const selectedSymbol = select_random_active_symbol();
         if (!selectedSymbol) {
           console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
 
@@ -379,32 +323,17 @@ export function useAutoTrader(
 
       let trade: TradeCategory;
       let chosenGroup: "NORMAL" | "SPECIAL";
-      let nextUsedCategories: TradeCategory[];
-      const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
 
-      const latestConfig = configRef.current;
-
-      if (latestConfig.strategy === "arrangement_a" && accountInfo?.loginid) {
-        const loginId = accountInfo.loginid;
-        const prevArrangement = latestConfig.arrangement_states?.[loginId] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
-        const sequenceZeroBased = Math.max(0, Math.min(ARRANGEMENT_TOTAL - 1, prevArrangement.current_index - 1));
-        const arrangementIndex = prevArrangement.mode === "scrambled"
-          ? getScrambledArrangementIndex(sequenceZeroBased)
-          : sequenceZeroBased + 1;
-        const step = Math.max(0, Math.min(11, prevArrangement.current_step));
-        const arrangement = getArrangementPermutation(arrangementIndex);
-        trade = arrangement[step];
-        setActiveSequenceSnapshot(buildActiveSequenceSnapshot(arrangementIndex, step, prevArrangement.mode));
-        nextUsedCategories = mustChangeSymbol ? [trade] : [...(state.usedCategories || []), trade];
+      const normalGroup: TradeCategory[] = ["under4", "over5"];
+      const specialGroup: TradeCategory[] = ["over4", "under5"];
+      
+      if (state.status === "LOSS" && state.currentCategory) {
+        const lastGroup = getCategoryGroup(state.currentCategory);
+        const availableCategories = lastGroup === "NORMAL" ? specialGroup : normalGroup;
+        trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
       } else {
-        const previousUsed = mustChangeSymbol ? [] : (state.usedCategories || []);
-        const remainingCategories = allCategories.filter(cat => !previousUsed.includes(cat));
-        if (remainingCategories.length > 0) {
-          trade = remainingCategories[Math.floor(Math.random() * remainingCategories.length)];
-        } else {
-          trade = allCategories[Math.floor(Math.random() * allCategories.length)];
-        }
-        nextUsedCategories = [...previousUsed, trade];
+        const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
+        trade = allCategories[Math.floor(Math.random() * allCategories.length)];
       }
       chosenGroup = getCategoryGroup(trade as any);
 
@@ -418,10 +347,11 @@ export function useAutoTrader(
       };
 
       console.log("[AutoTrader] Volatility and Strategy Selection", {
-        strategy: latestConfig.strategy,
+        strategy: config.strategy,
         symbol,
+        lastGroup: state.status === "LOSS" && state.currentCategory ? getCategoryGroup(state.currentCategory) : "None (Random)",
+        selectedGroup: chosenGroup,
         selectedTrade: categoryLabels[trade],
-        usedSoFar: nextUsedCategories,
       });
 
       if (state.status === "WIN" || state.status === "IDLE") {
@@ -433,8 +363,8 @@ export function useAutoTrader(
         stepIndexRef.current += 1;
       }
 
-      if (nextStep > latestConfig.maxMartingaleSteps) {
-        toast.error(`Max Martingale Steps (${latestConfig.maxMartingaleSteps}) reached. Stopping automation.`);
+      if (nextStep > config.maxMartingaleSteps) {
+        toast.error(`Max Martingale Steps (${config.maxMartingaleSteps}) reached. Stopping automation.`);
         setConfig(prev => ({ ...prev, enabled: false }));
         isExecutingRef.current = false;
         return;
@@ -454,13 +384,13 @@ export function useAutoTrader(
       const isWin = state.status === "WIN";
 
       if (isFirstTrade || isWin) {
-        nextStake = latestConfig.baseStake;
+        nextStake = config.baseStake;
       } else if (state.status === "LOSS") {
         nextStake = isSpecialStakeTrade
           ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
           : Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
       } else {
-        nextStake = latestConfig.baseStake;
+        nextStake = config.baseStake;
       }
 
       console.log("[AutoTrader] Trade selection finalized", { symbol, trade: categoryLabels[trade], stake: nextStake });
@@ -477,8 +407,6 @@ export function useAutoTrader(
         currentCategory: trade,
         status: "PENDING",
         nextAction: "TRD_LIV",
-        symbolLossStreak: mustChangeSymbol ? 0 : prev.symbolLossStreak,
-        usedCategories: nextUsedCategories,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -664,42 +592,10 @@ export function useAutoTrader(
       currentStake: isWin ? config.baseStake : state.currentStake,
       martingaleStep: isWin ? 0 : state.martingaleStep,
       sequenceStep: isWin ? 0 : state.sequenceStep,
-      symbolLossStreak: isWin ? 0 : (state.symbolLossStreak ?? 0) + 1,
-      usedCategories: isWin ? [] : (state.usedCategories || []),
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
     setTicksToWait(ticksToWaitNext);
-
-    if (config.strategy === "arrangement_a" && accountInfo?.loginid) {
-      const loginId = accountInfo.loginid;
-      setConfig(prev => {
-        const existing = prev.arrangement_states?.[loginId] ?? { current_index: 1, current_step: 0, mode: "scrambled" as const };
-        const nextStep = existing.current_step + 1;
-        const wrappedIndex = existing.current_index >= ARRANGEMENT_TOTAL ? 1 : existing.current_index + 1;
-        const nextArrangement = nextStep >= 12
-          ? { ...existing, current_step: 0, current_index: wrappedIndex }
-          : { ...existing, current_step: nextStep };
-
-        const sequenceZeroBased = Math.max(0, Math.min(ARRANGEMENT_TOTAL - 1, nextArrangement.current_index - 1));
-        const arrangementIndex = nextArrangement.mode === "scrambled"
-          ? getScrambledArrangementIndex(sequenceZeroBased)
-          : sequenceZeroBased + 1;
-        const displayStep = Math.max(0, Math.min(11, nextArrangement.current_step));
-        setActiveSequenceSnapshot(buildActiveSequenceSnapshot(arrangementIndex, displayStep, nextArrangement.mode));
-
-        const nextConfig = {
-          ...prev,
-          arrangement_states: {
-            ...(prev.arrangement_states ?? {}),
-            [loginId]: nextArrangement,
-          },
-        };
-        // Keep ref in sync immediately so the next trade uses the updated arrangement state
-        configRef.current = nextConfig;
-        return nextConfig;
-      });
-    }
     
     // Crucial: Reset the execution lock only AFTER the result is processed
     isExecutingRef.current = false;
@@ -1093,8 +989,6 @@ export function useAutoTrader(
       currentBarrier: 5,
       status: "IDLE",
       nextAction: "W8_TCK",
-      symbolLossStreak: 0,
-      usedCategories: [],
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
@@ -1185,6 +1079,5 @@ export function useAutoTrader(
     execute_trade,
     windDownMode,
     activateWindDown,
-    activeSequenceSnapshot,
   };
 }

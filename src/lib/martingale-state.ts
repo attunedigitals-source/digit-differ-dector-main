@@ -6,8 +6,6 @@ export type MartingaleSessionState = {
   sequenceStep: number;
   status: MartingaleSettlementStatus | "IDLE" | "SKIP" | "PENDING";
   nextAction: string;
-  symbolLossStreak?: number;
-  usedCategories?: string[];
 };
 
 export type SettledTradeSnapshot = {
@@ -29,6 +27,4 @@ export const resolveSettledMartingaleState = <TState extends MartingaleSessionSt
   currentStake: isWin ? baseStake : snapshot.stake,
   martingaleStep: isWin ? 0 : snapshot.martingaleStep,
   sequenceStep: isWin ? 0 : snapshot.sequenceStep,
-  symbolLossStreak: isWin ? 0 : (state.symbolLossStreak ?? 0) + 1,
-  usedCategories: isWin ? [] : (state.usedCategories || []),
 });
