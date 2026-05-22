@@ -17,6 +17,11 @@ interface TradingPanelProps {
     currentStake: number;
     martingaleStep: number;
     nextAction: string;
+    currentArrangementIndex?: number;
+    currentArrangement?: string[];
+    arrangementProgressIndex?: number;
+    shufflingSeed?: number;
+    sequenceStep?: number;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -166,6 +171,122 @@ export function TradingPanel({
           Tool pauses between 5–8 minutes after every interval. Setting locks while running.
         </p>
       </div>
+
+      {/* Trading Strategy Selection */}
+      <div className="space-y-1.5 bg-muted/20 p-3 rounded-md border border-border/50">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+          <Shuffle className="w-3 h-3 text-primary animate-pulse" /> Trading Strategy
+        </label>
+        <Select
+          value={config.strategy}
+          disabled={config.enabled}
+          onValueChange={(value) =>
+            onConfigChange({
+              ...config,
+              strategy: value as AutoTraderConfig["strategy"],
+            })
+          }
+        >
+          <SelectTrigger className="bg-muted border-border font-semibold text-xs h-8">
+            <SelectValue placeholder="Select strategy" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="alternating">Alternating Volatility</SelectItem>
+            <SelectItem value="strategy_a">Strategy A (Pre-Planned Cycles)</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[9px] text-muted-foreground">
+          Strategy A runs 12-trade cycles using unique arrangements from the pre-planned deck.
+        </p>
+      </div>
+
+      {/* Strategy A Visualizer Panel */}
+      {config.strategy === "strategy_a" && (
+        <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center justify-between border-b border-primary/10 pb-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1">
+                <Target className="w-3.5 h-3.5 text-primary animate-pulse" /> Arrangement #{sessionState.currentArrangementIndex ?? 1}
+              </span>
+              <span className="text-[8px] text-muted-foreground">
+                Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / 369,600
+              </span>
+            </div>
+            <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 px-1.5 py-0.5">
+              Step {(sessionState.sequenceStep ?? 0) + 1}/12
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-6 gap-1.5 py-1">
+            {(sessionState.currentArrangement ?? []).map((step, idx) => {
+              const isActive = idx === (sessionState.sequenceStep ?? 0);
+              const label = step === "U4" ? "Under 4" : step === "O4" ? "Over 4" : step === "U5" ? "Under 5" : "Over 5";
+              
+              let bgClass = "";
+              let borderClass = "";
+              let textClass = "";
+
+              if (step === "U4") {
+                bgClass = isActive ? "bg-gradient-to-r from-blue-500/25 to-indigo-500/25" : "bg-blue-950/20";
+                borderClass = isActive ? "border-blue-400/80 shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "border-blue-950/40 hover:border-blue-900/60";
+                textClass = "text-blue-400";
+              } else if (step === "O4") {
+                bgClass = isActive ? "bg-gradient-to-r from-emerald-500/25 to-teal-500/25" : "bg-emerald-950/20";
+                borderClass = isActive ? "border-emerald-400/80 shadow-[0_0_8px_rgba(52,211,153,0.5)]" : "border-emerald-950/40 hover:border-emerald-900/60";
+                textClass = "text-emerald-400";
+              } else if (step === "U5") {
+                bgClass = isActive ? "bg-gradient-to-r from-purple-500/25 to-pink-500/25" : "bg-purple-950/20";
+                borderClass = isActive ? "border-purple-400/80 shadow-[0_0_8px_rgba(168,85,247,0.5)]" : "border-purple-950/40 hover:border-purple-900/60";
+                textClass = "text-purple-400";
+              } else {
+                bgClass = isActive ? "bg-gradient-to-r from-amber-500/25 to-orange-500/25" : "bg-amber-950/20";
+                borderClass = isActive ? "border-amber-400/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "border-amber-950/40 hover:border-amber-900/60";
+                textClass = "text-amber-400";
+              }
+
+              return (
+                <div
+                  key={idx}
+                  title={label}
+                  className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded border transition-all duration-300 relative cursor-default select-none ${bgClass} ${borderClass} ${isActive ? "scale-105 border-2 border-primary" : "opacity-60"}`}
+                >
+                  <span className={`text-[10px] font-mono font-black ${textClass}`}>
+                    {step}
+                  </span>
+                  <span className="text-[7px] text-muted-foreground scale-90">
+                    Step {idx + 1}
+                  </span>
+                  {isActive && (
+                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="flex items-center gap-1.5 justify-between text-[8px] bg-muted/40 px-2 py-1 rounded border border-border/40">
+            <span className="text-muted-foreground flex items-center gap-1">
+              <AlertCircle className="w-2.5 h-2.5 text-primary" /> Active trade target:
+            </span>
+            <span className="font-bold text-foreground">
+              {(() => {
+                const currentArr = sessionState.currentArrangement ?? [];
+                const activeStep = currentArr[sessionState.sequenceStep ?? 0];
+                if (!activeStep) return "None";
+                if (activeStep === "U4") return "DIGITUNDER 4 (Barrier 4)";
+                if (activeStep === "O4") return "DIGITOVER 4 (Barrier 4)";
+                if (activeStep === "U5") return "DIGITUNDER 5 (Barrier 5)";
+                return "DIGITOVER 5 (Barrier 5)";
+              })()}
+            </span>
+          </div>
+        </div>
+      )}
 
 
       {/* Stats & Current Session */}

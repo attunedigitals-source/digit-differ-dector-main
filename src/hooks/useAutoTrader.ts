@@ -4,6 +4,7 @@ import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import type { SymbolState } from "@/lib/signal-engine";
+import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails } from "../lib/arrangement-brain";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -91,17 +92,58 @@ export function useAutoTrader(
     });
   });
 
-  const [sessionState, setSessionState] = useState({
-    currentStake: 0.35,
-    martingaleStep: 0,
-    sequenceStep: 0,
-    initialChoice: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD",
-    currentSymbol: "",
-    currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD",
-    currentBarrier: 5,
-    status: "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
-    nextAction: "IDLE_RDY",
-    currentCategory: null as TradeCategory | null,
+  const [sessionState, setSessionState] = useState(() => {
+    const savedProgress = localStorage.getItem('arrangementProgressIndex');
+    const savedSeed = localStorage.getItem('shufflingSeed');
+    const savedArrIndex = localStorage.getItem('currentArrangementIndex');
+    const savedArr = localStorage.getItem('currentArrangement');
+    const savedSeqStep = localStorage.getItem('sequenceStep');
+    const savedMartStep = localStorage.getItem('martingaleStep');
+    const savedStake = localStorage.getItem('currentStake');
+    const savedStatus = localStorage.getItem('sessionStatus');
+    const savedSymbol = localStorage.getItem('currentSymbol');
+
+    const progress = savedProgress ? parseInt(savedProgress) : 0;
+    const seed = savedSeed ? parseInt(savedSeed) : Math.floor(Math.random() * 100000) + 1;
+    
+    let arrIndex = savedArrIndex ? parseInt(savedArrIndex) : 0;
+    let arr: string[] = [];
+    if (savedArr) {
+      try {
+        arr = JSON.parse(savedArr);
+      } catch (e) {}
+    }
+    
+    if (arr.length === 0 || arrIndex === 0) {
+      const elements = ['U4', 'O4', 'U5', 'O5'];
+      const counts = [3, 3, 3, 3];
+      const permIndex = lcgPermute(progress, 369600, seed);
+      arrIndex = permIndex + 1;
+      arr = getNthPermutation(elements, counts, arrIndex);
+      
+      localStorage.setItem('arrangementProgressIndex', String(progress));
+      localStorage.setItem('shufflingSeed', String(seed));
+      localStorage.setItem('currentArrangementIndex', String(arrIndex));
+      localStorage.setItem('currentArrangement', JSON.stringify(arr));
+    }
+
+    return {
+      currentStake: savedStake ? parseFloat(savedStake) : 0.35,
+      martingaleStep: savedMartStep ? parseInt(savedMartStep) : 0,
+      sequenceStep: savedSeqStep ? parseInt(savedSeqStep) : 0,
+      initialChoice: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD",
+      currentSymbol: savedSymbol || "",
+      currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD",
+      currentBarrier: 5,
+      status: (savedStatus as any) || "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
+      nextAction: "IDLE_RDY",
+      currentCategory: null as TradeCategory | null,
+      
+      currentArrangementIndex: arrIndex,
+      currentArrangement: arr,
+      arrangementProgressIndex: progress,
+      shufflingSeed: seed,
+    };
   });
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
@@ -324,19 +366,6 @@ export function useAutoTrader(
       let trade: TradeCategory;
       let chosenGroup: "NORMAL" | "SPECIAL";
 
-      const normalGroup: TradeCategory[] = ["under4", "over5"];
-      const specialGroup: TradeCategory[] = ["over4", "under5"];
-      
-      if (state.status === "LOSS" && state.currentCategory) {
-        const lastGroup = getCategoryGroup(state.currentCategory);
-        const availableCategories = lastGroup === "NORMAL" ? specialGroup : normalGroup;
-        trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
-      } else {
-        const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
-        trade = allCategories[Math.floor(Math.random() * allCategories.length)];
-      }
-      chosenGroup = getCategoryGroup(trade as any);
-
       const categoryLabels: Record<TradeCategory, string> = {
         under4: "Under 4",
         over4: "Over 4",
@@ -346,6 +375,59 @@ export function useAutoTrader(
         under9: "Under 9"
       };
 
+      if (config.strategy === "strategy_a") {
+        let currentArr = state.currentArrangement || [];
+        let currentArrIdx = state.currentArrangementIndex || 0;
+        let progressIdx = state.arrangementProgressIndex || 0;
+        let seed = state.shufflingSeed || 1;
+
+        if (currentArr.length === 0) {
+          const elements = ['U4', 'O4', 'U5', 'O5'];
+          const counts = [3, 3, 3, 3];
+          const permIndex = lcgPermute(progressIdx, 369600, seed);
+          currentArrIdx = permIndex + 1;
+          currentArr = getNthPermutation(elements, counts, currentArrIdx);
+        }
+
+        const directionCode = currentArr[state.sequenceStep] || "O5";
+        if (directionCode === "U4") trade = "under4";
+        else if (directionCode === "O4") trade = "over4";
+        else if (directionCode === "U5") trade = "under5";
+        else trade = "over5";
+
+        chosenGroup = getCategoryGroup(trade);
+        
+        seqStep = state.sequenceStep;
+        if (state.status === "WIN" || state.status === "IDLE") {
+          nextStep = 0;
+        } else if (state.status === "LOSS") {
+          nextStep = state.martingaleStep + 1;
+          stepIndexRef.current += 1;
+        }
+      } else {
+        const normalGroup: TradeCategory[] = ["under4", "over5"];
+        const specialGroup: TradeCategory[] = ["over4", "under5"];
+        
+        if (state.status === "LOSS" && state.currentCategory) {
+          const lastGroup = getCategoryGroup(state.currentCategory);
+          const availableCategories = lastGroup === "NORMAL" ? specialGroup : normalGroup;
+          trade = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+        } else {
+          const allCategories: TradeCategory[] = ["under4", "over4", "under5", "over5"];
+          trade = allCategories[Math.floor(Math.random() * allCategories.length)];
+        }
+        chosenGroup = getCategoryGroup(trade as any);
+
+        if (state.status === "WIN" || state.status === "IDLE") {
+          nextStep = 0;
+          seqStep = 0;
+        } else if (state.status === "LOSS") {
+          nextStep = state.martingaleStep + 1;
+          seqStep = state.sequenceStep + 1;
+          stepIndexRef.current += 1;
+        }
+      }
+
       console.log("[AutoTrader] Volatility and Strategy Selection", {
         strategy: config.strategy,
         symbol,
@@ -353,15 +435,6 @@ export function useAutoTrader(
         selectedGroup: chosenGroup,
         selectedTrade: categoryLabels[trade],
       });
-
-      if (state.status === "WIN" || state.status === "IDLE") {
-        nextStep = 0;
-        seqStep = 0;
-      } else if (state.status === "LOSS") {
-        nextStep = state.martingaleStep + 1;
-        seqStep = state.sequenceStep + 1;
-        stepIndexRef.current += 1;
-      }
 
       if (nextStep > config.maxMartingaleSteps) {
         toast.error(`Max Martingale Steps (${config.maxMartingaleSteps}) reached. Stopping automation.`);
@@ -585,13 +658,45 @@ export function useAutoTrader(
       toast.success("Wind down complete: last confirmed trade closed in profit. Auto-automation stopped.");
     }
 
+    let nextSeqStep = state.sequenceStep;
+    let nextArrIndex = state.currentArrangementIndex;
+    let nextArr = state.currentArrangement;
+    let nextProgressIndex = state.arrangementProgressIndex;
+    let nextSeed = state.shufflingSeed;
+
+    if (config.strategy === "strategy_a") {
+      nextSeqStep = state.sequenceStep + 1;
+      if (nextSeqStep >= 12) {
+        nextSeqStep = 0;
+        nextProgressIndex = state.arrangementProgressIndex + 1;
+        
+        if (nextProgressIndex >= 369600) {
+          nextProgressIndex = 0;
+          nextSeed = Math.floor(Math.random() * 100000) + 1;
+        }
+
+        const elements = ['U4', 'O4', 'U5', 'O5'];
+        const counts = [3, 3, 3, 3];
+        const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
+        nextArrIndex = permIndex + 1;
+        nextArr = getNthPermutation(elements, counts, nextArrIndex);
+        toast.info(`Cycle completed! Rotating to Arrangement #${nextArrIndex}`);
+      }
+    } else {
+      nextSeqStep = isWin ? 0 : state.sequenceStep;
+    }
+
     const nextSessionState = {
       ...state,
       status: newStatus,
       nextAction,
       currentStake: isWin ? config.baseStake : state.currentStake,
       martingaleStep: isWin ? 0 : state.martingaleStep,
-      sequenceStep: isWin ? 0 : state.sequenceStep,
+      sequenceStep: nextSeqStep,
+      currentArrangementIndex: nextArrIndex,
+      currentArrangement: nextArr,
+      arrangementProgressIndex: nextProgressIndex,
+      shufflingSeed: nextSeed,
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
@@ -621,7 +726,7 @@ export function useAutoTrader(
         console.log("%c[AutoTrader] Bot disabled, stopping loop after trade settlement.", "color: red; font-weight: bold;");
       }
     }
-  }, [execute_trade, config.cooldownIntervalMinutes, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
+  }, [execute_trade, config, windDownMode, randomCooldownSeconds, randomTradeCooldownTicks]);
 
   const handleTradeMessage = useCallback((data: any) => {
     if (data.msg_type !== "tick") {
@@ -863,6 +968,18 @@ export function useAutoTrader(
   }, [tradeLog]);
 
   useEffect(() => {
+    localStorage.setItem('arrangementProgressIndex', String(sessionState.arrangementProgressIndex));
+    localStorage.setItem('shufflingSeed', String(sessionState.shufflingSeed));
+    localStorage.setItem('currentArrangementIndex', String(sessionState.currentArrangementIndex));
+    localStorage.setItem('currentArrangement', JSON.stringify(sessionState.currentArrangement));
+    localStorage.setItem('sequenceStep', String(sessionState.sequenceStep));
+    localStorage.setItem('martingaleStep', String(sessionState.martingaleStep));
+    localStorage.setItem('currentStake', String(sessionState.currentStake));
+    localStorage.setItem('sessionStatus', sessionState.status);
+    localStorage.setItem('currentSymbol', sessionState.currentSymbol);
+  }, [sessionState]);
+
+  useEffect(() => {
     if (!user?.id) return;
     const syncConfig = async () => {
       // Don't sync from cloud if the user recently performed a manual action (prevent overwriting new state with old DB state)
@@ -979,6 +1096,15 @@ export function useAutoTrader(
 
   const resetTradeLog = useCallback(() => {
     setTradeLog([]);
+    
+    const newSeed = Math.floor(Math.random() * 100000) + 1;
+    const newProgress = 0;
+    const permIndex = lcgPermute(newProgress, 369600, newSeed);
+    const newArrIndex = permIndex + 1;
+    const elements = ['U4', 'O4', 'U5', 'O5'];
+    const counts = [3, 3, 3, 3];
+    const newArr = getNthPermutation(elements, counts, newArrIndex);
+
     setSessionState({
       currentStake: config.baseStake,
       martingaleStep: 0,
@@ -989,6 +1115,12 @@ export function useAutoTrader(
       currentBarrier: 5,
       status: "IDLE",
       nextAction: "W8_TCK",
+      currentCategory: null,
+      
+      currentArrangementIndex: newArrIndex,
+      currentArrangement: newArr,
+      arrangementProgressIndex: newProgress,
+      shufflingSeed: newSeed,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);

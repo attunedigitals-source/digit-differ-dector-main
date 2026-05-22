@@ -12,7 +12,7 @@ export interface TradeRecord {
   timestamp: Date;
 }
 
-export type TradingStrategy = "alternating";
+export type TradingStrategy = "alternating" | "strategy_a";
 
 export interface AutoTraderConfig {
   enabled: boolean;
