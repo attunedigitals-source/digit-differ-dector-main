@@ -975,6 +975,22 @@ export function useAutoTrader(
     return () => clearTimeout(timer);
   }, [user?.id, connected, requestContractStatus, wsRef]);
 
+  const prevConnectedRef = useRef(connected);
+  const prevLoginidRef = useRef(accountInfo?.loginid);
+
+  useEffect(() => {
+    const connTransitioned = !prevConnectedRef.current && connected;
+    const accountChanged = prevLoginidRef.current !== accountInfo?.loginid;
+
+    if ((connTransitioned || accountChanged) && connected && accountInfo?.loginid) {
+      console.log("[AutoTrader] New connection/account detected. Resetting session state and trade history.");
+      resetTradeLog();
+    }
+
+    prevConnectedRef.current = connected;
+    prevLoginidRef.current = accountInfo?.loginid;
+  }, [connected, accountInfo?.loginid, resetTradeLog]);
+
   useEffect(() => {
     if (connected && accountInfo?.loginid) {
       fetchDailyPL();
