@@ -680,7 +680,7 @@ export function useAutoTrader(
         const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
         nextArrIndex = permIndex + 1;
         nextArr = getNthPermutation(elements, counts, nextArrIndex);
-        toast.info(`Win! Selecting new arrangement #${nextArrIndex}`);
+        toast.success(`Win! Selecting new arrangement #${nextArrIndex}`);
       } else {
         // On Loss: pool all arrangements starting with the consecutive loss directions
         const lossPrefix = (state.currentArrangement || []).slice(0, state.sequenceStep + 1);
@@ -694,6 +694,7 @@ export function useAutoTrader(
           nextArrIndex = getPermutationIndex(elements, counts, nextArr);
           nextSeqStep = state.sequenceStep + 1;
           
+          toast.info(`Loss! Pooled prefix [${lossPrefix.join(", ")}]. Selected arrangement #${nextArrIndex}`);
           console.log(`[AutoTrader] Loss! Prefix: ${lossPrefix.join(", ")}. Pooled and selected arrangement #${nextArrIndex}`);
         } else {
           // If we reached the end of the sequence, start all over
@@ -708,6 +709,7 @@ export function useAutoTrader(
           const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
           nextArrIndex = permIndex + 1;
           nextArr = getNthPermutation(elements, counts, nextArrIndex);
+          toast.warning(`Cycle limit reached! Rotating to new arrangement #${nextArrIndex}`);
         }
       }
     } else {
