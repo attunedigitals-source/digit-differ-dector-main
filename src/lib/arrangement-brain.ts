@@ -132,3 +132,90 @@ export function directionToDetails(direction: string): {
       return { type: "DIGITOVER", barrier: 5 };
   }
 }
+
+/**
+ * Computes the 1-indexed lexicographical permutation number (1 to 369,600)
+ * of the given arrangement of 12 elements with counts [3, 3, 3, 3].
+ */
+export function getPermutationIndex(
+  elements: string[] = ELEMENTS,
+  counts: number[] = COUNTS,
+  arrangement: string[]
+): number {
+  const totalElements = counts.reduce((a, b) => a + b, 0);
+  const currentCounts = [...counts];
+  let rank = 0;
+
+  for (let position = 0; position < totalElements; position++) {
+    const elem = arrangement[position];
+    for (let i = 0; i < elements.length; i++) {
+      if (elements[i] === elem) {
+        break;
+      }
+      if (currentCounts[i] > 0) {
+        currentCounts[i] -= 1;
+        let denom = 1;
+        for (const c of currentCounts) {
+          denom *= factorial(c);
+        }
+        const numPerms = Math.floor(factorial(totalElements - 1 - position) / denom);
+        rank += numPerms;
+        currentCounts[i] += 1; // Backtrack
+      }
+    }
+    const idx = elements.indexOf(elem);
+    if (idx !== -1 && currentCounts[idx] > 0) {
+      currentCounts[idx] -= 1;
+    }
+  }
+  return rank + 1; // Convert 0-indexed rank to 1-indexed position
+}
+
+/**
+ * Shuffles an array in place using standard Fisher-Yates shuffle
+ */
+function shuffle<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = shuffled[i];
+    shuffled[i] = shuffled[j];
+    shuffled[j] = temp;
+  }
+  return shuffled;
+}
+
+/**
+ * Creates a pool of all valid arrangements having the specified prefix of loss directions,
+ * selects one at random from this pool, and returns it.
+ * 
+ * @param prefix The prefix of consecutive loss directions (e.g. ["U4", "O5"])
+ * @param elements The sorted unique elements (default ["U4", "O4", "U5", "O5"])
+ * @param counts The occurrences of each element (default [3, 3, 3, 3])
+ */
+export function getRandomSequenceWithPrefix(
+  prefix: string[],
+  elements: string[] = ELEMENTS,
+  counts: number[] = COUNTS
+): string[] {
+  // Determine remaining counts
+  const remainingCounts = [...counts];
+  for (const item of prefix) {
+    const idx = elements.indexOf(item);
+    if (idx !== -1 && remainingCounts[idx] > 0) {
+      remainingCounts[idx] -= 1;
+    }
+  }
+
+  // Construct remaining elements list
+  const remainingElements: string[] = [];
+  for (let i = 0; i < elements.length; i++) {
+    for (let c = 0; c < remainingCounts[i]; c++) {
+      remainingElements.push(elements[i]);
+    }
+  }
+
+  // Shuffle remaining elements and combine
+  const shuffledRemaining = shuffle(remainingElements);
+  return [...prefix, ...shuffledRemaining];
+}

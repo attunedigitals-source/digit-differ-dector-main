@@ -4,7 +4,7 @@ import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
 import type { SymbolState } from "@/lib/signal-engine";
-import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails } from "../lib/arrangement-brain";
+import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails, getPermutationIndex, getRandomSequenceWithPrefix } from "../lib/arrangement-brain";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
@@ -665,8 +665,8 @@ export function useAutoTrader(
     let nextSeed = state.shufflingSeed;
 
     if (config.strategy === "strategy_a") {
-      nextSeqStep = state.sequenceStep + 1;
-      if (nextSeqStep >= 12) {
+      if (isWin) {
+        // Each win allows a new sequence to be selected
         nextSeqStep = 0;
         nextProgressIndex = state.arrangementProgressIndex + 1;
         
@@ -680,7 +680,35 @@ export function useAutoTrader(
         const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
         nextArrIndex = permIndex + 1;
         nextArr = getNthPermutation(elements, counts, nextArrIndex);
-        toast.info(`Cycle completed! Rotating to Arrangement #${nextArrIndex}`);
+        toast.info(`Win! Selecting new arrangement #${nextArrIndex}`);
+      } else {
+        // On Loss: pool all arrangements starting with the consecutive loss directions
+        const lossPrefix = (state.currentArrangement || []).slice(0, state.sequenceStep + 1);
+        
+        // If loss prefix is valid (e.g. within 12 elements), pool and draw
+        if (lossPrefix.length < 12) {
+          const elements = ['U4', 'O4', 'U5', 'O5'];
+          const counts = [3, 3, 3, 3];
+          
+          nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
+          nextArrIndex = getPermutationIndex(elements, counts, nextArr);
+          nextSeqStep = state.sequenceStep + 1;
+          
+          console.log(`[AutoTrader] Loss! Prefix: ${lossPrefix.join(", ")}. Pooled and selected arrangement #${nextArrIndex}`);
+        } else {
+          // If we reached the end of the sequence, start all over
+          nextSeqStep = 0;
+          nextProgressIndex = state.arrangementProgressIndex + 1;
+          if (nextProgressIndex >= 369600) {
+            nextProgressIndex = 0;
+            nextSeed = Math.floor(Math.random() * 100000) + 1;
+          }
+          const elements = ['U4', 'O4', 'U5', 'O5'];
+          const counts = [3, 3, 3, 3];
+          const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
+          nextArrIndex = permIndex + 1;
+          nextArr = getNthPermutation(elements, counts, nextArrIndex);
+        }
       }
     } else {
       nextSeqStep = isWin ? 0 : state.sequenceStep;
