@@ -343,7 +343,8 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      if (state.status === "LOSS" && state.currentSymbol) {
+      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "alternating";
+      if (keepSymbolOnLoss && state.status === "LOSS" && state.currentSymbol) {
         symbol = state.currentSymbol;
       } else {
         const selectedSymbol = select_random_active_symbol();
@@ -375,7 +376,7 @@ export function useAutoTrader(
         under9: "Under 9"
       };
 
-      if (config.strategy === "strategy_a") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b") {
         let currentArr = state.currentArrangement || [];
         let currentArrIdx = state.currentArrangementIndex || 0;
         let progressIdx = state.arrangementProgressIndex || 0;
@@ -664,7 +665,7 @@ export function useAutoTrader(
     let nextProgressIndex = state.arrangementProgressIndex;
     let nextSeed = state.shufflingSeed;
 
-    if (config.strategy === "strategy_a") {
+    if (config.strategy === "strategy_a" || config.strategy === "strategy_b") {
       if (isWin) {
         // Each win allows a new sequence to be selected
         nextSeqStep = 0;

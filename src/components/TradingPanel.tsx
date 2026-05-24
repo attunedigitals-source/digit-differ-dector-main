@@ -193,15 +193,16 @@ export function TradingPanel({
           <SelectContent>
             <SelectItem value="alternating">Alternating Volatility</SelectItem>
             <SelectItem value="strategy_a">Strategy A (Pre-Planned Cycles)</SelectItem>
+            <SelectItem value="strategy_b">Strategy B (Sticky Loss Cycles)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A runs 12-trade cycles using unique arrangements from the pre-planned deck.
+          Strategy A and B run 12-trade cycles using unique arrangements. Strategy B trades losses on the same volatility.
         </p>
       </div>
 
-      {/* Strategy A Visualizer Panel */}
-      {config.strategy === "strategy_a" && (
+      {/* Strategy A/B Visualizer Panel */}
+      {(config.strategy === "strategy_a" || config.strategy === "strategy_b") && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
