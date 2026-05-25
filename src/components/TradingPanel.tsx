@@ -206,15 +206,16 @@ export function TradingPanel({
             <SelectItem value="strategy_a">Strategy A (Pre-Planned Cycles)</SelectItem>
             <SelectItem value="strategy_b">Strategy B (Sticky Loss Cycles)</SelectItem>
             <SelectItem value="strategy_c">Strategy C (Sticky Loss + Suspension)</SelectItem>
+            <SelectItem value="strategy_d">Strategy D (Immediate Suspension)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A, B and C run 12-trade cycles using unique arrangements. B trades losses on the same volatility. C adds 5-loss deferred suspensions.
+          Strategy A, B, C and D run 12-trade cycles using unique arrangements. B trades sticky losses. C adds deferred suspensions. D adds immediate suspensions.
         </p>
       </div>
 
-      {/* Strategy A/B/C Visualizer Panel */}
-      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c") && (
+      {/* Strategy A/B/C/D Visualizer Panel */}
+      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d") && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -301,14 +302,14 @@ export function TradingPanel({
         </div>
       )}
 
-      {config.strategy === "strategy_c" && (
+      {(config.strategy === "strategy_c" || config.strategy === "strategy_d") && (
         <div className="bg-muted/10 border border-border/80 rounded-md p-3 space-y-2.5 shadow-sm">
           <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
             <span className="text-[10px] font-bold text-foreground uppercase tracking-wider flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-primary animate-pulse" /> Volatility Trackers & Suspensions
             </span>
             <Badge variant="outline" className="text-[8px] bg-primary/5 text-primary border-primary/20 px-1.5 py-0.5">
-              STRATEGY C
+              {config.strategy === "strategy_c" ? "STRATEGY C" : "STRATEGY D"}
             </Badge>
           </div>
 

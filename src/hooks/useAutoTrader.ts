@@ -311,8 +311,8 @@ export function useAutoTrader(
 
     const candidates = symbols
       .map((symbol) => {
-        // Skip suspended symbols under Strategy C
-        if (config.strategy === "strategy_c") {
+        // Skip suspended symbols under Strategy C and D
+        if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
           const tracking = volatilityTracking[symbol];
           if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
             return null;
@@ -382,14 +382,14 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "alternating";
+      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "alternating";
       
       const isSuspended = (sym: string) => {
         const tracking = volatilityTracking[sym];
         return !!(tracking?.suspendedUntil && Date.now() < tracking.suspendedUntil);
       };
 
-      if (keepSymbolOnLoss && state.status === "LOSS" && state.currentSymbol && !(config.strategy === "strategy_c" && isSuspended(state.currentSymbol))) {
+      if (keepSymbolOnLoss && state.status === "LOSS" && state.currentSymbol && !isSuspended(state.currentSymbol)) {
         symbol = state.currentSymbol;
       } else {
         const selectedSymbol = select_random_active_symbol();
@@ -421,7 +421,7 @@ export function useAutoTrader(
         under9: "Under 9"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d") {
         let currentArr = state.currentArrangement || [];
         let currentArrIdx = state.currentArrangementIndex || 0;
         let progressIdx = state.arrangementProgressIndex || 0;
@@ -643,36 +643,54 @@ export function useAutoTrader(
         : null,
     });
 
-    if (config.strategy === "strategy_c") {
+    if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
       setVolatilityTracking(prev => {
         const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
         let nextLosses = current.consecutiveLosses;
         let nextPending = current.pendingSuspension;
         let nextSuspendedUntil = current.suspendedUntil;
 
-        if (isWin) {
-          if (current.pendingSuspension) {
-            // Recovered from a 5+ loss run! Enact suspension now.
-            const mins = 5 + Math.random() * 5;
-            const suspensionMs = mins * 60 * 1000;
-            nextSuspendedUntil = Date.now() + suspensionMs;
-            nextPending = false;
+        if (config.strategy === "strategy_d") {
+          if (isWin) {
             nextLosses = 0;
-            toast.success(`${symbol} recovered! Enacting suspension for ${Math.round(mins)} minutes to cool down.`, {
-              duration: 8000
-            });
           } else {
-            // Normal win, reset losses
-            nextLosses = 0;
+            nextLosses += 1;
+            if (nextLosses >= 5) {
+              const mins = 5 + Math.random() * 5;
+              const suspensionMs = mins * 60 * 1000;
+              nextSuspendedUntil = Date.now() + suspensionMs;
+              nextLosses = 0;
+              toast.warning(`${symbol} suspended immediately for ${Math.round(mins)} minutes due to 5 consecutive losses. Swapping volatility index.`, {
+                duration: 8000
+              });
+            }
           }
         } else {
-          // Loss: increment losses
-          nextLosses += 1;
-          if (nextLosses >= 5 && !nextPending) {
-            nextPending = true;
-            toast.warning(`${symbol} hit 5 consecutive losses. Suspension queued until current run closes in a win.`, {
-              duration: 8000
-            });
+          // Strategy C: Deferred Suspension
+          if (isWin) {
+            if (current.pendingSuspension) {
+              // Recovered from a 5+ loss run! Enact suspension now.
+              const mins = 5 + Math.random() * 5;
+              const suspensionMs = mins * 60 * 1000;
+              nextSuspendedUntil = Date.now() + suspensionMs;
+              nextPending = false;
+              nextLosses = 0;
+              toast.success(`${symbol} recovered! Enacting suspension for ${Math.round(mins)} minutes to cool down.`, {
+                duration: 8000
+              });
+            } else {
+              // Normal win, reset losses
+              nextLosses = 0;
+            }
+          } else {
+            // Loss: increment losses
+            nextLosses += 1;
+            if (nextLosses >= 5 && !nextPending) {
+              nextPending = true;
+              toast.warning(`${symbol} hit 5 consecutive losses. Suspension queued until current run closes in a win.`, {
+                duration: 8000
+              });
+            }
           }
         }
 
@@ -754,7 +772,7 @@ export function useAutoTrader(
     let nextProgressIndex = state.arrangementProgressIndex;
     let nextSeed = state.shufflingSeed;
 
-    if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c") {
+    if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d") {
       if (isWin) {
         // Each win allows a new sequence to be selected
         nextSeqStep = 0;
