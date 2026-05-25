@@ -945,7 +945,7 @@ export function useAutoTrader(
           const isWin = (poc.profit ?? 0) > 0 || status === "won";
           const profit = Number(poc.profit) || 0;
           const openC = openContracts.current.get(contractId);
-          handle_result(isWin, poc.underlying || poc.symbol || "", profit, openC?.supabaseId);
+          handle_result(isWin, openC?.symbol || poc.underlying || poc.symbol || "", profit, openC?.supabaseId);
         }
         
         // Always remove from openContracts if finished to stop watchdog polling
