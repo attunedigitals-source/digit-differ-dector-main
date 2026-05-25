@@ -24,6 +24,13 @@ interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
 
+export interface VolatilityTracking {
+  consecutiveLosses: number;
+  pendingSuspension: boolean;
+  suspendedUntil: number | null;
+}
+
+
 const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
   if (cat === "under4" || cat === "over5") return "NORMAL";
   return "SPECIAL";
@@ -145,6 +152,30 @@ export function useAutoTrader(
       shufflingSeed: seed,
     };
   });
+
+  const [volatilityTracking, setVolatilityTracking] = useState<Record<string, VolatilityTracking>>(() => {
+    const saved = localStorage.getItem('volatilityTracking');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error loading volatilityTracking from localStorage", e);
+      }
+    }
+    const initial: Record<string, VolatilityTracking> = {};
+    const symbols = [
+      "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+      "R_10", "R_25", "R_50", "R_75", "R_100",
+    ];
+    symbols.forEach(s => {
+      initial[s] = { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
+    });
+    return initial;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('volatilityTracking', JSON.stringify(volatilityTracking));
+  }, [volatilityTracking]);
 
   const [martingaleCycles, setMartingaleCycles] = useState(0);
   const [windDownMode, setWindDownMode] = useState(false);
@@ -280,6 +311,14 @@ export function useAutoTrader(
 
     const candidates = symbols
       .map((symbol) => {
+        // Skip suspended symbols under Strategy C
+        if (config.strategy === "strategy_c") {
+          const tracking = volatilityTracking[symbol];
+          if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
+            return null;
+          }
+        }
+
         const symbolState = getSymbolState(symbol);
         
         // Check freshness only - no need for 16 ticks
@@ -302,7 +341,7 @@ export function useAutoTrader(
     }
 
     return candidates[Math.floor(Math.random() * candidates.length)];
-  }, [getSymbolState]);
+  }, [getSymbolState, config.strategy, volatilityTracking]);
 
   const randomCooldownSeconds = useCallback(() => {
     return Math.floor(Math.random() * (COOLDOWN_WAIT_MAX_SECONDS - COOLDOWN_WAIT_MIN_SECONDS + 1)) + COOLDOWN_WAIT_MIN_SECONDS;
@@ -343,8 +382,14 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "alternating";
-      if (keepSymbolOnLoss && state.status === "LOSS" && state.currentSymbol) {
+      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "alternating";
+      
+      const isSuspended = (sym: string) => {
+        const tracking = volatilityTracking[sym];
+        return !!(tracking?.suspendedUntil && Date.now() < tracking.suspendedUntil);
+      };
+
+      if (keepSymbolOnLoss && state.status === "LOSS" && state.currentSymbol && !(config.strategy === "strategy_c" && isSuspended(state.currentSymbol))) {
         symbol = state.currentSymbol;
       } else {
         const selectedSymbol = select_random_active_symbol();
@@ -376,7 +421,7 @@ export function useAutoTrader(
         under9: "Under 9"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c") {
         let currentArr = state.currentArrangement || [];
         let currentArrIdx = state.currentArrangementIndex || 0;
         let progressIdx = state.arrangementProgressIndex || 0;
@@ -598,6 +643,50 @@ export function useAutoTrader(
         : null,
     });
 
+    if (config.strategy === "strategy_c") {
+      setVolatilityTracking(prev => {
+        const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
+        let nextLosses = current.consecutiveLosses;
+        let nextPending = current.pendingSuspension;
+        let nextSuspendedUntil = current.suspendedUntil;
+
+        if (isWin) {
+          if (current.pendingSuspension) {
+            // Recovered from a 5+ loss run! Enact suspension now.
+            const mins = 20 + Math.random() * 10;
+            const suspensionMs = mins * 60 * 1000;
+            nextSuspendedUntil = Date.now() + suspensionMs;
+            nextPending = false;
+            nextLosses = 0;
+            toast.success(`${symbol} recovered! Enacting suspension for ${Math.round(mins)} minutes to cool down.`, {
+              duration: 8000
+            });
+          } else {
+            // Normal win, reset losses
+            nextLosses = 0;
+          }
+        } else {
+          // Loss: increment losses
+          nextLosses += 1;
+          if (nextLosses >= 5 && !nextPending) {
+            nextPending = true;
+            toast.warning(`${symbol} hit 5 consecutive losses. Suspension queued until current run closes in a win.`, {
+              duration: 8000
+            });
+          }
+        }
+
+        return {
+          ...prev,
+          [symbol]: {
+            consecutiveLosses: nextLosses,
+            pendingSuspension: nextPending,
+            suspendedUntil: nextSuspendedUntil
+          }
+        };
+      });
+    }
+
     const newStatus = isWin ? "WIN" : "LOSS";
     let ticksToWaitNext = randomTradeCooldownTicks(isWin);
     let nextAction = isWin
@@ -665,7 +754,7 @@ export function useAutoTrader(
     let nextProgressIndex = state.arrangementProgressIndex;
     let nextSeed = state.shufflingSeed;
 
-    if (config.strategy === "strategy_a" || config.strategy === "strategy_b") {
+    if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c") {
       if (isWin) {
         // Each win allows a new sequence to be selected
         nextSeqStep = 0;
@@ -1128,6 +1217,16 @@ export function useAutoTrader(
   const resetTradeLog = useCallback(() => {
     setTradeLog([]);
     
+    const initial: Record<string, VolatilityTracking> = {};
+    const symbols = [
+      "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+      "R_10", "R_25", "R_50", "R_75", "R_100",
+    ];
+    symbols.forEach(s => {
+      initial[s] = { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
+    });
+    setVolatilityTracking(initial);
+    
     const newSeed = Math.floor(Math.random() * 100000) + 1;
     const newProgress = 0;
     const permIndex = lcgPermute(newProgress, 369600, newSeed);
@@ -1258,5 +1357,6 @@ export function useAutoTrader(
     execute_trade,
     windDownMode,
     activateWindDown,
+    volatilityTracking,
   };
 }

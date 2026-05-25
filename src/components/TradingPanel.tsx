@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
-import { getSymbolName } from "@/lib/deriv-symbols";
+import { type VolatilityTracking } from "@/hooks/useAutoTrader";
+import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -31,6 +32,7 @@ interface TradingPanelProps {
   windDownMode: boolean;
   onActivateWindDown: () => void;
   profile?: UserProfile | null;
+  volatilityTracking?: Record<string, VolatilityTracking>;
 }
 
 export function TradingPanel({
@@ -45,9 +47,18 @@ export function TradingPanel({
   windDownMode,
   onActivateWindDown,
   profile,
+  volatilityTracking,
 }: TradingPanelProps) {
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Sync local state when config changes from outside (e.g. sync from cloud)
   useEffect(() => {
@@ -194,15 +205,16 @@ export function TradingPanel({
             <SelectItem value="alternating">Alternating Volatility</SelectItem>
             <SelectItem value="strategy_a">Strategy A (Pre-Planned Cycles)</SelectItem>
             <SelectItem value="strategy_b">Strategy B (Sticky Loss Cycles)</SelectItem>
+            <SelectItem value="strategy_c">Strategy C (Sticky Loss + Suspension)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A and B run 12-trade cycles using unique arrangements. Strategy B trades losses on the same volatility.
+          Strategy A, B and C run 12-trade cycles using unique arrangements. B trades losses on the same volatility. C adds 5-loss deferred suspensions.
         </p>
       </div>
 
-      {/* Strategy A/B Visualizer Panel */}
-      {(config.strategy === "strategy_a" || config.strategy === "strategy_b") && (
+      {/* Strategy A/B/C Visualizer Panel */}
+      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c") && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -285,6 +297,92 @@ export function TradingPanel({
                 return "DIGITOVER 5 (Barrier 5)";
               })()}
             </span>
+          </div>
+        </div>
+      )}
+
+      {config.strategy === "strategy_c" && (
+        <div className="bg-muted/10 border border-border/80 rounded-md p-3 space-y-2.5 shadow-sm">
+          <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
+            <span className="text-[10px] font-bold text-foreground uppercase tracking-wider flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-primary animate-pulse" /> Volatility Trackers & Suspensions
+            </span>
+            <Badge variant="outline" className="text-[8px] bg-primary/5 text-primary border-primary/20 px-1.5 py-0.5">
+              STRATEGY C
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+            {DERIV_SYMBOLS.map((s) => {
+              const tracking = volatilityTracking?.[s.symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
+               const isSuspended = !!(tracking.suspendedUntil && currentTime < tracking.suspendedUntil);
+               const remainingSeconds = isSuspended ? Math.max(0, Math.ceil((tracking.suspendedUntil! - currentTime) / 1000)) : 0;
+
+               const formatTimer = (secs: number) => {
+                 const m = Math.floor(secs / 60);
+                 const sec = secs % 60;
+                 return `${m}:${String(sec).padStart(2, "0")}`;
+               };
+
+              return (
+                <div 
+                  key={s.symbol}
+                  className={`flex items-center justify-between p-2 rounded-md border text-[10px] transition-all duration-300 ${
+                    isSuspended 
+                      ? "bg-red-500/5 border-red-500/20 text-red-400/90 shadow-[inset_0_0_8px_rgba(239,68,68,0.05)]" 
+                      : tracking.pendingSuspension
+                      ? "bg-amber-500/5 border-amber-500/20 text-amber-400/90"
+                      : "bg-muted/30 border-border/40 text-foreground"
+                  }`}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold tracking-tight">{s.name}</span>
+                    <div className="flex items-center gap-1.5">
+                      {/* Consecutive loss dots */}
+                      <div className="flex gap-0.5" title={`${tracking.consecutiveLosses} consecutive losses`}>
+                        {[1, 2, 3, 4, 5].map((dot) => {
+                          const active = dot <= tracking.consecutiveLosses;
+                          return (
+                            <span 
+                              key={dot}
+                              className={`h-1.5 w-1.5 rounded-full transition-colors duration-300 ${
+                                active 
+                                  ? tracking.pendingSuspension ? "bg-amber-500 animate-pulse" : "bg-red-500" 
+                                  : "bg-muted-foreground/30"
+                              }`}
+                            />
+                          );
+                        })}
+                      </div>
+                      {tracking.consecutiveLosses > 0 && (
+                        <span className="text-[8px] font-bold opacity-80">
+                          ({tracking.consecutiveLosses})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1">
+                    {isSuspended ? (
+                      <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/20 rounded px-1 py-0.5 text-[8px] font-bold tracking-tight text-red-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
+                        <span>SUSPENDED ({formatTimer(remainingSeconds)})</span>
+                      </div>
+                    ) : tracking.pendingSuspension ? (
+                      <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 rounded px-1 py-0.5 text-[8px] font-bold tracking-tight text-amber-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        <span>PENDING SUSPENSION</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 bg-green-500/10 border border-green-500/20 rounded px-1 py-0.5 text-[8px] font-bold tracking-tight text-green-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                        <span>ACTIVE</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
