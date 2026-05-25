@@ -210,7 +210,7 @@ export function TradingPanel({
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A, B, C and D run 12-trade cycles using unique arrangements. B trades sticky losses. C adds deferred suspensions. D adds immediate suspensions.
+          Strategy A, B, C and D run 12-trade cycles. B is sticky. C adds deferred suspensions. D suspends immediately on 5th loss, then probes subsequent symbols for 2 losses before swapping.
         </p>
       </div>
 

@@ -109,6 +109,8 @@ export function useAutoTrader(
     const savedStake = localStorage.getItem('currentStake');
     const savedStatus = localStorage.getItem('sessionStatus');
     const savedSymbol = localStorage.getItem('currentSymbol');
+    const savedSymbolLosses = localStorage.getItem('currentSymbolLosses');
+    const savedForceSwap = localStorage.getItem('forceSwapSymbol');
 
     const progress = savedProgress ? parseInt(savedProgress) : 0;
     const seed = savedSeed ? parseInt(savedSeed) : Math.floor(Math.random() * 100000) + 1;
@@ -150,6 +152,8 @@ export function useAutoTrader(
       currentArrangement: arr,
       arrangementProgressIndex: progress,
       shufflingSeed: seed,
+      currentSymbolLosses: savedSymbolLosses ? parseInt(savedSymbolLosses) : 0,
+      forceSwapSymbol: savedForceSwap ? savedForceSwap === 'true' : false,
     };
   });
 
@@ -389,7 +393,13 @@ export function useAutoTrader(
         return !!(tracking?.suspendedUntil && Date.now() < tracking.suspendedUntil);
       };
 
-      if (keepSymbolOnLoss && state.status === "LOSS" && state.currentSymbol && !isSuspended(state.currentSymbol)) {
+      const shouldKeep = keepSymbolOnLoss && 
+                         state.status === "LOSS" && 
+                         state.currentSymbol && 
+                         !isSuspended(state.currentSymbol) && 
+                         !(config.strategy === "strategy_d" && state.forceSwapSymbol);
+
+      if (shouldKeep) {
         symbol = state.currentSymbol;
       } else {
         const selectedSymbol = select_random_active_symbol();
@@ -526,6 +536,7 @@ export function useAutoTrader(
         currentCategory: trade,
         status: "PENDING",
         nextAction: "TRD_LIV",
+        forceSwapSymbol: false,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -654,15 +665,21 @@ export function useAutoTrader(
           if (isWin) {
             nextLosses = 0;
           } else {
-            nextLosses += 1;
-            if (nextLosses >= 5) {
-              const mins = 5 + Math.random() * 5;
-              const suspensionMs = mins * 60 * 1000;
-              nextSuspendedUntil = Date.now() + suspensionMs;
+            // Only increment/suspend if we are on the first volatility run (martingaleStep < 5)
+            if (state.martingaleStep < 5) {
+              nextLosses += 1;
+              if (nextLosses >= 5) {
+                const mins = 5 + Math.random() * 5;
+                const suspensionMs = mins * 60 * 1000;
+                nextSuspendedUntil = Date.now() + suspensionMs;
+                nextLosses = 0;
+                toast.warning(`${symbol} suspended immediately for ${Math.round(mins)} minutes due to 5 consecutive losses. Swapping volatility index.`, {
+                  duration: 8000
+                });
+              }
+            } else {
+              // Probe phase: do not increment towards suspension
               nextLosses = 0;
-              toast.warning(`${symbol} suspended immediately for ${Math.round(mins)} minutes due to 5 consecutive losses. Swapping volatility index.`, {
-                duration: 8000
-              });
             }
           }
         } else {
@@ -824,6 +841,32 @@ export function useAutoTrader(
       nextSeqStep = isWin ? 0 : state.sequenceStep;
     }
 
+    let nextSymbolLosses = state.currentSymbolLosses || 0;
+    let nextForceSwapSymbol = state.forceSwapSymbol || false;
+
+    if (config.strategy === "strategy_d") {
+      if (isWin) {
+        nextSymbolLosses = 0;
+        nextForceSwapSymbol = false;
+      } else {
+        nextSymbolLosses += 1;
+        if (state.martingaleStep < 5) {
+          if (nextSymbolLosses === 5) {
+            nextSymbolLosses = 0;
+            nextForceSwapSymbol = true;
+          }
+        } else {
+          if (nextSymbolLosses === 2) {
+            nextSymbolLosses = 0;
+            nextForceSwapSymbol = true;
+          }
+        }
+      }
+    } else {
+      nextSymbolLosses = 0;
+      nextForceSwapSymbol = false;
+    }
+
     const nextSessionState = {
       ...state,
       status: newStatus,
@@ -835,6 +878,8 @@ export function useAutoTrader(
       currentArrangement: nextArr,
       arrangementProgressIndex: nextProgressIndex,
       shufflingSeed: nextSeed,
+      currentSymbolLosses: nextSymbolLosses,
+      forceSwapSymbol: nextForceSwapSymbol,
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
@@ -1115,6 +1160,8 @@ export function useAutoTrader(
     localStorage.setItem('currentStake', String(sessionState.currentStake));
     localStorage.setItem('sessionStatus', sessionState.status);
     localStorage.setItem('currentSymbol', sessionState.currentSymbol);
+    localStorage.setItem('currentSymbolLosses', String(sessionState.currentSymbolLosses));
+    localStorage.setItem('forceSwapSymbol', String(sessionState.forceSwapSymbol));
   }, [sessionState]);
 
   useEffect(() => {
@@ -1269,6 +1316,8 @@ export function useAutoTrader(
       currentArrangement: newArr,
       arrangementProgressIndex: newProgress,
       shufflingSeed: newSeed,
+      currentSymbolLosses: 0,
+      forceSwapSymbol: false,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
