@@ -136,8 +136,6 @@ export function useAuth() {
   };
 
   useEffect(() => {
-    let profileChannel: any = null;
-
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
@@ -145,46 +143,9 @@ export function useAuth() {
       if (currentUser) {
         setProfileLoading(true);
         fetchProfile(currentUser.id);
-
-        // Single-Session Enforcer: Listen for device_id changes
-        if (profileChannel) supabase.removeChannel(profileChannel);
-        
-        profileChannel = supabase
-          .channel(`session-enforcement-${currentUser.id}`)
-          .on(
-            'postgres_changes',
-            { 
-              event: 'UPDATE', 
-              schema: 'public', 
-              table: 'profiles', 
-              filter: `id=eq.${currentUser.id}` 
-            },
-            (payload) => {
-              const serverDeviceId = payload.new.device_id;
-              const localDeviceId = localStorage.getItem('bt_device_id');
-              
-              if (serverDeviceId && localDeviceId && serverDeviceId !== localDeviceId) {
-                console.warn("[Auth] New login detected on another device. Signing out...");
-                toast.error("You have been logged in on another device. This session will close.", {
-                  duration: 5000,
-                  id: 'session-kick-out'
-                });
-                
-                // Small delay to allow the user to see the message
-                setTimeout(() => {
-                  supabase.auth.signOut();
-                }, 2000);
-              }
-            }
-          )
-          .subscribe();
       } else {
         setProfile(null);
         setProfileLoading(false);
-        if (profileChannel) {
-          supabase.removeChannel(profileChannel);
-          profileChannel = null;
-        }
       }
       
       setLoading(false);
@@ -207,9 +168,46 @@ export function useAuth() {
 
     return () => {
       authSub.unsubscribe();
-      if (profileChannel) supabase.removeChannel(profileChannel);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`session-enforcement-${user.id}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'profiles', 
+          filter: `id=eq.${user.id}` 
+        },
+        (payload) => {
+          const serverDeviceId = payload.new.device_id;
+          const localDeviceId = localStorage.getItem('bt_device_id');
+          
+          if (serverDeviceId && localDeviceId && serverDeviceId !== localDeviceId) {
+            console.warn("[Auth] New login detected on another device. Signing out...");
+            toast.error("You have been logged in on another device. This session will close.", {
+              duration: 5000,
+              id: 'session-kick-out'
+            });
+            
+            // Small delay to allow the user to see the message
+            setTimeout(() => {
+              supabase.auth.signOut();
+            }, 2000);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     return supabase.auth.signInWithPassword({ email, password });
