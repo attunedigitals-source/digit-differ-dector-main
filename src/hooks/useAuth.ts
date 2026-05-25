@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ export function useAuth() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const profileChannelRef = useRef<any>(null);
 
   const fetchProfile = async (userId: string) => {
     setProfileLoading(true);
@@ -143,9 +144,64 @@ export function useAuth() {
       if (currentUser) {
         setProfileLoading(true);
         fetchProfile(currentUser.id);
+
+        // Single-Session Enforcer: Listen for device_id changes
+        const channelName = `session-enforcement-${currentUser.id}`;
+        
+        // Remove existing channel safely to prevent duplicate subscription error
+        if (profileChannelRef.current) {
+          try {
+            supabase.removeChannel(profileChannelRef.current).catch(() => {});
+          } catch (e) {}
+          profileChannelRef.current = null;
+        }
+
+        const channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            { 
+              event: 'UPDATE', 
+              schema: 'public', 
+              table: 'profiles', 
+              filter: `id=eq.${currentUser.id}` 
+            },
+            (payload) => {
+              const serverDeviceId = payload.new.device_id;
+              const localDeviceId = localStorage.getItem('bt_device_id');
+              
+              if (serverDeviceId && localDeviceId && serverDeviceId !== localDeviceId) {
+                console.warn("[Auth] New login detected on another device. Signing out...");
+                toast.error("You have been logged in on another device. This session will close.", {
+                  duration: 5000,
+                  id: 'session-kick-out'
+                });
+                
+                // Small delay to allow the user to see the message
+                setTimeout(() => {
+                  supabase.auth.signOut();
+                }, 2000);
+              }
+            }
+          );
+
+        profileChannelRef.current = channel;
+
+        try {
+          channel.subscribe();
+        } catch (e) {
+          console.error("Supabase Realtime subscription error:", e);
+        }
       } else {
         setProfile(null);
         setProfileLoading(false);
+        
+        if (profileChannelRef.current) {
+          try {
+            supabase.removeChannel(profileChannelRef.current).catch(() => {});
+          } catch (e) {}
+          profileChannelRef.current = null;
+        }
       }
       
       setLoading(false);
@@ -168,46 +224,13 @@ export function useAuth() {
 
     return () => {
       authSub.unsubscribe();
+      if (profileChannelRef.current) {
+        try {
+          supabase.removeChannel(profileChannelRef.current).catch(() => {});
+        } catch (e) {}
+      }
     };
   }, []);
-
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel(`session-enforcement-${user.id}`)
-      .on(
-        'postgres_changes',
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'profiles', 
-          filter: `id=eq.${user.id}` 
-        },
-        (payload) => {
-          const serverDeviceId = payload.new.device_id;
-          const localDeviceId = localStorage.getItem('bt_device_id');
-          
-          if (serverDeviceId && localDeviceId && serverDeviceId !== localDeviceId) {
-            console.warn("[Auth] New login detected on another device. Signing out...");
-            toast.error("You have been logged in on another device. This session will close.", {
-              duration: 5000,
-              id: 'session-kick-out'
-            });
-            
-            // Small delay to allow the user to see the message
-            setTimeout(() => {
-              supabase.auth.signOut();
-            }, 2000);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     return supabase.auth.signInWithPassword({ email, password });
