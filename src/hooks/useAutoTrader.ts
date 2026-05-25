@@ -1182,9 +1182,9 @@ export function useAutoTrader(
       toast.warning("Minimum Base Stake is $0.35", { id: 'min-stake-toast' });
     }
     
-    if (cfg.maxMartingaleSteps < 12) {
-      corrected.maxMartingaleSteps = 12;
-      toast.warning("Minimum Max Step is 12", { id: 'min-step-toast' });
+    if (cfg.maxMartingaleSteps < 1) {
+      corrected.maxMartingaleSteps = 1;
+      toast.warning("Minimum Max Step is 1", { id: 'min-step-toast' });
     }
     
     return corrected;

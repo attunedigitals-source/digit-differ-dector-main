@@ -355,7 +355,7 @@ export function TradingPanel({
                 return;
               }
               if (!canTrade) {
-                toast.error("Requirements not met: Stake ≥ 0.35 and Steps ≥ 12");
+                toast.error("Requirements not met: Stake ≥ 0.35 and Steps ≥ 1");
                 return;
               }
             }
