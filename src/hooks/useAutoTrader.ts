@@ -653,7 +653,7 @@ export function useAutoTrader(
         if (isWin) {
           if (current.pendingSuspension) {
             // Recovered from a 5+ loss run! Enact suspension now.
-            const mins = 20 + Math.random() * 10;
+            const mins = 5 + Math.random() * 5;
             const suspensionMs = mins * 60 * 1000;
             nextSuspendedUntil = Date.now() + suspensionMs;
             nextPending = false;
