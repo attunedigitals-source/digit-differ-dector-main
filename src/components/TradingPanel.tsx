@@ -23,6 +23,7 @@ interface TradingPanelProps {
     arrangementProgressIndex?: number;
     shufflingSeed?: number;
     sequenceStep?: number;
+    blacklistedPrefixes?: Record<string, string[]>;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -363,6 +364,21 @@ export function TradingPanel({
                         </span>
                       )}
                     </div>
+                    {/* Strategy F Blacklisted Prefixes */}
+                    {config.strategy === "strategy_f" && sessionState.blacklistedPrefixes?.[s.symbol] && sessionState.blacklistedPrefixes[s.symbol].length > 0 && (
+                      <div className="flex flex-wrap gap-0.5 mt-1 max-w-[120px]">
+                        {sessionState.blacklistedPrefixes[s.symbol].map((prefix, idx) => (
+                          <Badge 
+                            key={idx} 
+                            variant="outline" 
+                            className="text-[7px] font-mono bg-destructive/5 text-destructive border-destructive/15 px-1 py-0 shadow-[inset_0_0_4px_rgba(239,68,68,0.02)]"
+                            title={prefix.split(",").join(" -> ")}
+                          >
+                            🚫 {prefix.split(",").join("")}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col items-end gap-1">

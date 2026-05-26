@@ -520,7 +520,7 @@ export function useAutoTrader(
                          state.status === "LOSS" && 
                          state.currentSymbol && 
                          !isSuspended(state.currentSymbol) && 
-                         !((config.strategy === "strategy_d" || config.strategy === "strategy_e") && state.forceSwapSymbol);
+                         !((config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") && state.forceSwapSymbol);
 
       if (shouldKeep) {
         symbol = state.currentSymbol;
@@ -850,7 +850,7 @@ export function useAutoTrader(
         : null,
     });
 
-    if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") {
+    if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
       setVolatilityTracking(prev => {
         const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
         let nextLosses = current.consecutiveLosses;
@@ -1110,15 +1110,43 @@ export function useAutoTrader(
 
     let nextSymbolLosses = state.currentSymbolLosses || 0;
     let nextForceSwapSymbol = state.forceSwapSymbol || false;
+    let nextBlacklist = { ...(state.blacklistedPrefixes || {}) };
 
-    if (config.strategy === "strategy_e" || config.strategy === "strategy_d") {
+    if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") {
       if (isWin) {
         nextSymbolLosses = 0;
         nextForceSwapSymbol = false;
       } else {
         nextSymbolLosses += 1;
         
-        if (config.strategy === "strategy_e") {
+        if (config.strategy === "strategy_f") {
+          if (state.martingaleStep < 5) {
+            if (nextSymbolLosses === 5) {
+              const prefix = (state.currentArrangement || []).slice(0, 5).join(",");
+              if (prefix) {
+                const symbolBlacklist = [...(nextBlacklist[symbol] || [])];
+                if (!symbolBlacklist.includes(prefix)) {
+                  symbolBlacklist.push(prefix);
+                  nextBlacklist[symbol] = symbolBlacklist;
+                  toast.warning(`Prefix [${prefix.split(",").join(" -> ")}] blacklisted specifically for ${symbol} due to 5 consecutive losses. Swapping index.`, {
+                    duration: 8000
+                  });
+                  console.log(`[Strategy F] 5 consecutive losses on ${symbol}. Blacklisted prefix: ${prefix}. Swapping symbol.`);
+                }
+              }
+              nextSymbolLosses = 0;
+              nextForceSwapSymbol = true;
+            }
+          } else {
+            if (nextSymbolLosses === 2) {
+              nextSymbolLosses = 0;
+              nextForceSwapSymbol = true;
+              toast.info(`[Strategy F] High martingale step probe: 2 losses on ${symbol}. Swapping index.`, {
+                duration: 5000
+              });
+            }
+          }
+        } else if (config.strategy === "strategy_e") {
           const stdDev = calculate_reversion_score(symbol);
           const isChaotic = stdDev > 2.0;
 
@@ -1155,28 +1183,6 @@ export function useAutoTrader(
     } else {
       nextSymbolLosses = 0;
       nextForceSwapSymbol = false;
-    }
-
-    let nextBlacklist = { ...(state.blacklistedPrefixes || {}) };
-
-    if (config.strategy === "strategy_f") {
-      if (isWin) {
-        const tracking = volatilityTracking[symbol];
-        if (tracking && tracking.pendingSuspension) {
-          const prefix = (state.currentArrangement || []).slice(0, 5).join(",");
-          if (prefix) {
-            const symbolBlacklist = [...(nextBlacklist[symbol] || [])];
-            if (!symbolBlacklist.includes(prefix)) {
-              symbolBlacklist.push(prefix);
-              nextBlacklist[symbol] = symbolBlacklist;
-              toast.warning(`Prefix [${prefix.split(",").join(" -> ")}] blacklisted specifically for ${symbol} and filtered out.`, {
-                duration: 8000
-              });
-              console.log(`[Strategy F] Blacklisted prefix for ${symbol}: ${prefix}. Total for ${symbol}: ${symbolBlacklist.length}`);
-            }
-          }
-        }
-      }
     }
 
     const nextSessionState = {
@@ -1614,6 +1620,9 @@ export function useAutoTrader(
     const counts = [3, 3, 3, 3];
     const newArr = getNthPermutation(elements, counts, newArrIndex);
 
+    const emptyBlacklist: Record<string, string[]> = {};
+    symbols.forEach(s => emptyBlacklist[s] = []);
+
     setSessionState({
       currentStake: config.baseStake,
       martingaleStep: 0,
@@ -1632,7 +1641,7 @@ export function useAutoTrader(
       shufflingSeed: newSeed,
       currentSymbolLosses: 0,
       forceSwapSymbol: false,
-      blacklistedPrefixes: [],
+      blacklistedPrefixes: emptyBlacklist,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
