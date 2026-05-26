@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
-import type { SymbolState } from "@/lib/signal-engine";
+import { type SymbolState, generateSignal } from "@/lib/signal-engine";
 import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails, getPermutationIndex, getRandomSequenceWithPrefix } from "../lib/arrangement-brain";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
@@ -307,6 +307,61 @@ export function useAutoTrader(
   const useReducedWindowSize = useRef(false);
   const freshnessWarningShownRef = useRef(false);
 
+  const calculate_reversion_score = useCallback((symbol: string): number => {
+    const symbolState = getSymbolState(symbol);
+    if (!symbolState || !symbolState.digits || symbolState.digits.length < 30) {
+      return 10.0; // Baseline standard deviation (high standard deviation / average score)
+    }
+
+    const digits = symbolState.digits.slice(-50);
+    const frequencies = new Array(10).fill(0);
+    digits.forEach(d => {
+      if (d >= 0 && d <= 9) frequencies[d]++;
+    });
+
+    const mean = digits.length / 10;
+    const variance = frequencies.reduce((acc, count) => acc + Math.pow(count - mean, 2), 0) / 10;
+    const stdDev = Math.sqrt(variance);
+    return stdDev;
+  }, [getSymbolState]);
+
+  const select_smart_volatility_symbol = useCallback(() => {
+    const symbols = [
+      "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+      "R_10", "R_25", "R_50", "R_75", "R_100",
+    ];
+
+    const candidates = symbols
+      .map((symbol) => {
+        const tracking = volatilityTracking[symbol];
+        if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
+          return null;
+        }
+
+        const symbolState = getSymbolState(symbol);
+        if (symbolState?.updatedAt) {
+          const tickAgeMs = Date.now() - symbolState.updatedAt;
+          if (tickAgeMs > MAX_TICK_AGE_MS) {
+            return null;
+          }
+        } else {
+          return null;
+        }
+
+        const stdDev = calculate_reversion_score(symbol);
+        const score = 100 - (stdDev * 10);
+        return { symbol, score };
+      })
+      .filter((c): c is { symbol: string; score: number } => c !== null);
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0];
+  }, [getSymbolState, volatilityTracking, calculate_reversion_score]);
+
   const select_random_active_symbol = useCallback(() => {
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
@@ -315,8 +370,8 @@ export function useAutoTrader(
 
     const candidates = symbols
       .map((symbol) => {
-        // Skip suspended symbols under Strategy C and D
-        if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
+        // Skip suspended symbols under Strategy C, D and E
+        if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
           const tracking = volatilityTracking[symbol];
           if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
             return null;
@@ -386,7 +441,7 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "alternating";
+      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "alternating";
       
       const isSuspended = (sym: string) => {
         const tracking = volatilityTracking[sym];
@@ -397,12 +452,14 @@ export function useAutoTrader(
                          state.status === "LOSS" && 
                          state.currentSymbol && 
                          !isSuspended(state.currentSymbol) && 
-                         !(config.strategy === "strategy_d" && state.forceSwapSymbol);
+                         !((config.strategy === "strategy_d" || config.strategy === "strategy_e") && state.forceSwapSymbol);
 
       if (shouldKeep) {
         symbol = state.currentSymbol;
       } else {
-        const selectedSymbol = select_random_active_symbol();
+        const selectedSymbol = config.strategy === "strategy_e"
+          ? select_smart_volatility_symbol()
+          : select_random_active_symbol();
         if (!selectedSymbol) {
           console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
 
@@ -431,7 +488,7 @@ export function useAutoTrader(
         under9: "Under 9"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
         let currentArr = state.currentArrangement || [];
         let currentArrIdx = state.currentArrangementIndex || 0;
         let progressIdx = state.arrangementProgressIndex || 0;
@@ -445,14 +502,6 @@ export function useAutoTrader(
           currentArr = getNthPermutation(elements, counts, currentArrIdx);
         }
 
-        const directionCode = currentArr[state.sequenceStep] || "O5";
-        if (directionCode === "U4") trade = "under4";
-        else if (directionCode === "O4") trade = "over4";
-        else if (directionCode === "U5") trade = "under5";
-        else trade = "over5";
-
-        chosenGroup = getCategoryGroup(trade);
-        
         seqStep = state.sequenceStep;
         if (state.status === "WIN" || state.status === "IDLE") {
           nextStep = 0;
@@ -460,6 +509,50 @@ export function useAutoTrader(
           nextStep = state.martingaleStep + 1;
           stepIndexRef.current += 1;
         }
+
+        let directionCode = currentArr[state.sequenceStep] || "O5";
+        
+        // Strategy E Drawdown Reducer: Upgrades U5 -> U4, O4 -> O5 for steps >= 5
+        if (config.strategy === "strategy_e" && nextStep >= 5) {
+          if (directionCode === "U5") directionCode = "U4";
+          else if (directionCode === "O4") directionCode = "O5";
+        }
+
+        if (directionCode === "U4") trade = "under4";
+        else if (directionCode === "O4") trade = "over4";
+        else if (directionCode === "U5") trade = "under5";
+        else trade = "over5";
+
+        // Strategy E Dynamic Overlay (Real-time Probability Overlay):
+        if (config.strategy === "strategy_e") {
+          const symbolState = getSymbolState(symbol);
+          if (symbolState && symbolState.digits && symbolState.digits.length >= 30) {
+            const digits = symbolState.digits.slice(-25);
+            if (trade === "under4" || trade === "over5") {
+              const u4Count = digits.filter(d => d <= 3).length;
+              const o5Count = digits.filter(d => d >= 6).length;
+              if (trade === "under4" && u4Count >= 13 && o5Count <= 7) {
+                trade = "over5";
+                console.log("[Strategy E] Overriding U4 -> O5 (O5 is overdue / regression probable)");
+              } else if (trade === "over5" && o5Count >= 13 && u4Count <= 7) {
+                trade = "under4";
+                console.log("[Strategy E] Overriding O5 -> U4 (U4 is overdue / regression probable)");
+              }
+            } else if (trade === "under5" || trade === "over4") {
+              const u5Count = digits.filter(d => d <= 4).length;
+              const o4Count = digits.filter(d => d >= 5).length;
+              if (trade === "under5" && u5Count >= 16 && o4Count <= 9) {
+                trade = "over4";
+                console.log("[Strategy E] Overriding U5 -> O4 (O4 is overdue / regression probable)");
+              } else if (trade === "over4" && o4Count >= 16 && u5Count <= 9) {
+                trade = "under5";
+                console.log("[Strategy E] Overriding O4 -> U5 (U5 is overdue / regression probable)");
+              }
+            }
+          }
+        }
+
+        chosenGroup = getCategoryGroup(trade);
       } else {
         const normalGroup: TradeCategory[] = ["under4", "over5"];
         const specialGroup: TradeCategory[] = ["over4", "under5"];
@@ -515,11 +608,46 @@ export function useAutoTrader(
       if (isFirstTrade || isWin) {
         nextStake = config.baseStake;
       } else if (state.status === "LOSS") {
-        nextStake = isSpecialStakeTrade
-          ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
-          : Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+        if (config.strategy === "strategy_e" && nextStep >= 5) {
+          nextStake = Number((state.currentStake * 1.45).toFixed(2));
+          console.log(`[Strategy E] Step ${nextStep} >= 5: Applying reduced Martingale multiplier 1.45x (Stake: ${nextStake})`);
+        } else {
+          nextStake = isSpecialStakeTrade
+            ? Number((state.currentStake * MARTINGALE_MULTIPLIER * 1.26).toFixed(2))
+            : Number((state.currentStake * MARTINGALE_MULTIPLIER).toFixed(2));
+        }
       } else {
         nextStake = config.baseStake;
+      }
+
+      // Strategy E Smart Entry Filter
+      if (config.strategy === "strategy_e") {
+        const symbolState = getSymbolState(symbol);
+        if (symbolState) {
+          const sig = generateSignal(symbolState);
+          if (sig && sig.confidence >= 0.7) {
+            let winZoneContainsDanger = false;
+            if (trade === "under4" && sig.dangerDigit <= 3) winZoneContainsDanger = true;
+            else if (trade === "over5" && sig.dangerDigit >= 6) winZoneContainsDanger = true;
+            else if (trade === "under5" && sig.dangerDigit <= 4) winZoneContainsDanger = true;
+            else if (trade === "over4" && sig.dangerDigit >= 5) winZoneContainsDanger = true;
+
+            if (winZoneContainsDanger) {
+              console.log(`[Strategy E Filter] Win zone contains danger digit ${sig.dangerDigit} (Confidence: ${sig.confidence}). Delaying entry by 2 seconds.`);
+              toast.info(`[Filter] Danger digit ${sig.dangerDigit} detected in win zone. Delaying entry...`, { duration: 3000 });
+              
+              setSessionState(prev => ({
+                ...prev,
+                status: "SKIP",
+                nextAction: "FILT_DGR",
+              }));
+              
+              setTicksToWait(2);
+              isExecutingRef.current = false;
+              return;
+            }
+          }
+        }
       }
 
       console.log("[AutoTrader] Trade selection finalized", { symbol, trade: categoryLabels[trade], stake: nextStake });
@@ -654,14 +782,54 @@ export function useAutoTrader(
         : null,
     });
 
-    if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
+    if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
       setVolatilityTracking(prev => {
         const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
         let nextLosses = current.consecutiveLosses;
         let nextPending = current.pendingSuspension;
         let nextSuspendedUntil = current.suspendedUntil;
 
-        if (config.strategy === "strategy_d") {
+        if (config.strategy === "strategy_e") {
+          const stdDev = calculate_reversion_score(symbol);
+          const isChaotic = stdDev > 2.0;
+
+          if (isWin) {
+            if (current.pendingSuspension) {
+              const mins = 5 + Math.random() * 5;
+              const suspensionMs = mins * 60 * 1000;
+              nextSuspendedUntil = Date.now() + suspensionMs;
+              nextPending = false;
+              nextLosses = 0;
+              toast.success(`${symbol} recovered! Enacting deferred suspension for ${Math.round(mins)} minutes to cool down.`, {
+                duration: 8000
+              });
+            } else {
+              nextLosses = 0;
+            }
+          } else {
+            if (state.martingaleStep < 5) {
+              nextLosses += 1;
+              if (nextLosses >= 5) {
+                if (isChaotic) {
+                  const mins = 5 + Math.random() * 5;
+                  const suspensionMs = mins * 60 * 1000;
+                  nextSuspendedUntil = Date.now() + suspensionMs;
+                  nextLosses = 0;
+                  toast.warning(`${symbol} hit 5 losses and classified as Chaotic (SD: ${stdDev.toFixed(2)}). Suspended immediately for ${Math.round(mins)} minutes. Swapping index.`, {
+                    duration: 8000
+                  });
+                } else {
+                  nextPending = true;
+                  toast.info(`${symbol} hit 5 losses and classified as Stable (SD: ${stdDev.toFixed(2)}). Sticky recovery active. Suspension queued until win.`, {
+                    duration: 8000
+                  });
+                }
+              }
+            } else {
+              nextLosses = 0;
+            }
+          }
+        } else if (config.strategy === "strategy_d") {
           if (isWin) {
             nextLosses = 0;
           } else {
@@ -789,7 +957,7 @@ export function useAutoTrader(
     let nextProgressIndex = state.arrangementProgressIndex;
     let nextSeed = state.shufflingSeed;
 
-    if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d") {
+    if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
       if (isWin) {
         // Each win allows a new sequence to be selected
         nextSeqStep = 0;
@@ -844,21 +1012,44 @@ export function useAutoTrader(
     let nextSymbolLosses = state.currentSymbolLosses || 0;
     let nextForceSwapSymbol = state.forceSwapSymbol || false;
 
-    if (config.strategy === "strategy_d") {
+    if (config.strategy === "strategy_e" || config.strategy === "strategy_d") {
       if (isWin) {
         nextSymbolLosses = 0;
         nextForceSwapSymbol = false;
       } else {
         nextSymbolLosses += 1;
-        if (state.martingaleStep < 5) {
-          if (nextSymbolLosses === 5) {
-            nextSymbolLosses = 0;
-            nextForceSwapSymbol = true;
+        
+        if (config.strategy === "strategy_e") {
+          const stdDev = calculate_reversion_score(symbol);
+          const isChaotic = stdDev > 2.0;
+
+          if (state.martingaleStep < 5) {
+            if (nextSymbolLosses === 5) {
+              if (isChaotic) {
+                nextSymbolLosses = 0;
+                nextForceSwapSymbol = true;
+              } else {
+                // For Stable index, we stay sticky!
+              }
+            }
+          } else {
+            if (nextSymbolLosses === 2) {
+              nextSymbolLosses = 0;
+              nextForceSwapSymbol = true;
+            }
           }
         } else {
-          if (nextSymbolLosses === 2) {
-            nextSymbolLosses = 0;
-            nextForceSwapSymbol = true;
+          // Strategy D
+          if (state.martingaleStep < 5) {
+            if (nextSymbolLosses === 5) {
+              nextSymbolLosses = 0;
+              nextForceSwapSymbol = true;
+            }
+          } else {
+            if (nextSymbolLosses === 2) {
+              nextSymbolLosses = 0;
+              nextForceSwapSymbol = true;
+            }
           }
         }
       }
