@@ -467,6 +467,17 @@ export function useAutoTrader(
       return null;
     }
 
+    if (config.strategy === "strategy_f") {
+      const blacklist = sessionStateRef.current.blacklistedPrefixes || {};
+      const minCount = Math.min(...candidates.map(c => blacklist[c.symbol]?.length || 0));
+      const bestCandidates = candidates.filter(c => (blacklist[c.symbol]?.length || 0) === minCount);
+      
+      console.log(`[Strategy F Symbol Select] Candidate blacklist sizes:`, candidates.map(c => `${c.symbol}: ${blacklist[c.symbol]?.length || 0}`).join(", "));
+      console.log(`[Strategy F Symbol Select] Selecting from lowest blacklist count (${minCount}) candidates:`, bestCandidates.map(c => c.symbol).join(", "));
+      
+      return bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
+    }
+
     return candidates[Math.floor(Math.random() * candidates.length)];
   }, [getSymbolState, config.strategy, volatilityTracking]);
 
