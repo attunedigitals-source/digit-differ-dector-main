@@ -1120,31 +1120,21 @@ export function useAutoTrader(
         nextSymbolLosses += 1;
         
         if (config.strategy === "strategy_f") {
-          if (state.martingaleStep < 5) {
-            if (nextSymbolLosses === 5) {
-              const prefix = (state.currentArrangement || []).slice(0, 5).join(",");
-              if (prefix) {
-                const symbolBlacklist = [...(nextBlacklist[symbol] || [])];
-                if (!symbolBlacklist.includes(prefix)) {
-                  symbolBlacklist.push(prefix);
-                  nextBlacklist[symbol] = symbolBlacklist;
-                  toast.warning(`Prefix [${prefix.split(",").join(" -> ")}] blacklisted specifically for ${symbol} due to 5 consecutive losses. Swapping index.`, {
-                    duration: 8000
-                  });
-                  console.log(`[Strategy F] 5 consecutive losses on ${symbol}. Blacklisted prefix: ${prefix}. Swapping symbol.`);
-                }
+          if (nextSymbolLosses === 5) {
+            const prefix = (state.currentArrangement || []).slice(0, 5).join(",");
+            if (prefix) {
+              const symbolBlacklist = [...(nextBlacklist[symbol] || [])];
+              if (!symbolBlacklist.includes(prefix)) {
+                symbolBlacklist.push(prefix);
+                nextBlacklist[symbol] = symbolBlacklist;
+                toast.warning(`Prefix [${prefix.split(",").join(" -> ")}] blacklisted specifically for ${symbol} due to 5 consecutive losses. Swapping index.`, {
+                  duration: 8000
+                });
+                console.log(`[Strategy F] 5 consecutive losses on ${symbol}. Blacklisted prefix: ${prefix}. Swapping symbol.`);
               }
-              nextSymbolLosses = 0;
-              nextForceSwapSymbol = true;
             }
-          } else {
-            if (nextSymbolLosses === 2) {
-              nextSymbolLosses = 0;
-              nextForceSwapSymbol = true;
-              toast.info(`[Strategy F] High martingale step probe: 2 losses on ${symbol}. Swapping index.`, {
-                duration: 5000
-              });
-            }
+            nextSymbolLosses = 0;
+            nextForceSwapSymbol = true;
           }
         } else if (config.strategy === "strategy_e") {
           const stdDev = calculate_reversion_score(symbol);
