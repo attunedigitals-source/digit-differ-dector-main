@@ -469,14 +469,19 @@ export function useAutoTrader(
     }
 
     if (config.strategy === "strategy_f") {
-      const blacklist = sessionStateRef.current.blacklistedPrefixes || {};
-      const minCount = Math.min(...candidates.map(c => blacklist[c.symbol]?.length || 0));
-      const bestCandidates = candidates.filter(c => (blacklist[c.symbol]?.length || 0) === minCount);
-      
-      console.log(`[Strategy F Symbol Select] Candidate blacklist sizes:`, candidates.map(c => `${c.symbol}: ${blacklist[c.symbol]?.length || 0}`).join(", "));
-      console.log(`[Strategy F Symbol Select] Selecting from lowest blacklist count (${minCount}) candidates:`, bestCandidates.map(c => c.symbol).join(", "));
-      
-      return bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
+      const isForcedSwap = sessionStateRef.current.forceSwapSymbol;
+      if (isForcedSwap) {
+        const blacklist = sessionStateRef.current.blacklistedPrefixes || {};
+        const minCount = Math.min(...candidates.map(c => blacklist[c.symbol]?.length || 0));
+        const bestCandidates = candidates.filter(c => (blacklist[c.symbol]?.length || 0) === minCount);
+        
+        console.log(`[Strategy F Symbol Select - Forced Swap] Candidate blacklist sizes:`, candidates.map(c => `${c.symbol}: ${blacklist[c.symbol]?.length || 0}`).join(", "));
+        console.log(`[Strategy F Symbol Select - Forced Swap] Selecting from lowest blacklist count (${minCount}) candidates:`, bestCandidates.map(c => c.symbol).join(", "));
+        
+        return bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
+      } else {
+        console.log(`[Strategy F Symbol Select - Normal] Selecting randomly from all ${candidates.length} active candidates.`);
+      }
     }
 
     return candidates[Math.floor(Math.random() * candidates.length)];
