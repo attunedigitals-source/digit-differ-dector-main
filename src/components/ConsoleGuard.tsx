@@ -11,6 +11,7 @@ export const ConsoleGuard = ({ children }: { children: React.ReactNode }) => {
     const originalInfo = window.console.info;
     const originalWarn = window.console.warn;
     const originalDebug = window.console.debug;
+    const originalError = window.console.error;
 
     const isCurrentlyEnabled = globalEnabled && userEnabled;
 
@@ -19,11 +20,13 @@ export const ConsoleGuard = ({ children }: { children: React.ReactNode }) => {
       window.console.info = () => {};
       window.console.warn = () => {};
       window.console.debug = () => {};
+      window.console.error = () => {};
     } else {
       window.console.log = originalLog;
       window.console.info = originalInfo;
       window.console.warn = originalWarn;
       window.console.debug = originalDebug;
+      window.console.error = originalError;
     }
 
     return () => {
@@ -32,6 +35,7 @@ export const ConsoleGuard = ({ children }: { children: React.ReactNode }) => {
       window.console.info = originalInfo;
       window.console.warn = originalWarn;
       window.console.debug = originalDebug;
+      window.console.error = originalError;
     };
   }, [globalEnabled, userEnabled]);
 
