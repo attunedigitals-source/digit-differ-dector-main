@@ -11,6 +11,7 @@ import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 const MARTINGALE_MULTIPLIER = 1.8;
 const RECOVERY_MARTINGALE_MULTIPLIER = 11.43;
 const MAX_TICK_AGE_MS = 10000;
+const MAX_BLACKLIST_SIZE = 50;
 const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
 const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
 const COOLDOWN_WAIT_MIN_SECONDS = 300;
@@ -1111,6 +1112,9 @@ export function useAutoTrader(
             const symbolBlacklist = [...(tempBlacklist[symbol] || [])];
             if (!symbolBlacklist.includes(prefixToBlacklist)) {
               symbolBlacklist.push(prefixToBlacklist);
+              if (symbolBlacklist.length > MAX_BLACKLIST_SIZE) {
+                symbolBlacklist.shift();
+              }
               tempBlacklist[symbol] = symbolBlacklist;
             }
           }
@@ -1190,6 +1194,9 @@ export function useAutoTrader(
               const symbolBlacklist = [...(nextBlacklist[symbol] || [])];
               if (!symbolBlacklist.includes(prefix)) {
                 symbolBlacklist.push(prefix);
+                if (symbolBlacklist.length > MAX_BLACKLIST_SIZE) {
+                  symbolBlacklist.shift();
+                }
                 nextBlacklist[symbol] = symbolBlacklist;
                 toast.warning(`Prefix [${prefix.split(",").join(" -> ")}] blacklisted specifically for ${symbol} due to 5 consecutive losses. Swapping index.`, {
                   duration: 8000
