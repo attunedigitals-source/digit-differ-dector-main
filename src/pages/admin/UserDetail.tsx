@@ -245,6 +245,23 @@ export default function UserDetail() {
     }
   });
 
+  const updateLogsMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ enable_logs: enabled })
+        .eq('id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-user-profile", userId] });
+      toast.success("User console logs preference updated");
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to update logs preference: ${err.message}`);
+    }
+  });
+
   if (profileLoading && !profile) {
     return (
       <AdminLayout title="User Details">
@@ -315,6 +332,19 @@ export default function UserDetail() {
                   </div>
                   <h4 className="text-sm font-bold leading-tight break-all">{profile?.email}</h4>
                   <p className="text-xs text-muted-foreground">TZ: {profile?.timezone || 'UTC'}</p>
+                </div>
+                
+                <div className="flex items-center justify-between pt-2 border-t border-border/30">
+                  <div className="flex flex-col">
+                    <Label htmlFor="user-logs" className="text-[10px] font-bold uppercase text-muted-foreground">Console Logs</Label>
+                    <span className="text-[8px] text-muted-foreground">Enable logs for user</span>
+                  </div>
+                  <Switch 
+                    id="user-logs" 
+                    checked={profile?.enable_logs ?? false}
+                    onCheckedChange={(checked) => updateLogsMutation.mutate(checked)}
+                    disabled={updateLogsMutation.isPending}
+                  />
                 </div>
               </div>
             </Card>
