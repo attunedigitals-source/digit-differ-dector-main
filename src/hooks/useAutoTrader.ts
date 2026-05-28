@@ -1085,34 +1085,87 @@ export function useAutoTrader(
           toast.success(`Win! Selecting new arrangement #${nextArrIndex}`);
         }
       } else {
-        // On Loss: pool all arrangements starting with the consecutive loss directions
-        const lossPrefix = (state.currentArrangement || []).slice(0, state.sequenceStep + 1);
-        
-        // If loss prefix is valid (e.g. within 12 elements), pool and draw
-        if (lossPrefix.length < 12) {
-          const elements = ['U4', 'O4', 'U5', 'O5'];
-          const counts = [3, 3, 3, 3];
-          
-          nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
-          nextArrIndex = getPermutationIndex(elements, counts, nextArr);
-          nextSeqStep = state.sequenceStep + 1;
-          
-          toast.info(`Loss! Pooled prefix [${lossPrefix.join(", ")}]. Selected arrangement #${nextArrIndex}`);
-          console.log(`[AutoTrader] Loss! Prefix: ${lossPrefix.join(", ")}. Pooled and selected arrangement #${nextArrIndex}`);
-        } else {
-          // If we reached the end of the sequence, start all over
+        if (config.strategy === "strategy_f" && (state.currentSymbolLosses || 0) === 4) {
+          // 5th consecutive loss under Strategy F: Discard old arrangement, shuffle a brand new one!
           nextSeqStep = 0;
           nextProgressIndex = state.arrangementProgressIndex + 1;
           if (nextProgressIndex >= 369600) {
             nextProgressIndex = 0;
             nextSeed = Math.floor(Math.random() * 100000) + 1;
           }
+
           const elements = ['U4', 'O4', 'U5', 'O5'];
           const counts = [3, 3, 3, 3];
-          const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
-          nextArrIndex = permIndex + 1;
-          nextArr = getNthPermutation(elements, counts, nextArrIndex);
-          toast.warning(`Cycle limit reached! Rotating to new arrangement #${nextArrIndex}`);
+          const symbols = [
+            "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+            "R_10", "R_25", "R_50", "R_75", "R_100",
+          ];
+
+          // Filter out the current symbol since we are swapping away from it!
+          const remainingSymbols = symbols.filter(s => s !== symbol);
+
+          // Get the nextBlacklist (calculate it here by adding the prefix that just failed to tempBlacklist)
+          const tempBlacklist = { ...(state.blacklistedPrefixes || {}) };
+          const prefixToBlacklist = (state.currentArrangement || []).slice(0, 5).join(",");
+          if (prefixToBlacklist) {
+            const symbolBlacklist = [...(tempBlacklist[symbol] || [])];
+            if (!symbolBlacklist.includes(prefixToBlacklist)) {
+              symbolBlacklist.push(prefixToBlacklist);
+              tempBlacklist[symbol] = symbolBlacklist;
+            }
+          }
+
+          let tempProgress = nextProgressIndex;
+          while (true) {
+            const permIndex = lcgPermute(tempProgress, 369600, nextSeed);
+            const tempArrIndex = permIndex + 1;
+            const tempArr = getNthPermutation(elements, counts, tempArrIndex);
+            const tempPrefix = tempArr.slice(0, 5).join(",");
+            
+            const hasValidSymbol = remainingSymbols.some(s => {
+              const symbolBlacklist = tempBlacklist[s] || [];
+              return !symbolBlacklist.includes(tempPrefix);
+            });
+
+            if (hasValidSymbol) {
+              nextArrIndex = tempArrIndex;
+              nextArr = tempArr;
+              nextProgressIndex = tempProgress;
+              break;
+            }
+            tempProgress = (tempProgress + 1) % 369600;
+          }
+          console.log(`[Strategy F 5th Loss] Shuffling brand new arrangement #${nextArrIndex} with prefix [${nextArr.slice(0, 5).join(" -> ")}] to prevent back-to-back prefix loss.`);
+        } else {
+          // On Loss: pool all arrangements starting with the consecutive loss directions
+          const lossPrefix = (state.currentArrangement || []).slice(0, state.sequenceStep + 1);
+          
+          // If loss prefix is valid (e.g. within 12 elements), pool and draw
+          if (lossPrefix.length < 12) {
+            const elements = ['U4', 'O4', 'U5', 'O5'];
+            const counts = [3, 3, 3, 3];
+            
+            nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
+            nextArrIndex = getPermutationIndex(elements, counts, nextArr);
+            nextSeqStep = state.sequenceStep + 1;
+            
+            toast.info(`Loss! Pooled prefix [${lossPrefix.join(", ")}]. Selected arrangement #${nextArrIndex}`);
+            console.log(`[AutoTrader] Loss! Prefix: ${lossPrefix.join(", ")}. Pooled and selected arrangement #${nextArrIndex}`);
+          } else {
+            // If we reached the end of the sequence, start all over
+            nextSeqStep = 0;
+            nextProgressIndex = state.arrangementProgressIndex + 1;
+            if (nextProgressIndex >= 369600) {
+              nextProgressIndex = 0;
+              nextSeed = Math.floor(Math.random() * 100000) + 1;
+            }
+            const elements = ['U4', 'O4', 'U5', 'O5'];
+            const counts = [3, 3, 3, 3];
+            const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
+            nextArrIndex = permIndex + 1;
+            nextArr = getNthPermutation(elements, counts, nextArrIndex);
+            toast.warning(`Cycle limit reached! Rotating to new arrangement #${nextArrIndex}`);
+          }
         }
       }
     } else {
