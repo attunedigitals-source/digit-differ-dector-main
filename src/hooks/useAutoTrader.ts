@@ -29,6 +29,7 @@ export interface VolatilityTracking {
   consecutiveLosses: number;
   pendingSuspension: boolean;
   suspendedUntil: number | null;
+  pureConsecutiveLosses?: number;
 }
 
 
@@ -231,7 +232,7 @@ export function useAutoTrader(
       "R_10", "R_25", "R_50", "R_75", "R_100",
     ];
     symbols.forEach(s => {
-      initial[s] = { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
+      initial[s] = { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null, pureConsecutiveLosses: 0 };
     });
     return initial;
   });
@@ -484,11 +485,11 @@ export function useAutoTrader(
       }
     }
 
-    // Intelligent brain: prioritize candidates with fewer consecutive losses
-    const minLosses = Math.min(...candidates.map(c => volatilityTracking[c.symbol]?.consecutiveLosses || 0));
-    const bestCandidates = candidates.filter(c => (volatilityTracking[c.symbol]?.consecutiveLosses || 0) === minLosses);
+    // Intelligent brain: prioritize candidates with fewer pure consecutive losses
+    const minLosses = Math.min(...candidates.map(c => volatilityTracking[c.symbol]?.pureConsecutiveLosses || 0));
+    const bestCandidates = candidates.filter(c => (volatilityTracking[c.symbol]?.pureConsecutiveLosses || 0) === minLosses);
 
-    console.log(`[Volatility Selector - Intelligent] Candidate consecutive losses:`, candidates.map(c => `${c.symbol}: ${volatilityTracking[c.symbol]?.consecutiveLosses || 0}`).join(", "));
+    console.log(`[Volatility Selector - Intelligent] Candidate consecutive losses:`, candidates.map(c => `${c.symbol}: ${volatilityTracking[c.symbol]?.pureConsecutiveLosses || 0}`).join(", "));
     console.log(`[Volatility Selector - Intelligent] Selecting from lowest consecutive loss (${minLosses}) candidates:`, bestCandidates.map(c => c.symbol).join(", "));
 
     return bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
@@ -875,10 +876,18 @@ export function useAutoTrader(
     });
 
     setVolatilityTracking(prev => {
-      const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
+      const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null, pureConsecutiveLosses: 0 };
       let nextLosses = current.consecutiveLosses;
       let nextPending = current.pendingSuspension;
       let nextSuspendedUntil = current.suspendedUntil;
+      let nextPureLosses = current.pureConsecutiveLosses ?? 0;
+
+      // Pure consecutive losses tracker for selection brain: increment on loss, reset to 0 on win
+      if (isWin) {
+        nextPureLosses = 0;
+      } else {
+        nextPureLosses += 1;
+      }
 
       if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
         if (config.strategy === "strategy_e") {
@@ -984,7 +993,8 @@ export function useAutoTrader(
         [symbol]: {
           consecutiveLosses: nextLosses,
           pendingSuspension: nextPending,
-          suspendedUntil: nextSuspendedUntil
+          suspendedUntil: nextSuspendedUntil,
+          pureConsecutiveLosses: nextPureLosses
         }
       };
     });
