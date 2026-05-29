@@ -480,11 +480,18 @@ export function useAutoTrader(
         
         return bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
       } else {
-        console.log(`[Strategy F Symbol Select - Normal] Selecting randomly from all ${candidates.length} active candidates.`);
+        console.log(`[Strategy F Symbol Select - Normal] Selecting intelligently based on consecutive losses.`);
       }
     }
 
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    // Intelligent brain: prioritize candidates with fewer consecutive losses
+    const minLosses = Math.min(...candidates.map(c => volatilityTracking[c.symbol]?.consecutiveLosses || 0));
+    const bestCandidates = candidates.filter(c => (volatilityTracking[c.symbol]?.consecutiveLosses || 0) === minLosses);
+
+    console.log(`[Volatility Selector - Intelligent] Candidate consecutive losses:`, candidates.map(c => `${c.symbol}: ${volatilityTracking[c.symbol]?.consecutiveLosses || 0}`).join(", "));
+    console.log(`[Volatility Selector - Intelligent] Selecting from lowest consecutive loss (${minLosses}) candidates:`, bestCandidates.map(c => c.symbol).join(", "));
+
+    return bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
   }, [getSymbolState, config.strategy, volatilityTracking]);
 
   const randomCooldownSeconds = useCallback(() => {
@@ -867,13 +874,13 @@ export function useAutoTrader(
         : null,
     });
 
-    if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
-      setVolatilityTracking(prev => {
-        const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
-        let nextLosses = current.consecutiveLosses;
-        let nextPending = current.pendingSuspension;
-        let nextSuspendedUntil = current.suspendedUntil;
+    setVolatilityTracking(prev => {
+      const current = prev[symbol] || { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null };
+      let nextLosses = current.consecutiveLosses;
+      let nextPending = current.pendingSuspension;
+      let nextSuspendedUntil = current.suspendedUntil;
 
+      if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e") {
         if (config.strategy === "strategy_e") {
           const stdDev = calculate_reversion_score(symbol);
           const isChaotic = stdDev > 2.0;
@@ -963,17 +970,24 @@ export function useAutoTrader(
             }
           }
         }
+      } else {
+        // Track basic consecutive losses for other strategies (alternating, strategy_a, strategy_b, strategy_f)
+        if (isWin) {
+          nextLosses = 0;
+        } else {
+          nextLosses += 1;
+        }
+      }
 
-        return {
-          ...prev,
-          [symbol]: {
-            consecutiveLosses: nextLosses,
-            pendingSuspension: nextPending,
-            suspendedUntil: nextSuspendedUntil
-          }
-        };
-      });
-    }
+      return {
+        ...prev,
+        [symbol]: {
+          consecutiveLosses: nextLosses,
+          pendingSuspension: nextPending,
+          suspendedUntil: nextSuspendedUntil
+        }
+      };
+    });
 
     const newStatus = isWin ? "WIN" : "LOSS";
     let ticksToWaitNext = randomTradeCooldownTicks(isWin);
