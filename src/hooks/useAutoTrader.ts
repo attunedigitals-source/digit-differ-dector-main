@@ -478,6 +478,15 @@ export function useAutoTrader(
       return null;
     }
 
+    if (config.strategy === "strategy_g") {
+      const currentSymbol = sessionStateRef.current.currentSymbol;
+      const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
+      const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
+      
+      console.log(`[Strategy G Volatility Selector] Selecting purely randomly (excluding back-to-back [${currentSymbol}]):`, activeCandidates.map(c => c.symbol).join(", "));
+      return activeCandidates[Math.floor(Math.random() * activeCandidates.length)];
+    }
+
     if (config.strategy === "strategy_f") {
       const isForcedSwap = sessionStateRef.current.forceSwapSymbol;
       if (isForcedSwap) {

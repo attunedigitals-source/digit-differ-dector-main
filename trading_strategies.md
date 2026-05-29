@@ -83,7 +83,8 @@ Here is how each strategy determines when, where, and how to place its trades:
 ### Strategy G: Pre-Planned + Session Prefix Elimination
 *   **Core Concept**: A modification of Strategy A (Pre-Planned Cycles) that introduces a global session-wide prefix blacklist to permanently eliminate failing 12-trade arrangement sequences in real-time.
 *   **Trade Execution**:
-    *   Just like Strategy A, the bot does not lock onto volatility symbols on loss, distributing risk by selecting random active symbols.
+    *   **Purely Random Volatility Selection**: Unlike other strategies that use consecutive loss statistics to prioritize symbols, Strategy G selects a volatility symbol purely randomly after every trade.
+    *   **No Back-to-Back Duplicates**: It automatically filters out the last traded volatility symbol from the active candidate pool to guarantee that the same volatility is never selected back-to-back.
     *   **Global Session Blacklisting**: When the bot encounters **5 consecutive losses** in its current Martingale run, the active 5-element prefix of the arrangement is **blacklisted globally** (for the entire session).
     *   **Arrangement Pool Filtering**: Once blacklisted globally, any arrangement starting with that 5-element prefix is barred from selection. The bot immediately discards the current arrangement, shuffles a brand new arrangement that has a clean, non-blacklisted prefix, and resets the Martingale cycle.
 
