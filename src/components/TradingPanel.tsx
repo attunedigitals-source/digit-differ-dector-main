@@ -210,16 +210,17 @@ export function TradingPanel({
             <SelectItem value="strategy_d">Strategy D (Immediate Suspension)</SelectItem>
             <SelectItem value="strategy_e">Strategy E (God Mode - Multi-Strategy Arbitrage)</SelectItem>
             <SelectItem value="strategy_f">Strategy F (Sticky + Deferred Suspension + Prefix Elimination)</SelectItem>
+            <SelectItem value="strategy_g">Strategy G (Pre-Planned + Session Prefix Elimination)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–F run 12-trade cycles. E is God Mode (SD classifications, heatmaps, and multipliers). F is Strategy C but blacklists underperforming 5-loss prefixes from the 369,600 pool in real-time.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally for the session in real-time.
         </p>
       </div>
 
       {/* Strategy A/B/C/D Visualizer Panel */}
-      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") && (
-        <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner">
+      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g") && (
+        <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
           <div className="flex items-center justify-between border-b border-primary/10 pb-2">
@@ -302,6 +303,26 @@ export function TradingPanel({
               })()}
             </span>
           </div>
+
+          {config.strategy === "strategy_g" && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
+            <div className="mt-2 space-y-1 bg-destructive/5 p-2 rounded border border-destructive/15">
+              <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
+                🚫 Session Blacklisted Prefixes (Globally)
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {sessionState.blacklistedPrefixes["global"].map((prefix, idx) => (
+                  <Badge 
+                    key={idx} 
+                    variant="outline" 
+                    className="text-[7px] font-mono bg-destructive/10 text-destructive border-destructive/20 px-1 py-0.5"
+                    title={prefix.split(",").join(" -> ")}
+                  >
+                    🚫 {prefix.split(",").join("")}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
