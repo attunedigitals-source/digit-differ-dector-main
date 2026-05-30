@@ -619,7 +619,7 @@ export function useAutoTrader(
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
           if (k === -1) {
-            k = Math.floor(Math.random() * 51);
+            k = Math.floor(Math.random() * 1001);
             const fibValue = getFibonacci(k);
             const modValue = Number(fibValue % 4n);
             if (modValue === 0) tradeDir = "under4";
@@ -1380,7 +1380,7 @@ export function useAutoTrader(
     let nextFibonacciIndex = state.fibonacciIndex;
     if (config.strategy === "strategy_h") {
       if (isWin) {
-        nextFibonacciIndex = Math.floor(Math.random() * 51);
+        nextFibonacciIndex = Math.floor(Math.random() * 1001);
         console.log(`[Strategy H Result] Trade Won! Selecting new random fibonacciIndex k = ${nextFibonacciIndex} for next trade.`);
       } else {
         nextFibonacciIndex = (state.fibonacciIndex ?? 0) + 1;

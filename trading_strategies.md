@@ -98,7 +98,7 @@ Here is how each strategy determines when, where, and how to place its trades:
         *   `1`: **`O5`** (Digit Over 5)
         *   `2`: **`U5`** (Digit Under 5)
         *   `3`: **`O4`** (Digit Over 4)
-    *   **Start & Win Seeding**: At the start of the session or immediately following any winning trade, the index $k$ is randomly selected from the range $[0, 50]$, which seeds the corresponding target direction for the next trade.
+    *   **Start & Win Seeding**: At the start of the session or immediately following any winning trade, the index $k$ is randomly selected from the range $[0, 1000]$, which seeds the corresponding target direction for the next trade.
     *   **Sequential Recovery Walk**: Immediately following any losing trade, the index $k$ increments by exactly 1 ($k \rightarrow k+1$) to walk along the sequential Fibonacci sequence for drawdown recovery, continuing until a win is registered.
 
 ---
