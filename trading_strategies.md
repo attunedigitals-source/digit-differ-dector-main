@@ -89,7 +89,7 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Arrangement Pool Filtering**: Once blacklisted globally, any arrangement starting with that 5-element prefix is barred from selection. The bot immediately discards the current arrangement, shuffles a brand new arrangement that has a clean, non-blacklisted prefix, and resets the Martingale cycle.
 
 ### Strategy H: Fibonacci Trade Engine
-*   **Core Concept**: A mathematical, sequence-driven walking engine that executes trades along the Fibonacci sequence mapped modulo 4, entirely independent of win/loss streaks, paired with a randomized non-duplicate volatility selector.
+*   **Core Concept**: A mathematical, sequence-driven walking engine that executes trades along the Fibonacci sequence mapped modulo 4, combining randomized entries on start/wins with sequential progression on losses, paired with a randomized non-duplicate volatility selector.
 *   **Trade Execution**:
     *   **Purely Random Volatility Selection**: Selects a volatility symbol purely randomly after every single trade, filtering out the active symbol to ensure the same volatility is never traded back-to-back.
     *   **Fibonacci-Mapped Walk**: Tracks the current Fibonacci index $k$ in the session state.
@@ -98,12 +98,8 @@ Here is how each strategy determines when, where, and how to place its trades:
         *   `1`: **`O5`** (Digit Over 5)
         *   `2`: **`U5`** (Digit Under 5)
         *   `3`: **`O4`** (Digit Over 4)
-    *   **Seeding (First Trade)**: Starts by randomly selecting one of the four contract directions, which seeds the starting Fibonacci index $k$:
-        *   `U4` $\rightarrow$ $k = 0$ ($F(0) = 0$)
-        *   `O5` $\rightarrow$ $k = 1$ ($F(1) = 1$)
-        *   `U5` $\rightarrow$ $k = 3$ ($F(3) = 2$)
-        *   `O4` $\rightarrow$ $k = 4$ ($F(4) = 3$)
-    *   **Uninterrupted Progression**: The Fibonacci index $k$ increments by exactly 1 after every trade. Wins or losses do not pause, skip, or reset this mathematical walk, maintaining a continuous path.
+    *   **Start & Win Seeding**: At the start of the session or immediately following any winning trade, the index $k$ is randomly selected from the range $[0, 50]$, which seeds the corresponding target direction for the next trade.
+    *   **Sequential Recovery Walk**: Immediately following any losing trade, the index $k$ increments by exactly 1 ($k \rightarrow k+1$) to walk along the sequential Fibonacci sequence for drawdown recovery, continuing until a win is registered.
 
 ---
 

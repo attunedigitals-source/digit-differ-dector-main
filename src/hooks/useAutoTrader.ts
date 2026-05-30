@@ -619,13 +619,14 @@ export function useAutoTrader(
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
           if (k === -1) {
-            const directions: TradeCategory[] = ["under4", "over5", "under5", "over4"];
-            tradeDir = directions[Math.floor(Math.random() * directions.length)];
-            if (tradeDir === "under4") k = 0;
-            else if (tradeDir === "over5") k = 1;
-            else if (tradeDir === "under5") k = 3;
-            else k = 4;
-            console.log(`[Strategy H Initializer] Selected random starting direction: ${tradeDir}. Starting index k: ${k}`);
+            k = Math.floor(Math.random() * 51);
+            const fibValue = getFibonacci(k);
+            const modValue = Number(fibValue % 4n);
+            if (modValue === 0) tradeDir = "under4";
+            else if (modValue === 1) tradeDir = "over5";
+            else if (modValue === 2) tradeDir = "under5";
+            else tradeDir = "over4";
+            console.log(`[Strategy H Initializer] Randomly selected starting index k: ${k}, F(k): ${fibValue.toString()}, F(k) % 4: ${modValue} -> ${tradeDir}`);
           } else {
             const fibValue = getFibonacci(k);
             const modValue = Number(fibValue % 4n);
@@ -1378,8 +1379,13 @@ export function useAutoTrader(
 
     let nextFibonacciIndex = state.fibonacciIndex;
     if (config.strategy === "strategy_h") {
-      nextFibonacciIndex = (state.fibonacciIndex ?? -1) + 1;
-      console.log(`[Strategy H Result] Trade settled. Incrementing fibonacciIndex to ${nextFibonacciIndex}.`);
+      if (isWin) {
+        nextFibonacciIndex = Math.floor(Math.random() * 51);
+        console.log(`[Strategy H Result] Trade Won! Selecting new random fibonacciIndex k = ${nextFibonacciIndex} for next trade.`);
+      } else {
+        nextFibonacciIndex = (state.fibonacciIndex ?? 0) + 1;
+        console.log(`[Strategy H Result] Trade Lost! Incrementing fibonacciIndex to sequential recovery step k = ${nextFibonacciIndex} for next trade.`);
+      }
     }
 
     const nextSessionState = {
