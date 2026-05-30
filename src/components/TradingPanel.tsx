@@ -11,6 +11,19 @@ import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+const getFibonacci = (k: number): number => {
+  if (k <= 0) return 0;
+  if (k === 1) return 1;
+  let a = 0;
+  let b = 1;
+  for (let i = 2; i <= k; i++) {
+    const temp = a + b;
+    a = b;
+    b = temp;
+  }
+  return b;
+};
+
 interface TradingPanelProps {
   config: AutoTraderConfig;
   onConfigChange: (config: AutoTraderConfig) => void;
@@ -24,6 +37,7 @@ interface TradingPanelProps {
     shufflingSeed?: number;
     sequenceStep?: number;
     blacklistedPrefixes?: Record<string, string[]>;
+    fibonacciIndex?: number;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -211,10 +225,11 @@ export function TradingPanel({
             <SelectItem value="strategy_e">Strategy E (God Mode - Multi-Strategy Arbitrage)</SelectItem>
             <SelectItem value="strategy_f">Strategy F (Sticky + Deferred Suspension + Prefix Elimination)</SelectItem>
             <SelectItem value="strategy_g">Strategy G (Pre-Planned + Session Prefix Elimination)</SelectItem>
+            <SelectItem value="strategy_h">Strategy H (Fibonacci Trade Engine)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally for the session in real-time.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 4 with random non-back-to-back volatility.
         </p>
       </div>
 
@@ -320,6 +335,133 @@ export function TradingPanel({
                     🚫 {prefix.split(",").join("")}
                   </Badge>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {config.strategy === "strategy_h" && (
+        <div className="bg-gradient-to-br from-indigo-500/15 via-card to-purple-500/15 border border-indigo-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center justify-between border-b border-indigo-500/10 pb-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                <Shuffle className="w-3.5 h-3.5 text-indigo-400 animate-spin-slow" /> Fibonacci Trade Engine
+              </span>
+              <span className="text-[8px] text-muted-foreground">
+                Path decided by the Fibonacci sequence modulo 4
+              </span>
+            </div>
+            {sessionState.fibonacciIndex !== undefined && sessionState.fibonacciIndex >= 0 ? (
+              <Badge variant="outline" className="text-[9px] border-indigo-500/30 text-indigo-400 bg-indigo-500/5 px-1.5 py-0.5">
+                Fibonacci Index k = {sessionState.fibonacciIndex}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400 bg-amber-500/5 px-1.5 py-0.5 animate-pulse">
+                INITIALIZING
+              </Badge>
+            )}
+          </div>
+
+          {sessionState.fibonacciIndex === undefined || sessionState.fibonacciIndex === -1 ? (
+            <div className="flex flex-col items-center justify-center py-4 px-2 bg-indigo-950/10 border border-indigo-950/20 rounded-md text-center">
+              <Shuffle className="w-8 h-8 text-indigo-400/40 mb-2 animate-bounce" />
+              <span className="text-xs font-semibold text-indigo-300">Ready to Launch Sequence</span>
+              <span className="text-[9px] text-muted-foreground max-w-[220px] mt-1">
+                The first trade will be randomly chosen from [U4, O5, U5, O4], seeding the Fibonacci engine.
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-5 gap-1.5 py-1">
+                {[-2, -1, 0, 1, 2].map((offset) => {
+                  const currentK = (sessionState.fibonacciIndex ?? 0) + offset;
+                  if (currentK < 0) {
+                    return (
+                      <div
+                        key={offset}
+                        className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded border border-dashed border-muted-foreground/20 opacity-30 select-none cursor-default"
+                      >
+                        <span className="text-[8px] text-muted-foreground">k = {currentK}</span>
+                        <span className="text-[10px] font-mono font-bold text-muted-foreground">N/A</span>
+                      </div>
+                    );
+                  }
+
+                  const val = getFibonacci(currentK);
+                  const mod = val % 4;
+                  const isActive = offset === 0;
+
+                  let code = "U4";
+                  let label = "Under 4";
+                  let bgClass = "";
+                  let borderClass = "";
+                  let textClass = "";
+
+                  if (mod === 0) {
+                    code = "U4"; label = "Under 4";
+                    bgClass = isActive ? "bg-gradient-to-r from-blue-500/25 to-indigo-500/25" : "bg-blue-950/20";
+                    borderClass = isActive ? "border-blue-400/85 shadow-[0_0_10px_rgba(59,130,246,0.6)]" : "border-blue-950/40 hover:border-blue-900/60";
+                    textClass = "text-blue-400";
+                  } else if (mod === 1) {
+                    code = "O5"; label = "Over 5";
+                    bgClass = isActive ? "bg-gradient-to-r from-amber-500/25 to-orange-500/25" : "bg-amber-950/20";
+                    borderClass = isActive ? "border-amber-400/85 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "border-amber-950/40 hover:border-amber-900/60";
+                    textClass = "text-amber-400";
+                  } else if (mod === 2) {
+                    code = "U5"; label = "Under 5";
+                    bgClass = isActive ? "bg-gradient-to-r from-purple-500/25 to-pink-500/25" : "bg-purple-950/20";
+                    borderClass = isActive ? "border-purple-400/85 shadow-[0_0_10px_rgba(168,85,247,0.6)]" : "border-purple-950/40 hover:border-purple-900/60";
+                    textClass = "text-purple-400";
+                  } else {
+                    code = "O4"; label = "Over 4";
+                    bgClass = isActive ? "bg-gradient-to-r from-emerald-500/25 to-teal-500/25" : "bg-emerald-950/20";
+                    borderClass = isActive ? "border-emerald-400/85 shadow-[0_0_10px_rgba(52,211,153,0.6)]" : "border-emerald-950/40 hover:border-emerald-900/60";
+                    textClass = "text-emerald-400";
+                  }
+
+                  return (
+                    <div
+                      key={offset}
+                      title={`${label} (Fibonacci ${val})`}
+                      className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded border transition-all duration-300 relative cursor-default select-none ${bgClass} ${borderClass} ${isActive ? "scale-105 border-2 border-primary" : "opacity-60"}`}
+                    >
+                      <span className="text-[7px] text-muted-foreground font-mono">
+                        k = {currentK}
+                      </span>
+                      <span className={`text-[11px] font-mono font-black ${textClass}`} title={`Value: ${val}`}>
+                        {val > 9999 ? `${String(val).substring(0, 3)}..` : val}
+                      </span>
+                      <span className={`text-[8px] font-bold ${textClass} scale-90 mt-0.5`}>
+                        {code}
+                      </span>
+                      {isActive && (
+                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-500 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-1.5 justify-between text-[8px] bg-muted/40 px-2 py-1 rounded border border-border/40">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <AlertCircle className="w-2.5 h-2.5 text-indigo-400 animate-pulse" /> Current Fibonacci Number:
+                </span>
+                <span className="font-bold text-foreground">
+                  F({sessionState.fibonacciIndex}) = {getFibonacci(sessionState.fibonacciIndex)} (Mapped to {(() => {
+                    const val = getFibonacci(sessionState.fibonacciIndex);
+                    const mod = val % 4;
+                    if (mod === 0) return "DIGITUNDER 4 (Barrier 4)";
+                    if (mod === 1) return "DIGITOVER 5 (Barrier 5)";
+                    if (mod === 2) return "DIGITUNDER 5 (Barrier 5)";
+                    return "DIGITOVER 4 (Barrier 4)";
+                  })()})
+                </span>
               </div>
             </div>
           )}

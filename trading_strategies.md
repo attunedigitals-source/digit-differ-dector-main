@@ -88,15 +88,34 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Global Session Blacklisting**: When the bot encounters **5 consecutive losses** in its current Martingale run, the active 5-element prefix of the arrangement is **blacklisted globally** (for the entire session).
     *   **Arrangement Pool Filtering**: Once blacklisted globally, any arrangement starting with that 5-element prefix is barred from selection. The bot immediately discards the current arrangement, shuffles a brand new arrangement that has a clean, non-blacklisted prefix, and resets the Martingale cycle.
 
+### Strategy H: Fibonacci Trade Engine
+*   **Core Concept**: A mathematical, sequence-driven walking engine that executes trades along the Fibonacci sequence mapped modulo 4, entirely independent of win/loss streaks, paired with a randomized non-duplicate volatility selector.
+*   **Trade Execution**:
+    *   **Purely Random Volatility Selection**: Selects a volatility symbol purely randomly after every single trade, filtering out the active symbol to ensure the same volatility is never traded back-to-back.
+    *   **Fibonacci-Mapped Walk**: Tracks the current Fibonacci index $k$ in the session state.
+    *   **Modulo 4 Mapping**: Map the $k$-th Fibonacci number $F(k)$ to one of the 4 contract directions based on $F(k) \pmod 4$:
+        *   `0`: **`U4`** (Digit Under 4)
+        *   `1`: **`O5`** (Digit Over 5)
+        *   `2`: **`U5`** (Digit Under 5)
+        *   `3`: **`O4`** (Digit Over 4)
+    *   **Seeding (First Trade)**: Starts by randomly selecting one of the four contract directions, which seeds the starting Fibonacci index $k$:
+        *   `U4` $\rightarrow$ $k = 0$ ($F(0) = 0$)
+        *   `O5` $\rightarrow$ $k = 1$ ($F(1) = 1$)
+        *   `U5` $\rightarrow$ $k = 3$ ($F(3) = 2$)
+        *   `O4` $\rightarrow$ $k = 4$ ($F(4) = 3$)
+    *   **Uninterrupted Progression**: The Fibonacci index $k$ increments by exactly 1 after every trade. Wins or losses do not pause, skip, or reset this mathematical walk, maintaining a continuous path.
+
 ---
 
 ## 3. Comparative Summary
 
-| Feature / Strategy | Strategy A | Strategy B | Strategy C | Strategy D | Strategy E (God Mode) | Strategy F | Strategy G |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) |
-| **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None |
-| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No |
-| **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No |
-| **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No |
-| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) |
+| Feature / Strategy | Strategy A | Strategy B | Strategy C | Strategy D | Strategy E (God Mode) | Strategy F | Strategy G | Strategy H |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | No (Random) |
+| **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None | None |
+| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No |
+| **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No |
+| **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No |
+| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | No |
+| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 4 progression |
+

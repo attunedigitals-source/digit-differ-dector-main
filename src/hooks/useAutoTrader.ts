@@ -38,6 +38,19 @@ const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
   return "SPECIAL";
 };
 
+const getFibonacci = (k: number): bigint => {
+  if (k <= 0) return 0n;
+  if (k === 1) return 1n;
+  let a = 0n;
+  let b = 1n;
+  for (let i = 2; i <= k; i++) {
+    const temp = a + b;
+    a = b;
+    b = temp;
+  }
+  return b;
+};
+
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Math.max(0.35, Number(incoming?.baseStake ?? 0.35));
@@ -114,6 +127,7 @@ export function useAutoTrader(
     const savedSymbolLosses = localStorage.getItem('currentSymbolLosses');
     const savedForceSwap = localStorage.getItem('forceSwapSymbol');
     const savedBlacklist = localStorage.getItem('blacklistedPrefixes');
+    const savedFibIndex = localStorage.getItem('fibonacciIndex');
 
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
@@ -223,6 +237,7 @@ export function useAutoTrader(
       currentSymbolLosses: savedSymbolLosses ? parseInt(savedSymbolLosses) : 0,
       forceSwapSymbol: savedForceSwap ? savedForceSwap === 'true' : false,
       blacklistedPrefixes: blacklist,
+      fibonacciIndex: savedFibIndex ? parseInt(savedFibIndex) : -1,
     };
   });
 
@@ -478,12 +493,12 @@ export function useAutoTrader(
       return null;
     }
 
-    if (config.strategy === "strategy_g") {
+    if (config.strategy === "strategy_g" || config.strategy === "strategy_h") {
       const currentSymbol = sessionStateRef.current.currentSymbol;
       const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
       const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
       
-      console.log(`[Strategy G Volatility Selector] Selecting purely randomly (excluding back-to-back [${currentSymbol}]):`, activeCandidates.map(c => c.symbol).join(", "));
+      console.log(`[Strategy ${config.strategy === "strategy_g" ? "G" : "H"} Volatility Selector] Selecting purely randomly (excluding back-to-back [${currentSymbol}]):`, activeCandidates.map(c => c.symbol).join(", "));
       return activeCandidates[Math.floor(Math.random() * activeCandidates.length)];
     }
 
@@ -599,71 +614,103 @@ export function useAutoTrader(
         under9: "Under 9"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g") {
-        let currentArr = state.currentArrangement || [];
-        let currentArrIdx = state.currentArrangementIndex || 0;
-        let progressIdx = state.arrangementProgressIndex || 0;
-        let seed = state.shufflingSeed || 1;
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h") {
+        if (config.strategy === "strategy_h") {
+          let k = state.fibonacciIndex ?? -1;
+          let tradeDir: TradeCategory;
+          if (k === -1) {
+            const directions: TradeCategory[] = ["under4", "over5", "under5", "over4"];
+            tradeDir = directions[Math.floor(Math.random() * directions.length)];
+            if (tradeDir === "under4") k = 0;
+            else if (tradeDir === "over5") k = 1;
+            else if (tradeDir === "under5") k = 3;
+            else k = 4;
+            console.log(`[Strategy H Initializer] Selected random starting direction: ${tradeDir}. Starting index k: ${k}`);
+          } else {
+            const fibValue = getFibonacci(k);
+            const modValue = Number(fibValue % 4n);
+            if (modValue === 0) tradeDir = "under4";
+            else if (modValue === 1) tradeDir = "over5";
+            else if (modValue === 2) tradeDir = "under5";
+            else tradeDir = "over4";
+            console.log(`[Strategy H Execution] Index k: ${k}, F(k): ${fibValue.toString()}, F(k) % 4: ${modValue} -> ${tradeDir}`);
+          }
+          trade = tradeDir;
+          chosenGroup = getCategoryGroup(trade);
+          state.fibonacciIndex = k;
 
-        if (currentArr.length === 0) {
-          const elements = ['U4', 'O4', 'U5', 'O5'];
-          const counts = [3, 3, 3, 3];
-          const permIndex = lcgPermute(progressIdx, 369600, seed);
-          currentArrIdx = permIndex + 1;
-          currentArr = getNthPermutation(elements, counts, currentArrIdx);
-        }
+          if (state.status === "WIN" || state.status === "IDLE") {
+            nextStep = 0;
+          } else if (state.status === "LOSS") {
+            nextStep = state.martingaleStep + 1;
+            stepIndexRef.current += 1;
+          }
+        } else {
+          let currentArr = state.currentArrangement || [];
+          let currentArrIdx = state.currentArrangementIndex || 0;
+          let progressIdx = state.arrangementProgressIndex || 0;
+          let seed = state.shufflingSeed || 1;
 
-        seqStep = state.sequenceStep;
-        if (state.status === "WIN" || state.status === "IDLE") {
-          nextStep = 0;
-        } else if (state.status === "LOSS") {
-          nextStep = state.martingaleStep + 1;
-          stepIndexRef.current += 1;
-        }
+          if (currentArr.length === 0) {
+            const elements = ['U4', 'O4', 'U5', 'O5'];
+            const counts = [3, 3, 3, 3];
+            const permIndex = lcgPermute(progressIdx, 369600, seed);
+            currentArrIdx = permIndex + 1;
+            currentArr = getNthPermutation(elements, counts, currentArrIdx);
+          }
 
-        let directionCode = currentArr[state.sequenceStep] || "O5";
-        
-        // Strategy E Drawdown Reducer: Upgrades U5 -> U4, O4 -> O5 for steps >= 5
-        if (config.strategy === "strategy_e" && nextStep >= 5) {
-          if (directionCode === "U5") directionCode = "U4";
-          else if (directionCode === "O4") directionCode = "O5";
-        }
+          seqStep = state.sequenceStep;
+          if (state.status === "WIN" || state.status === "IDLE") {
+            nextStep = 0;
+          } else if (state.status === "LOSS") {
+            nextStep = state.martingaleStep + 1;
+            stepIndexRef.current += 1;
+          }
 
-        if (directionCode === "U4") trade = "under4";
-        else if (directionCode === "O4") trade = "over4";
-        else if (directionCode === "U5") trade = "under5";
-        else trade = "over5";
+          let directionCode = currentArr[state.sequenceStep] || "O5";
+          
+          // Strategy E Drawdown Reducer: Upgrades U5 -> U4, O4 -> O5 for steps >= 5
+          if (config.strategy === "strategy_e" && nextStep >= 5) {
+            if (directionCode === "U5") directionCode = "U4";
+            else if (directionCode === "O4") directionCode = "O5";
+          }
 
-        // Strategy E Dynamic Overlay (Real-time Probability Overlay):
-        if (config.strategy === "strategy_e") {
-          const symbolState = getSymbolState(symbol);
-          if (symbolState && symbolState.digits && symbolState.digits.length >= 30) {
-            const digits = symbolState.digits.slice(-25);
-            if (trade === "under4" || trade === "over5") {
-              const u4Count = digits.filter(d => d <= 3).length;
-              const o5Count = digits.filter(d => d >= 6).length;
-              if (trade === "under4" && u4Count >= 13 && o5Count <= 7) {
-                trade = "over5";
-                console.log("[Strategy E] Overriding U4 -> O5 (O5 is overdue / regression probable)");
-              } else if (trade === "over5" && o5Count >= 13 && u4Count <= 7) {
-                trade = "under4";
-                console.log("[Strategy E] Overriding O5 -> U4 (U4 is overdue / regression probable)");
-              }
-            } else if (trade === "under5" || trade === "over4") {
-              const u5Count = digits.filter(d => d <= 4).length;
-              const o4Count = digits.filter(d => d >= 5).length;
-              if (trade === "under5" && u5Count >= 16 && o4Count <= 9) {
-                trade = "over4";
-                console.log("[Strategy E] Overriding U5 -> O4 (O4 is overdue / regression probable)");
-              } else if (trade === "over4" && o4Count >= 16 && u5Count <= 9) {
-                trade = "under5";
-                console.log("[Strategy E] Overriding O4 -> U5 (U5 is overdue / regression probable)");
+          if (directionCode === "U4") trade = "under4";
+          else if (directionCode === "O4") trade = "over4";
+          else if (directionCode === "U5") trade = "under5";
+          else trade = "over5";
+
+          // Strategy E Dynamic Overlay (Real-time Probability Overlay):
+          if (config.strategy === "strategy_e") {
+            const symbolState = getSymbolState(symbol);
+            if (symbolState && symbolState.digits && symbolState.digits.length >= 30) {
+              const digits = symbolState.digits.slice(-25);
+              if (trade === "under4" || trade === "over5") {
+                const u4Count = digits.filter(d => d <= 3).length;
+                const o5Count = digits.filter(d => d >= 6).length;
+                if (trade === "under4" && u4Count >= 13 && o5Count <= 7) {
+                  trade = "over5";
+                  console.log("[Strategy E] Overriding U4 -> O5 (O5 is overdue / regression probable)");
+                } else if (trade === "over5" && o5Count >= 13 && u4Count <= 7) {
+                  trade = "under4";
+                  console.log("[Strategy E] Overriding O5 -> U4 (U4 is overdue / regression probable)");
+                }
+              } else if (trade === "under5" || trade === "over4") {
+                const u5Count = digits.filter(d => d <= 4).length;
+                const o4Count = digits.filter(d => d >= 5).length;
+                if (trade === "under5" && u5Count >= 16 && o4Count <= 9) {
+                  trade = "over4";
+                  console.log("[Strategy E] Overriding U5 -> O4 (O4 is overdue / regression probable)");
+                } else if (trade === "over4" && o4Count >= 16 && u5Count <= 9) {
+                  trade = "under5";
+                  console.log("[Strategy E] Overriding O4 -> U5 (U5 is overdue / regression probable)");
+                }
               }
             }
           }
-        }
 
-        chosenGroup = getCategoryGroup(trade);
+          chosenGroup = getCategoryGroup(trade);
+        }
       } else {
         const normalGroup: TradeCategory[] = ["under4", "over5"];
         const specialGroup: TradeCategory[] = ["over4", "under5"];
@@ -776,6 +823,7 @@ export function useAutoTrader(
         status: "PENDING",
         nextAction: "TRD_LIV",
         forceSwapSymbol: false,
+        fibonacciIndex: state.fibonacciIndex,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -1328,6 +1376,12 @@ export function useAutoTrader(
       nextForceSwapSymbol = false;
     }
 
+    let nextFibonacciIndex = state.fibonacciIndex;
+    if (config.strategy === "strategy_h") {
+      nextFibonacciIndex = (state.fibonacciIndex ?? -1) + 1;
+      console.log(`[Strategy H Result] Trade settled. Incrementing fibonacciIndex to ${nextFibonacciIndex}.`);
+    }
+
     const nextSessionState = {
       ...state,
       status: newStatus,
@@ -1342,6 +1396,7 @@ export function useAutoTrader(
       currentSymbolLosses: nextSymbolLosses,
       forceSwapSymbol: nextForceSwapSymbol,
       blacklistedPrefixes: nextBlacklist,
+      fibonacciIndex: nextFibonacciIndex,
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
@@ -1625,6 +1680,7 @@ export function useAutoTrader(
     localStorage.setItem('currentSymbolLosses', String(sessionState.currentSymbolLosses));
     localStorage.setItem('forceSwapSymbol', String(sessionState.forceSwapSymbol));
     localStorage.setItem('blacklistedPrefixes', JSON.stringify(sessionState.blacklistedPrefixes || []));
+    localStorage.setItem('fibonacciIndex', String(sessionState.fibonacciIndex ?? -1));
   }, [sessionState]);
 
   useEffect(() => {
@@ -1786,6 +1842,7 @@ export function useAutoTrader(
       currentSymbolLosses: 0,
       forceSwapSymbol: false,
       blacklistedPrefixes: emptyBlacklist,
+      fibonacciIndex: -1,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
