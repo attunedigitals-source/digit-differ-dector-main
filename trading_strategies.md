@@ -100,8 +100,8 @@ Here is how each strategy determines when, where, and how to place its trades:
         *   `3`: **`U5`** (Digit Under 5) - wins on 0, 1, 2, 3, 4 [Special Stake Multiplier 1.26x]
         *   `4`: **`O4`** (Digit Over 4) - wins on 5, 6, 7, 8, 9 [Special Stake Multiplier 1.26x]
         *   `5`: **`Odd`** (Digit Odd) - wins on 1, 3, 5, 7, 9 [Special Stake Multiplier 1.26x]
-    *   **Start & Win Seeding**: At the start of the session or immediately following any winning trade, the index $k$ is randomly selected from the range $[0, 1000]$, which seeds the corresponding target direction for the next trade.
-    *   **Sequential Recovery Walk**: Immediately following any losing trade, the index $k$ increments by exactly 1 ($k \rightarrow k+1$) to walk along the sequential Fibonacci sequence for drawdown recovery, continuing until a win is registered.
+    *   **Start & Win Seeding**: At the start of the session or immediately following any winning trade, the index $k$ is randomly selected from the range $[0, 10000]$ (excluding any previously selected start indices in the session). Once selected, this index is permanently blacklisted and eliminated from subsequent random selection in that session.
+    *   **Sequential Recovery Walk**: Immediately following any losing trade, the index $k$ increments by exactly 1 ($k \rightarrow k+1$) to walk along the sequential Fibonacci sequence for drawdown recovery, continuing until a win is registered. Sequential recovery steps do not add indices to the starting blacklist.
 
 ---
 
@@ -114,6 +114,6 @@ Here is how each strategy determines when, where, and how to place its trades:
 | **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No |
 | **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No |
 | **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No |
-| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | No |
-| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 4 progression |
+| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) |
+| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression |
 

@@ -38,6 +38,7 @@ interface TradingPanelProps {
     sequenceStep?: number;
     blacklistedPrefixes?: Record<string, string[]>;
     fibonacciIndex?: number;
+    usedStartIndices?: number[];
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -229,7 +230,7 @@ export function TradingPanel({
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 4 with random non-back-to-back volatility.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility.
         </p>
       </div>
 
@@ -351,7 +352,7 @@ export function TradingPanel({
                 <Shuffle className="w-3.5 h-3.5 text-indigo-400 animate-spin-slow" /> Fibonacci Trade Engine
               </span>
               <span className="text-[8px] text-muted-foreground">
-                Path decided by the Fibonacci sequence modulo 4
+                Path: Fibonacci sequence modulo 6 | Used Starts: {sessionState.usedStartIndices?.length ?? 0} / 10001
               </span>
             </div>
             {sessionState.fibonacciIndex !== undefined && sessionState.fibonacciIndex >= 0 ? (
@@ -370,7 +371,7 @@ export function TradingPanel({
               <Shuffle className="w-8 h-8 text-indigo-400/40 mb-2 animate-bounce" />
               <span className="text-xs font-semibold text-indigo-300">Ready to Launch Sequence</span>
               <span className="text-[9px] text-muted-foreground max-w-[220px] mt-1">
-                Seeds the Fibonacci trade engine at a random index k in range [0, 1000].
+                Seeds the Fibonacci trade engine at a random index k in range [0, 10000].
               </span>
             </div>
           ) : (

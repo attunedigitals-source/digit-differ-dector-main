@@ -51,6 +51,21 @@ const getFibonacci = (k: number): bigint => {
   return b;
 };
 
+const selectUnusedFibonacciIndex = (used: number[]): number => {
+  const usedSet = new Set(used || []);
+  const candidates: number[] = [];
+  for (let i = 0; i <= 10000; i++) {
+    if (!usedSet.has(i)) {
+      candidates.push(i);
+    }
+  }
+  if (candidates.length === 0) {
+    console.log("[Strategy H] All 10001 starting indices exhausted! Resetting used list.");
+    return Math.floor(Math.random() * 10001);
+  }
+  return candidates[Math.floor(Math.random() * candidates.length)];
+};
+
 
 const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined): AutoTraderConfig => {
   const baseStake = Math.max(0.35, Number(incoming?.baseStake ?? 0.35));
@@ -128,6 +143,16 @@ export function useAutoTrader(
     const savedForceSwap = localStorage.getItem('forceSwapSymbol');
     const savedBlacklist = localStorage.getItem('blacklistedPrefixes');
     const savedFibIndex = localStorage.getItem('fibonacciIndex');
+    const savedUsedIndices = localStorage.getItem('usedStartIndices');
+    let usedIndices: number[] = [];
+    if (savedUsedIndices) {
+      try {
+        const parsed = JSON.parse(savedUsedIndices);
+        if (Array.isArray(parsed)) {
+          usedIndices = parsed.map(Number).filter(n => !isNaN(n));
+        }
+      } catch (e) {}
+    }
 
     const symbols = [
       "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
@@ -238,6 +263,7 @@ export function useAutoTrader(
       forceSwapSymbol: savedForceSwap ? savedForceSwap === 'true' : false,
       blacklistedPrefixes: blacklist,
       fibonacciIndex: savedFibIndex ? parseInt(savedFibIndex) : -1,
+      usedStartIndices: usedIndices,
     };
   });
 
@@ -621,7 +647,8 @@ export function useAutoTrader(
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
           if (k === -1) {
-            k = Math.floor(Math.random() * 1001);
+            k = selectUnusedFibonacciIndex(state.usedStartIndices || []);
+            state.usedStartIndices = [...(state.usedStartIndices || []), k];
           }
           
           const fibValue = getFibonacci(k);
@@ -826,6 +853,7 @@ export function useAutoTrader(
         nextAction: "TRD_LIV",
         forceSwapSymbol: false,
         fibonacciIndex: state.fibonacciIndex,
+        usedStartIndices: state.usedStartIndices,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -1381,10 +1409,12 @@ export function useAutoTrader(
     }
 
     let nextFibonacciIndex = state.fibonacciIndex;
+    let nextUsedStartIndices = state.usedStartIndices || [];
     if (config.strategy === "strategy_h") {
       if (isWin) {
-        nextFibonacciIndex = Math.floor(Math.random() * 1001);
-        console.log(`[Strategy H Result] Trade Won! Selecting new random fibonacciIndex k = ${nextFibonacciIndex} for next trade.`);
+        nextFibonacciIndex = selectUnusedFibonacciIndex(state.usedStartIndices || []);
+        nextUsedStartIndices = [...nextUsedStartIndices, nextFibonacciIndex];
+        console.log(`[Strategy H Result] Trade Won! Selecting new random fibonacciIndex k = ${nextFibonacciIndex} for next trade. Blacklisted indices count: ${nextUsedStartIndices.length}`);
       } else {
         nextFibonacciIndex = (state.fibonacciIndex ?? 0) + 1;
         console.log(`[Strategy H Result] Trade Lost! Incrementing fibonacciIndex to sequential recovery step k = ${nextFibonacciIndex} for next trade.`);
@@ -1406,6 +1436,7 @@ export function useAutoTrader(
       forceSwapSymbol: nextForceSwapSymbol,
       blacklistedPrefixes: nextBlacklist,
       fibonacciIndex: nextFibonacciIndex,
+      usedStartIndices: nextUsedStartIndices,
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
@@ -1690,6 +1721,7 @@ export function useAutoTrader(
     localStorage.setItem('forceSwapSymbol', String(sessionState.forceSwapSymbol));
     localStorage.setItem('blacklistedPrefixes', JSON.stringify(sessionState.blacklistedPrefixes || []));
     localStorage.setItem('fibonacciIndex', String(sessionState.fibonacciIndex ?? -1));
+    localStorage.setItem('usedStartIndices', JSON.stringify(sessionState.usedStartIndices || []));
   }, [sessionState]);
 
   useEffect(() => {
@@ -1852,6 +1884,7 @@ export function useAutoTrader(
       forceSwapSymbol: false,
       blacklistedPrefixes: emptyBlacklist,
       fibonacciIndex: -1,
+      usedStartIndices: [],
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
