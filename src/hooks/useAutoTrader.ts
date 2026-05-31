@@ -20,7 +20,7 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9";
+type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd";
 interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
@@ -611,7 +611,9 @@ export function useAutoTrader(
         under5: "Under 5",
         over5: "Over 5",
         over0: "Over 0",
-        under9: "Under 9"
+        under9: "Under 9",
+        even: "Even",
+        odd: "Odd"
       };
 
       if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h") {
@@ -620,22 +622,19 @@ export function useAutoTrader(
           let tradeDir: TradeCategory;
           if (k === -1) {
             k = Math.floor(Math.random() * 1001);
-            const fibValue = getFibonacci(k);
-            const modValue = Number(fibValue % 4n);
-            if (modValue === 0) tradeDir = "under4";
-            else if (modValue === 1) tradeDir = "over5";
-            else if (modValue === 2) tradeDir = "under5";
-            else tradeDir = "over4";
-            console.log(`[Strategy H Initializer] Randomly selected starting index k: ${k}, F(k): ${fibValue.toString()}, F(k) % 4: ${modValue} -> ${tradeDir}`);
-          } else {
-            const fibValue = getFibonacci(k);
-            const modValue = Number(fibValue % 4n);
-            if (modValue === 0) tradeDir = "under4";
-            else if (modValue === 1) tradeDir = "over5";
-            else if (modValue === 2) tradeDir = "under5";
-            else tradeDir = "over4";
-            console.log(`[Strategy H Execution] Index k: ${k}, F(k): ${fibValue.toString()}, F(k) % 4: ${modValue} -> ${tradeDir}`);
           }
+          
+          const fibValue = getFibonacci(k);
+          const modValue = Number(fibValue % 6n);
+          if (modValue === 0) tradeDir = "under4";
+          else if (modValue === 1) tradeDir = "over5";
+          else if (modValue === 2) tradeDir = "even";
+          else if (modValue === 3) tradeDir = "under5";
+          else if (modValue === 4) tradeDir = "over4";
+          else tradeDir = "odd";
+
+          console.log(`[Strategy H Execution] Index k: ${k}, F(k): ${fibValue.toString()}, F(k) % 6: ${modValue} -> ${tradeDir}`);
+          
           trade = tradeDir;
           chosenGroup = getCategoryGroup(trade);
           state.fibonacciIndex = k;
@@ -751,17 +750,19 @@ export function useAutoTrader(
         return;
       }
 
-      let type: "DIGITOVER" | "DIGITUNDER";
-      let barrier: number;
+      let type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD";
+      let barrier: number | undefined;
       if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
       else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
       else if (trade === "under5") { type = "DIGITUNDER"; barrier = 5; }
       else if (trade === "over5") { type = "DIGITOVER"; barrier = 5; }
+      else if (trade === "even") { type = "DIGITEVEN"; barrier = undefined; }
+      else if (trade === "odd") { type = "DIGITODD"; barrier = undefined; }
       else if (trade === "over0") { type = "DIGITOVER"; barrier = 0; }
       else { type = "DIGITUNDER"; barrier = 9; }
 
       const isFirstTrade = state.status === "IDLE";
-      const isSpecialStakeTrade = trade === "under5" || trade === "over4";
+      const isSpecialStakeTrade = trade === "under5" || trade === "over4" || trade === "even" || trade === "odd";
       const isWin = state.status === "WIN";
 
       if (isFirstTrade || isWin) {
@@ -858,7 +859,9 @@ export function useAutoTrader(
         req_id: reqId,
       };
 
-      proposalReq.barrier = String(barrier);
+      if (barrier !== undefined) {
+        proposalReq.barrier = String(barrier);
+      }
 
       if (isV4) {
         proposalReq.underlying_symbol = symbol;
@@ -869,7 +872,7 @@ export function useAutoTrader(
       // Register the pending proposal before sending (supabaseId filled in background)
       pendingProposals.current.set(String(reqId), {
         symbol,
-        dangerDigit: barrier,
+        dangerDigit: barrier ?? 0,
         stake: nextStake,
         timestamp: Date.now(),
         supabaseId: undefined,

@@ -11,11 +11,11 @@ import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-const getFibonacci = (k: number): number => {
-  if (k <= 0) return 0;
-  if (k === 1) return 1;
-  let a = 0;
-  let b = 1;
+const getFibonacci = (k: number): bigint => {
+  if (k <= 0) return 0n;
+  if (k === 1) return 1n;
+  let a = 0n;
+  let b = 1n;
   for (let i = 2; i <= k; i++) {
     const temp = a + b;
     a = b;
@@ -370,7 +370,7 @@ export function TradingPanel({
               <Shuffle className="w-8 h-8 text-indigo-400/40 mb-2 animate-bounce" />
               <span className="text-xs font-semibold text-indigo-300">Ready to Launch Sequence</span>
               <span className="text-[9px] text-muted-foreground max-w-[220px] mt-1">
-                The first trade will be randomly chosen from [U4, O5, U5, O4], seeding the Fibonacci engine.
+                Seeds the Fibonacci trade engine at a random index k in range [0, 1000].
               </span>
             </div>
           ) : (
@@ -391,7 +391,8 @@ export function TradingPanel({
                   }
 
                   const val = getFibonacci(currentK);
-                  const mod = val % 4;
+                  const valStr = val.toString();
+                  const mod = Number(val % 6n);
                   const isActive = offset === 0;
 
                   let code = "U4";
@@ -411,28 +412,38 @@ export function TradingPanel({
                     borderClass = isActive ? "border-amber-400/85 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "border-amber-950/40 hover:border-amber-900/60";
                     textClass = "text-amber-400";
                   } else if (mod === 2) {
+                    code = "Even"; label = "Even";
+                    bgClass = isActive ? "bg-gradient-to-r from-violet-500/25 to-fuchsia-500/25" : "bg-violet-950/20";
+                    borderClass = isActive ? "border-violet-400/85 shadow-[0_0_10px_rgba(139,92,246,0.6)]" : "border-violet-950/40 hover:border-violet-900/60";
+                    textClass = "text-violet-400";
+                  } else if (mod === 3) {
                     code = "U5"; label = "Under 5";
                     bgClass = isActive ? "bg-gradient-to-r from-purple-500/25 to-pink-500/25" : "bg-purple-950/20";
                     borderClass = isActive ? "border-purple-400/85 shadow-[0_0_10px_rgba(168,85,247,0.6)]" : "border-purple-950/40 hover:border-purple-900/60";
                     textClass = "text-purple-400";
-                  } else {
+                  } else if (mod === 4) {
                     code = "O4"; label = "Over 4";
                     bgClass = isActive ? "bg-gradient-to-r from-emerald-500/25 to-teal-500/25" : "bg-emerald-950/20";
                     borderClass = isActive ? "border-emerald-400/85 shadow-[0_0_10px_rgba(52,211,153,0.6)]" : "border-emerald-950/40 hover:border-emerald-900/60";
                     textClass = "text-emerald-400";
+                  } else {
+                    code = "Odd"; label = "Odd";
+                    bgClass = isActive ? "bg-gradient-to-r from-cyan-500/25 to-sky-500/25" : "bg-cyan-950/20";
+                    borderClass = isActive ? "border-cyan-400/85 shadow-[0_0_10px_rgba(6,182,212,0.6)]" : "border-cyan-950/40 hover:border-cyan-900/60";
+                    textClass = "text-cyan-400";
                   }
 
                   return (
                     <div
                       key={offset}
-                      title={`${label} (Fibonacci ${val})`}
+                      title={`${label} (Fibonacci ${valStr})`}
                       className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded border transition-all duration-300 relative cursor-default select-none ${bgClass} ${borderClass} ${isActive ? "scale-105 border-2 border-primary" : "opacity-60"}`}
                     >
                       <span className="text-[7px] text-muted-foreground font-mono">
                         k = {currentK}
                       </span>
-                      <span className={`text-[11px] font-mono font-black ${textClass}`} title={`Value: ${val}`}>
-                        {val > 9999 ? `${String(val).substring(0, 3)}..` : val}
+                      <span className={`text-[11px] font-mono font-black ${textClass}`} title={`Value: ${valStr}`}>
+                        {valStr.length > 4 ? `${valStr.substring(0, 3)}..` : valStr}
                       </span>
                       <span className={`text-[8px] font-bold ${textClass} scale-90 mt-0.5`}>
                         {code}
@@ -453,13 +464,15 @@ export function TradingPanel({
                   <AlertCircle className="w-2.5 h-2.5 text-indigo-400 animate-pulse" /> Current Fibonacci Number:
                 </span>
                 <span className="font-bold text-foreground">
-                  F({sessionState.fibonacciIndex}) = {getFibonacci(sessionState.fibonacciIndex)} (Mapped to {(() => {
+                  F({sessionState.fibonacciIndex}) = {getFibonacci(sessionState.fibonacciIndex).toString()} (Mapped to {(() => {
                     const val = getFibonacci(sessionState.fibonacciIndex);
-                    const mod = val % 4;
+                    const mod = Number(val % 6n);
                     if (mod === 0) return "DIGITUNDER 4 (Barrier 4)";
                     if (mod === 1) return "DIGITOVER 5 (Barrier 5)";
-                    if (mod === 2) return "DIGITUNDER 5 (Barrier 5)";
-                    return "DIGITOVER 4 (Barrier 4)";
+                    if (mod === 2) return "DIGITEVEN (No Barrier)";
+                    if (mod === 3) return "DIGITUNDER 5 (Barrier 5)";
+                    if (mod === 4) return "DIGITOVER 4 (Barrier 4)";
+                    return "DIGITODD (No Barrier)";
                   })()})
                 </span>
               </div>
