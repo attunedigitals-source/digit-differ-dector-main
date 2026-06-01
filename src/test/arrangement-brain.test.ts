@@ -90,6 +90,8 @@ describe("Strategy A Arrangement Brain Math", () => {
       expect(directionToDetails("O4")).toEqual({ type: "DIGITOVER", barrier: 4 });
       expect(directionToDetails("U5")).toEqual({ type: "DIGITUNDER", barrier: 5 });
       expect(directionToDetails("O5")).toEqual({ type: "DIGITOVER", barrier: 5 });
+      expect(directionToDetails("EV")).toEqual({ type: "DIGITEVEN", barrier: undefined });
+      expect(directionToDetails("OD")).toEqual({ type: "DIGITODD", barrier: undefined });
     });
   });
 
@@ -160,4 +162,46 @@ describe("Strategy A Arrangement Brain Math", () => {
       expect(sequence).toEqual(fullPerm);
     });
   });
+
+  describe("Strategy C Expanded Deck Math (Even and Odd)", () => {
+    const STRAT_C_ELEMENTS = ["U4", "O4", "U5", "O5", "EV", "OD"];
+    const STRAT_C_COUNTS = [2, 2, 2, 2, 2, 2];
+    const STRAT_C_SIZE = 7484400;
+
+    it("should map every index uniquely for Strategy C deck using LCG walking", () => {
+      const size = 1000;
+      const seen = new Set<number>();
+      for (let i = 0; i < size; i++) {
+        const val = lcgPermute(i, STRAT_C_SIZE, 42);
+        expect(val).toBeLessThan(STRAT_C_SIZE);
+        expect(val).toBeGreaterThanOrEqual(0);
+        seen.add(val);
+      }
+      expect(seen.size).toBe(size);
+    });
+
+    it("should generate a valid Strategy C arrangement with exactly 2 occurrences of each element", () => {
+      const arr = getNthPermutation(STRAT_C_ELEMENTS, STRAT_C_COUNTS, 1);
+      expect(arr.length).toBe(12);
+
+      const counts: Record<string, number> = {};
+      arr.forEach(dir => {
+        counts[dir] = (counts[dir] || 0) + 1;
+      });
+      expect(counts["U4"]).toBe(2);
+      expect(counts["O4"]).toBe(2);
+      expect(counts["U5"]).toBe(2);
+      expect(counts["O5"]).toBe(2);
+      expect(counts["EV"]).toBe(2);
+      expect(counts["OD"]).toBe(2);
+    });
+
+    it("should rank Strategy C permutations bijectively", () => {
+      const rank = 123456;
+      const arr = getNthPermutation(STRAT_C_ELEMENTS, STRAT_C_COUNTS, rank);
+      const computed = getPermutationIndex(STRAT_C_ELEMENTS, STRAT_C_COUNTS, arr);
+      expect(computed).toBe(rank);
+    });
+  });
 });
+

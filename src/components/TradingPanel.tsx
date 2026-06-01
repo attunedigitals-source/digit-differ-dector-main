@@ -245,23 +245,23 @@ export function TradingPanel({
                 <Target className="w-3.5 h-3.5 text-primary animate-pulse" /> Arrangement #{sessionState.currentArrangementIndex ?? 1}
               </span>
               <span className="text-[8px] text-muted-foreground">
-                Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / 369,600
+                Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / {config.strategy === "strategy_c" ? "7,484,400" : "369,600"}
               </span>
             </div>
             <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 px-1.5 py-0.5">
               Step {(sessionState.sequenceStep ?? 0) + 1}/12
             </Badge>
           </div>
-
+ 
           <div className="grid grid-cols-6 gap-1.5 py-1">
             {(sessionState.currentArrangement ?? []).map((step, idx) => {
               const isActive = idx === (sessionState.sequenceStep ?? 0);
-              const label = step === "U4" ? "Under 4" : step === "O4" ? "Over 4" : step === "U5" ? "Under 5" : "Over 5";
+              const label = step === "U4" ? "Under 4" : step === "O4" ? "Over 4" : step === "U5" ? "Under 5" : step === "O5" ? "Over 5" : step === "EV" ? "Even" : "Odd";
               
               let bgClass = "";
               let borderClass = "";
               let textClass = "";
-
+ 
               if (step === "U4") {
                 bgClass = isActive ? "bg-gradient-to-r from-blue-500/25 to-indigo-500/25" : "bg-blue-950/20";
                 borderClass = isActive ? "border-blue-400/80 shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "border-blue-950/40 hover:border-blue-900/60";
@@ -274,12 +274,20 @@ export function TradingPanel({
                 bgClass = isActive ? "bg-gradient-to-r from-purple-500/25 to-pink-500/25" : "bg-purple-950/20";
                 borderClass = isActive ? "border-purple-400/80 shadow-[0_0_8px_rgba(168,85,247,0.5)]" : "border-purple-950/40 hover:border-purple-900/60";
                 textClass = "text-purple-400";
+              } else if (step === "EV") {
+                bgClass = isActive ? "bg-gradient-to-r from-violet-500/25 to-fuchsia-500/25" : "bg-violet-950/20";
+                borderClass = isActive ? "border-violet-400/85 shadow-[0_0_10px_rgba(139,92,246,0.6)]" : "border-violet-950/40 hover:border-violet-900/60";
+                textClass = "text-violet-400";
+              } else if (step === "OD") {
+                bgClass = isActive ? "bg-gradient-to-r from-cyan-500/25 to-sky-500/25" : "bg-cyan-950/20";
+                borderClass = isActive ? "border-cyan-400/85 shadow-[0_0_10px_rgba(6,182,212,0.6)]" : "border-cyan-950/40 hover:border-cyan-900/60";
+                textClass = "text-cyan-400";
               } else {
                 bgClass = isActive ? "bg-gradient-to-r from-amber-500/25 to-orange-500/25" : "bg-amber-950/20";
                 borderClass = isActive ? "border-amber-400/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "border-amber-950/40 hover:border-amber-900/60";
                 textClass = "text-amber-400";
               }
-
+ 
               return (
                 <div
                   key={idx}
@@ -315,7 +323,9 @@ export function TradingPanel({
                 if (activeStep === "U4") return "DIGITUNDER 4 (Barrier 4)";
                 if (activeStep === "O4") return "DIGITOVER 4 (Barrier 4)";
                 if (activeStep === "U5") return "DIGITUNDER 5 (Barrier 5)";
-                return "DIGITOVER 5 (Barrier 5)";
+                if (activeStep === "O5") return "DIGITOVER 5 (Barrier 5)";
+                if (activeStep === "EV") return "DIGITEVEN (No Barrier)";
+                return "DIGITODD (No Barrier)";
               })()}
             </span>
           </div>

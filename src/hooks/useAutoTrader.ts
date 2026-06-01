@@ -194,18 +194,27 @@ export function useAutoTrader(
     }
     
     if (arr.length === 0 || arrIndex === 0) {
-      const elements = ['U4', 'O4', 'U5', 'O5'];
-      const counts = [3, 3, 3, 3];
+      let elements = ['U4', 'O4', 'U5', 'O5'];
+      let counts = [3, 3, 3, 3];
+      let totalArrangements = 369600;
       
       const savedConfig = localStorage.getItem('autoTraderConfig');
+      let isStrategyC = false;
       let isStrategyF = false;
       let isStrategyG = false;
       if (savedConfig) {
         try {
           const parsed = JSON.parse(savedConfig);
+          isStrategyC = parsed.strategy === "strategy_c";
           isStrategyF = parsed.strategy === "strategy_f";
           isStrategyG = parsed.strategy === "strategy_g";
         } catch (e) {}
+      }
+
+      if (isStrategyC) {
+        elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
+        counts = [2, 2, 2, 2, 2, 2];
+        totalArrangements = 7484400;
       }
 
       if (isStrategyF || isStrategyG) {
@@ -232,7 +241,7 @@ export function useAutoTrader(
           tempProgress = (tempProgress + 1) % 369600;
         }
       } else {
-        const permIndex = lcgPermute(progress, 369600, seed);
+        const permIndex = lcgPermute(progress, totalArrangements, seed);
         arrIndex = permIndex + 1;
         arr = getNthPermutation(elements, counts, arrIndex);
       }
@@ -679,9 +688,15 @@ export function useAutoTrader(
           let seed = state.shufflingSeed || 1;
 
           if (currentArr.length === 0) {
-            const elements = ['U4', 'O4', 'U5', 'O5'];
-            const counts = [3, 3, 3, 3];
-            const permIndex = lcgPermute(progressIdx, 369600, seed);
+            let elements = ['U4', 'O4', 'U5', 'O5'];
+            let counts = [3, 3, 3, 3];
+            let totalArrangements = 369600;
+            if (config.strategy === "strategy_c") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
+              counts = [2, 2, 2, 2, 2, 2];
+              totalArrangements = 7484400;
+            }
+            const permIndex = lcgPermute(progressIdx, totalArrangements, seed);
             currentArrIdx = permIndex + 1;
             currentArr = getNthPermutation(elements, counts, currentArrIdx);
           }
@@ -705,6 +720,9 @@ export function useAutoTrader(
           if (directionCode === "U4") trade = "under4";
           else if (directionCode === "O4") trade = "over4";
           else if (directionCode === "U5") trade = "under5";
+          else if (directionCode === "O5") trade = "over5";
+          else if (directionCode === "EV") trade = "even";
+          else if (directionCode === "OD") trade = "odd";
           else trade = "over5";
 
           // Strategy E Dynamic Overlay (Real-time Probability Overlay):
@@ -1170,13 +1188,20 @@ export function useAutoTrader(
         nextSeqStep = 0;
         nextProgressIndex = state.arrangementProgressIndex + 1;
         
-        if (nextProgressIndex >= 369600) {
+        let totalArrangements = 369600;
+        let elements = ['U4', 'O4', 'U5', 'O5'];
+        let counts = [3, 3, 3, 3];
+        
+        if (config.strategy === "strategy_c") {
+          elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
+          counts = [2, 2, 2, 2, 2, 2];
+          totalArrangements = 7484400;
+        }
+
+        if (nextProgressIndex >= totalArrangements) {
           nextProgressIndex = 0;
           nextSeed = Math.floor(Math.random() * 100000) + 1;
         }
-
-        const elements = ['U4', 'O4', 'U5', 'O5'];
-        const counts = [3, 3, 3, 3];
 
         if (config.strategy === "strategy_f" || config.strategy === "strategy_g") {
           // Find the next valid non-blacklisted arrangement
@@ -1209,7 +1234,7 @@ export function useAutoTrader(
           }
           toast.success(`Win! Selecting new valid arrangement #${nextArrIndex}`);
         } else {
-          const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
+          const permIndex = lcgPermute(nextProgressIndex, totalArrangements, nextSeed);
           nextArrIndex = permIndex + 1;
           nextArr = getNthPermutation(elements, counts, nextArrIndex);
           toast.success(`Win! Selecting new arrangement #${nextArrIndex}`);
@@ -1292,8 +1317,12 @@ export function useAutoTrader(
           
           // If loss prefix is valid (e.g. within 12 elements), pool and draw
           if (lossPrefix.length < 12) {
-            const elements = ['U4', 'O4', 'U5', 'O5'];
-            const counts = [3, 3, 3, 3];
+            let elements = ['U4', 'O4', 'U5', 'O5'];
+            let counts = [3, 3, 3, 3];
+            if (config.strategy === "strategy_c") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
+              counts = [2, 2, 2, 2, 2, 2];
+            }
             
             nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
             nextArrIndex = getPermutationIndex(elements, counts, nextArr);
@@ -1305,13 +1334,21 @@ export function useAutoTrader(
             // If we reached the end of the sequence, start all over
             nextSeqStep = 0;
             nextProgressIndex = state.arrangementProgressIndex + 1;
-            if (nextProgressIndex >= 369600) {
+            
+            let totalArrangements = 369600;
+            let elements = ['U4', 'O4', 'U5', 'O5'];
+            let counts = [3, 3, 3, 3];
+            if (config.strategy === "strategy_c") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
+              counts = [2, 2, 2, 2, 2, 2];
+              totalArrangements = 7484400;
+            }
+
+            if (nextProgressIndex >= totalArrangements) {
               nextProgressIndex = 0;
               nextSeed = Math.floor(Math.random() * 100000) + 1;
             }
-            const elements = ['U4', 'O4', 'U5', 'O5'];
-            const counts = [3, 3, 3, 3];
-            const permIndex = lcgPermute(nextProgressIndex, 369600, nextSeed);
+            const permIndex = lcgPermute(nextProgressIndex, totalArrangements, nextSeed);
             nextArrIndex = permIndex + 1;
             nextArr = getNthPermutation(elements, counts, nextArrIndex);
             toast.warning(`Cycle limit reached! Rotating to new arrangement #${nextArrIndex}`);
@@ -1854,10 +1891,18 @@ export function useAutoTrader(
     
     const newSeed = Math.floor(Math.random() * 100000) + 1;
     const newProgress = 0;
-    const permIndex = lcgPermute(newProgress, 369600, newSeed);
+    
+    let totalArrangements = 369600;
+    let elements = ['U4', 'O4', 'U5', 'O5'];
+    let counts = [3, 3, 3, 3];
+    if (config.strategy === "strategy_c") {
+      elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
+      counts = [2, 2, 2, 2, 2, 2];
+      totalArrangements = 7484400;
+    }
+
+    const permIndex = lcgPermute(newProgress, totalArrangements, newSeed);
     const newArrIndex = permIndex + 1;
-    const elements = ['U4', 'O4', 'U5', 'O5'];
-    const counts = [3, 3, 3, 3];
     const newArr = getNthPermutation(elements, counts, newArrIndex);
 
     const emptyBlacklist: Record<string, string[]> = {};
