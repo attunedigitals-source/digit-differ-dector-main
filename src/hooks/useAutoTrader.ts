@@ -528,12 +528,12 @@ export function useAutoTrader(
       return null;
     }
 
-    if (config.strategy === "strategy_g" || config.strategy === "strategy_h") {
+    if (config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i") {
       const currentSymbol = sessionStateRef.current.currentSymbol;
       const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
       const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
       
-      console.log(`[Strategy ${config.strategy === "strategy_g" ? "G" : "H"} Volatility Selector] Selecting purely randomly (excluding back-to-back [${currentSymbol}]):`, activeCandidates.map(c => c.symbol).join(", "));
+      console.log(`[Strategy ${config.strategy.toUpperCase()} Volatility Selector] Selecting purely randomly (excluding back-to-back [${currentSymbol}]):`, activeCandidates.map(c => c.symbol).join(", "));
       return activeCandidates[Math.floor(Math.random() * activeCandidates.length)];
     }
 
@@ -651,7 +651,7 @@ export function useAutoTrader(
         odd: "Odd"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i") {
         if (config.strategy === "strategy_h") {
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
@@ -674,6 +674,20 @@ export function useAutoTrader(
           trade = tradeDir;
           chosenGroup = getCategoryGroup(trade);
           state.fibonacciIndex = k;
+
+          if (state.status === "WIN" || state.status === "IDLE") {
+            nextStep = 0;
+          } else if (state.status === "LOSS") {
+            nextStep = state.martingaleStep + 1;
+            stepIndexRef.current += 1;
+          }
+        } else if (config.strategy === "strategy_i") {
+          const pool: TradeCategory[] = ["under4", "over4", "under5", "over5", "even", "odd"];
+          const tradeDir = pool[Math.floor(Math.random() * pool.length)];
+          trade = tradeDir;
+          chosenGroup = getCategoryGroup(trade);
+
+          console.log(`[Strategy I Execution] Selected random direction from pool: ${tradeDir}`);
 
           if (state.status === "WIN" || state.status === "IDLE") {
             nextStep = 0;
