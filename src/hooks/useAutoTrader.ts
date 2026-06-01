@@ -602,7 +602,7 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "alternating";
+      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "alternating" || config.strategy === "strategy_h";
       
       const isSuspended = (sym: string) => {
         const tracking = volatilityTracking[sym];
@@ -613,7 +613,7 @@ export function useAutoTrader(
                          state.status === "LOSS" && 
                          state.currentSymbol && 
                          !isSuspended(state.currentSymbol) && 
-                         !((config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") && state.forceSwapSymbol);
+                         !((config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_h") && state.forceSwapSymbol);
 
       if (shouldKeep) {
         symbol = state.currentSymbol;
@@ -1363,14 +1363,23 @@ export function useAutoTrader(
     let nextForceSwapSymbol = state.forceSwapSymbol || false;
     let nextBlacklist = { ...(state.blacklistedPrefixes || {}) };
 
-    if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g") {
+    if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h") {
       if (isWin) {
         nextSymbolLosses = 0;
         nextForceSwapSymbol = false;
       } else {
         nextSymbolLosses += 1;
         
-        if (config.strategy === "strategy_f") {
+        if (config.strategy === "strategy_h") {
+          if (nextSymbolLosses === 3) {
+            nextSymbolLosses = 0;
+            nextForceSwapSymbol = true;
+            toast.warning(`Strategy H: 3 consecutive losses on ${symbol}. Forcing random volatility index swap.`, {
+              duration: 5000
+            });
+            console.log(`[Strategy H] 3 consecutive losses on ${symbol}. Forcing random volatility index swap.`);
+          }
+        } else if (config.strategy === "strategy_f") {
           if (nextSymbolLosses === 5) {
             const prefix = (state.currentArrangement || []).slice(0, 5).join(",");
             if (prefix) {
