@@ -79,7 +79,8 @@ export function lcgPermute(index: number, size: number, seed: number): number {
   // P is the smallest prime number larger than the deck size
   // For size 369,600, P = 369623
   // For size 7,484,400 (Strategy C with Even and Odd), P = 7484401
-  const P = size === 7484400 ? 7484401 : 369623;
+  // For size 29,937,600 (Strategy D with Even, Odd, Rise, Fall), P = 29937601
+  const P = size === 29937600 ? 29937601 : (size === 7484400 ? 7484401 : 369623);
   
   // High quality prime-based LCG multipliers
   const a = 15485863;
@@ -117,7 +118,7 @@ export function getNextArrangement(progressIndex: number, seed: number): { index
  * Converts a direction code (e.g., "U4") to its Deriv contract parameters
  */
 export function directionToDetails(direction: string): {
-  type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD";
+  type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT";
   barrier?: number;
 } {
   switch (direction) {
@@ -137,6 +138,12 @@ export function directionToDetails(direction: string): {
     case "Odd":
     case "O":
       return { type: "DIGITODD", barrier: undefined };
+    case "RISE":
+    case "Rise":
+      return { type: "CALL", barrier: undefined };
+    case "FALL":
+    case "Fall":
+      return { type: "PUT", barrier: undefined };
     default:
       console.warn(`[ArrangementBrain] Unknown direction code: ${direction}. Falling back to default O5.`);
       return { type: "DIGITOVER", barrier: 5 };

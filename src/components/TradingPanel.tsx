@@ -257,7 +257,7 @@ export function TradingPanel({
           <div className="grid grid-cols-6 gap-1.5 py-1">
             {(sessionState.currentArrangement ?? []).map((step, idx) => {
               const isActive = idx === (sessionState.sequenceStep ?? 0);
-              const label = step === "U4" ? "Under 4" : step === "O4" ? "Over 4" : step === "U5" ? "Under 5" : step === "O5" ? "Over 5" : step === "EV" ? "Even" : "Odd";
+              const label = step === "U4" ? "Under 4" : step === "O4" ? "Over 4" : step === "U5" ? "Under 5" : step === "O5" ? "Over 5" : step === "EV" ? "Even" : step === "OD" ? "Odd" : step === "RISE" ? "Rise" : step === "FALL" ? "Fall" : "Unknown";
               
               let bgClass = "";
               let borderClass = "";
@@ -283,6 +283,14 @@ export function TradingPanel({
                 bgClass = isActive ? "bg-gradient-to-r from-cyan-500/25 to-sky-500/25" : "bg-cyan-950/20";
                 borderClass = isActive ? "border-cyan-400/85 shadow-[0_0_10px_rgba(6,182,212,0.6)]" : "border-cyan-950/40 hover:border-cyan-900/60";
                 textClass = "text-cyan-400";
+              } else if (step === "RISE") {
+                bgClass = isActive ? "bg-gradient-to-r from-rose-500/25 to-pink-500/25" : "bg-rose-950/20";
+                borderClass = isActive ? "border-rose-400/85 shadow-[0_0_10px_rgba(244,63,94,0.6)]" : "border-rose-950/40 hover:border-rose-900/60";
+                textClass = "text-rose-400";
+              } else if (step === "FALL") {
+                bgClass = isActive ? "bg-gradient-to-r from-red-500/25 to-orange-500/25" : "bg-red-950/20";
+                borderClass = isActive ? "border-red-400/85 shadow-[0_0_10px_rgba(239,68,68,0.6)]" : "border-red-950/40 hover:border-red-900/60";
+                textClass = "text-red-400";
               } else {
                 bgClass = isActive ? "bg-gradient-to-r from-amber-500/25 to-orange-500/25" : "bg-amber-950/20";
                 borderClass = isActive ? "border-amber-400/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "border-amber-950/40 hover:border-amber-900/60";
@@ -326,7 +334,10 @@ export function TradingPanel({
                 if (activeStep === "U5") return "DIGITUNDER 5 (Barrier 5)";
                 if (activeStep === "O5") return "DIGITOVER 5 (Barrier 5)";
                 if (activeStep === "EV") return "DIGITEVEN (No Barrier)";
-                return "DIGITODD (No Barrier)";
+                if (activeStep === "OD") return "DIGITODD (No Barrier)";
+                if (activeStep === "RISE") return "RISE (Allow Equals)";
+                if (activeStep === "FALL") return "FALL (Allow Equals)";
+                return "Unknown";
               })()}
             </span>
           </div>

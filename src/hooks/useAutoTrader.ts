@@ -20,7 +20,7 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd";
+type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd" | "rise" | "fall";
 interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
@@ -215,6 +215,10 @@ export function useAutoTrader(
         elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
         counts = [2, 2, 2, 2, 2, 2];
         totalArrangements = 7484400;
+      } else if (isStrategyD) {
+        elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+        counts = [2, 2, 2, 2, 1, 1, 1, 1];
+        totalArrangements = 29937600;
       }
 
       if (isStrategyF || isStrategyG) {
@@ -256,9 +260,9 @@ export function useAutoTrader(
       currentStake: savedStake ? parseFloat(savedStake) : 0.35,
       martingaleStep: savedMartStep ? parseInt(savedMartStep) : 0,
       sequenceStep: savedSeqStep ? parseInt(savedSeqStep) : 0,
-      initialChoice: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD",
+      initialChoice: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT",
       currentSymbol: savedSymbol || "",
-      currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD",
+      currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT",
       currentBarrier: 5,
       status: (savedStatus as any) || "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
       nextAction: "IDLE_RDY",
@@ -663,7 +667,9 @@ export function useAutoTrader(
         over0: "Over 0",
         under9: "Under 9",
         even: "Even",
-        odd: "Odd"
+        odd: "Odd",
+        rise: "Rise",
+        fall: "Fall"
       };
 
       if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i") {
@@ -720,10 +726,14 @@ export function useAutoTrader(
             let elements = ['U4', 'O4', 'U5', 'O5'];
             let counts = [3, 3, 3, 3];
             let totalArrangements = 369600;
-            if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
+            if (config.strategy === "strategy_c") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;
+            } else if (config.strategy === "strategy_d") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+              counts = [2, 2, 2, 2, 1, 1, 1, 1];
+              totalArrangements = 29937600;
             }
             const permIndex = lcgPermute(progressIdx, totalArrangements, seed);
             currentArrIdx = permIndex + 1;
@@ -752,6 +762,8 @@ export function useAutoTrader(
           else if (directionCode === "O5") trade = "over5";
           else if (directionCode === "EV") trade = "even";
           else if (directionCode === "OD") trade = "odd";
+          else if (directionCode === "RISE") trade = "rise";
+          else if (directionCode === "FALL") trade = "fall";
           else trade = "over5";
 
           // Strategy E Dynamic Overlay (Real-time Probability Overlay):
@@ -824,7 +836,7 @@ export function useAutoTrader(
         return;
       }
 
-      let type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD";
+      let type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT";
       let barrier: number | undefined;
       if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
       else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
@@ -832,11 +844,13 @@ export function useAutoTrader(
       else if (trade === "over5") { type = "DIGITOVER"; barrier = 5; }
       else if (trade === "even") { type = "DIGITEVEN"; barrier = undefined; }
       else if (trade === "odd") { type = "DIGITODD"; barrier = undefined; }
+      else if (trade === "rise") { type = "CALL"; barrier = undefined; }
+      else if (trade === "fall") { type = "PUT"; barrier = undefined; }
       else if (trade === "over0") { type = "DIGITOVER"; barrier = 0; }
       else { type = "DIGITUNDER"; barrier = 9; }
 
       const isFirstTrade = state.status === "IDLE";
-      const isSpecialStakeTrade = trade === "under5" || trade === "over4" || trade === "even" || trade === "odd";
+      const isSpecialStakeTrade = trade === "under5" || trade === "over4" || trade === "even" || trade === "odd" || trade === "rise" || trade === "fall";
       const isWin = state.status === "WIN";
 
       if (isFirstTrade || isWin) {
@@ -933,6 +947,10 @@ export function useAutoTrader(
         duration_unit: "t",
         req_id: reqId,
       };
+
+      if (type === "CALL" || type === "PUT") {
+        proposalReq.allow_equals = 1;
+      }
 
       if (barrier !== undefined) {
         proposalReq.barrier = String(barrier);
@@ -1225,6 +1243,10 @@ export function useAutoTrader(
           elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
           counts = [2, 2, 2, 2, 2, 2];
           totalArrangements = 7484400;
+        } else if (config.strategy === "strategy_d") {
+          elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+          counts = [2, 2, 2, 2, 1, 1, 1, 1];
+          totalArrangements = 29937600;
         }
 
         if (nextProgressIndex >= totalArrangements) {
@@ -1348,9 +1370,12 @@ export function useAutoTrader(
           if (lossPrefix.length < 12) {
             let elements = ['U4', 'O4', 'U5', 'O5'];
             let counts = [3, 3, 3, 3];
-            if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
+            if (config.strategy === "strategy_c") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
+            } else if (config.strategy === "strategy_d") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+              counts = [2, 2, 2, 2, 1, 1, 1, 1];
             }
             
             nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
@@ -1367,10 +1392,14 @@ export function useAutoTrader(
             let totalArrangements = 369600;
             let elements = ['U4', 'O4', 'U5', 'O5'];
             let counts = [3, 3, 3, 3];
-            if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
+            if (config.strategy === "strategy_c") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;
+            } else if (config.strategy === "strategy_d") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+              counts = [2, 2, 2, 2, 1, 1, 1, 1];
+              totalArrangements = 29937600;
             }
 
             if (nextProgressIndex >= totalArrangements) {

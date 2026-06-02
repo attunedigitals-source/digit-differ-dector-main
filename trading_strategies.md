@@ -57,8 +57,10 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Post-Win Cooldown**: The moment the index registers a win and successfully recovers the martingale run, the deferred suspension is enacted. The volatility index is blacklisted from selection for a random period of **5 to 10 minutes** to allow the market to stabilize.
 
 ### Strategy D: Immediate Suspension
-*   **Core Concept**: Aggressive risk mitigation that prioritizes immediate index abandonment during market drawdowns.
+*   **Core Concept**: Aggressive risk mitigation that prioritizes immediate index abandonment during market drawdowns, running on a 12-trade cycle using an 8-element balanced permutation deck (with Even, Odd, Rise, and Fall).
 *   **Trade Execution**:
+    *   **The Permutation Deck**: Uses `['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL']` with counts `[2, 2, 2, 2, 1, 1, 1, 1]`, yielding 29,937,600 unique arrangements.
+    *   **Special Contracts**: The Rise and Fall contract directions are executed with the "Allow Equals" parameter set, and are treated as special contracts with the **$1.26\times$** martingale stake multiplier.
     *   **Immediate Action**: If a volatility index triggers **5 consecutive losses** during the normal martingale phase (`martingaleStep < 5`), the bot **suspends the index immediately** for a random period of **5 to 10 minutes**.
     *   **High-Sensitivity Phase**: If the bot enters a deeper martingale phase (`martingaleStep >= 5`), the threshold tightens, and the index is suspended immediately after only **2 consecutive losses**.
     *   **Immediate Swap**: The bot instantly resets its index loss counter, sets a `forceSwapSymbol` flag, and selects a new active volatility index to handle the next high-stake trade.
@@ -126,5 +128,5 @@ Here is how each strategy determines when, where, and how to place its trades:
 | **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No |
 | **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No | No |
 | **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) | No |
-| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection |
+| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck (6-element Even/Odd) | LCG arrangement deck (8-element Even/Odd/Rise/Fall) | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection |
 
