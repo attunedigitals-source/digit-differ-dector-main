@@ -89,10 +89,10 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Arrangement Pool Filtering**: Once blacklisted globally, any arrangement starting with that 5-element prefix is barred from selection. The bot immediately discards the current arrangement, shuffles a brand new arrangement that has a clean, non-blacklisted prefix, and resets the Martingale cycle.
 
 ### Strategy H: Fibonacci Trade Engine
-*   **Core Concept**: A mathematical, sequence-driven walking engine that executes trades along the Fibonacci sequence mapped modulo 6, combining randomized entries on start/wins with sequential progression on losses, paired with a sticky volatility selector that remains on the same index for up to 3 consecutive losses.
+*   **Core Concept**: A mathematical, sequence-driven walking engine that executes trades along the Fibonacci sequence mapped modulo 6, combining randomized entries on start/wins with sequential progression on losses, paired with a sequence-driven Fibonacci volatility selector mapped modulo 10.
 *   **Trade Execution**:
-    *   **Sticky Volatility Selection**: Strategy H remains sticky to the selected volatility index on losses. If the active volatility index triggers **3 consecutive losses**, the system forces a swap to a different, randomly selected volatility symbol.
-    *   **No Back-to-Back Duplicates**: When selecting a new symbol (at the start of a session, after a win, or after 3 consecutive losses), it automatically filters out the last traded volatility symbol to guarantee that the same volatility is never selected back-to-back.
+    *   **Fibonacci Volatility Selection**: The volatility index is selected mathematically using the same session Fibonacci index $k$ mapped modulo 10: $F(k) \pmod{10}$.
+    *   **No Sticky Drawdowns**: The volatility changes sequentially along the Fibonacci path during drawdown recovery walks as the index $k$ increments, ensuring a fully unified mathematical progression path.
     *   **Fibonacci-Mapped Walk**: Tracks the current Fibonacci index $k$ in the session state.
     *   **Modulo 6 Mapping**: Maps the $k$-th Fibonacci number $F(k)$ to one of the 6 contract directions based on $F(k) \pmod 6$:
         *   `0`: **`U4`** (Digit Under 4) - wins on 0, 1, 2, 3
@@ -117,7 +117,7 @@ Here is how each strategy determines when, where, and how to place its trades:
 
 | Feature / Strategy | Strategy A | Strategy B | Strategy C | Strategy D | Strategy E (God Mode) | Strategy F | Strategy G | Strategy H | Strategy I |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | Yes (Sticky up to 3 losses) | No (Random) |
+| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | No (Fibonacci modulo 10) | No (Random) |
 | **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None | None | None |
 | **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No | No |
 | **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No |

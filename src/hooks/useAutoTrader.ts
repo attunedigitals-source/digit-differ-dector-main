@@ -528,7 +528,7 @@ export function useAutoTrader(
       return null;
     }
 
-    if (config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i") {
+    if (config.strategy === "strategy_g" || config.strategy === "strategy_i") {
       const currentSymbol = sessionStateRef.current.currentSymbol;
       const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
       const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
@@ -602,7 +602,7 @@ export function useAutoTrader(
       let seqStep = state.sequenceStep;
 
       let symbol: string;
-      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "alternating" || config.strategy === "strategy_h";
+      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "alternating";
       
       const isSuspended = (sym: string) => {
         const tracking = volatilityTracking[sym];
@@ -613,9 +613,24 @@ export function useAutoTrader(
                          state.status === "LOSS" && 
                          state.currentSymbol && 
                          !isSuspended(state.currentSymbol) && 
-                         !((config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_h") && state.forceSwapSymbol);
+                         !((config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") && state.forceSwapSymbol);
 
-      if (shouldKeep) {
+      if (config.strategy === "strategy_h") {
+        let k = state.fibonacciIndex ?? -1;
+        if (k === -1) {
+          k = selectUnusedFibonacciIndex(state.usedStartIndices || []);
+          state.usedStartIndices = [...(state.usedStartIndices || []), k];
+          state.fibonacciIndex = k;
+        }
+        const symbols = [
+          "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+          "R_10", "R_25", "R_50", "R_75", "R_100",
+        ];
+        const fibValue = getFibonacci(k);
+        const symbolMod = Number(fibValue % 10n);
+        symbol = symbols[symbolMod];
+        console.log(`[Strategy H Volatility] Index k: ${k}, F(k): ${fibValue.toString()}, F(k) % 10: ${symbolMod} -> ${symbol}`);
+      } else if (shouldKeep) {
         symbol = state.currentSymbol;
       } else {
         const selectedSymbol = config.strategy === "strategy_e"
@@ -1377,23 +1392,14 @@ export function useAutoTrader(
     let nextForceSwapSymbol = state.forceSwapSymbol || false;
     let nextBlacklist = { ...(state.blacklistedPrefixes || {}) };
 
-    if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h") {
+    if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g") {
       if (isWin) {
         nextSymbolLosses = 0;
         nextForceSwapSymbol = false;
       } else {
         nextSymbolLosses += 1;
         
-        if (config.strategy === "strategy_h") {
-          if (nextSymbolLosses === 3) {
-            nextSymbolLosses = 0;
-            nextForceSwapSymbol = true;
-            toast.warning(`Strategy H: 3 consecutive losses on ${symbol}. Forcing random volatility index swap.`, {
-              duration: 5000
-            });
-            console.log(`[Strategy H] 3 consecutive losses on ${symbol}. Forcing random volatility index swap.`);
-          }
-        } else if (config.strategy === "strategy_f") {
+        if (config.strategy === "strategy_f") {
           if (nextSymbolLosses === 5) {
             const prefix = (state.currentArrangement || []).slice(0, 5).join(",");
             if (prefix) {
