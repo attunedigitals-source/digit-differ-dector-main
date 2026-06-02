@@ -118,7 +118,7 @@ export function getNextArrangement(progressIndex: number, seed: number): { index
  * Converts a direction code (e.g., "U4") to its Deriv contract parameters
  */
 export function directionToDetails(direction: string): {
-  type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT";
+  type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALLE" | "PUTE";
   barrier?: number;
 } {
   switch (direction) {
@@ -140,10 +140,10 @@ export function directionToDetails(direction: string): {
       return { type: "DIGITODD", barrier: undefined };
     case "RISE":
     case "Rise":
-      return { type: "CALL", barrier: undefined };
+      return { type: "PUTE", barrier: undefined };
     case "FALL":
     case "Fall":
-      return { type: "PUT", barrier: undefined };
+      return { type: "CALLE", barrier: undefined };
     default:
       console.warn(`[ArrangementBrain] Unknown direction code: ${direction}. Falling back to default O5.`);
       return { type: "DIGITOVER", barrier: 5 };

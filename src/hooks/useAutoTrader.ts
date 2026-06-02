@@ -260,9 +260,9 @@ export function useAutoTrader(
       currentStake: savedStake ? parseFloat(savedStake) : 0.35,
       martingaleStep: savedMartStep ? parseInt(savedMartStep) : 0,
       sequenceStep: savedSeqStep ? parseInt(savedSeqStep) : 0,
-      initialChoice: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT",
+      initialChoice: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALLE" | "PUTE",
       currentSymbol: savedSymbol || "",
-      currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT",
+      currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALLE" | "PUTE",
       currentBarrier: 5,
       status: (savedStatus as any) || "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
       nextAction: "IDLE_RDY",
@@ -836,7 +836,7 @@ export function useAutoTrader(
         return;
       }
 
-      let type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALL" | "PUT";
+      let type: "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALLE" | "PUTE";
       let barrier: number | undefined;
       if (trade === "under4") { type = "DIGITUNDER"; barrier = 4; }
       else if (trade === "over4") { type = "DIGITOVER"; barrier = 4; }
@@ -844,8 +844,8 @@ export function useAutoTrader(
       else if (trade === "over5") { type = "DIGITOVER"; barrier = 5; }
       else if (trade === "even") { type = "DIGITEVEN"; barrier = undefined; }
       else if (trade === "odd") { type = "DIGITODD"; barrier = undefined; }
-      else if (trade === "rise") { type = "CALL"; barrier = undefined; }
-      else if (trade === "fall") { type = "PUT"; barrier = undefined; }
+      else if (trade === "rise") { type = "PUTE"; barrier = undefined; }
+      else if (trade === "fall") { type = "CALLE"; barrier = undefined; }
       else if (trade === "over0") { type = "DIGITOVER"; barrier = 0; }
       else { type = "DIGITUNDER"; barrier = 9; }
 
@@ -948,9 +948,6 @@ export function useAutoTrader(
         req_id: reqId,
       };
 
-      if (type === "CALL" || type === "PUT") {
-        proposalReq.allow_equals = 1;
-      }
 
       if (barrier !== undefined) {
         proposalReq.barrier = String(barrier);
