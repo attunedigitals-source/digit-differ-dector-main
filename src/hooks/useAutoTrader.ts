@@ -720,7 +720,7 @@ export function useAutoTrader(
             let elements = ['U4', 'O4', 'U5', 'O5'];
             let counts = [3, 3, 3, 3];
             let totalArrangements = 369600;
-            if (config.strategy === "strategy_c") {
+            if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;
@@ -1348,7 +1348,7 @@ export function useAutoTrader(
           if (lossPrefix.length < 12) {
             let elements = ['U4', 'O4', 'U5', 'O5'];
             let counts = [3, 3, 3, 3];
-            if (config.strategy === "strategy_c") {
+            if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
             }
@@ -1367,7 +1367,7 @@ export function useAutoTrader(
             let totalArrangements = 369600;
             let elements = ['U4', 'O4', 'U5', 'O5'];
             let counts = [3, 3, 3, 3];
-            if (config.strategy === "strategy_c") {
+            if (config.strategy === "strategy_c" || config.strategy === "strategy_d") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;

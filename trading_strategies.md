@@ -6,18 +6,21 @@ This document outlines the underlying mathematical framework, individual strateg
 
 ## 1. Mathematical & Structural Foundation
 
-All strategies (A to F) run on a continuous **12-trade cycle** composed of exactly **4 element types** (permutations of market contract directions):
+Most strategies run on a continuous **12-trade cycle** composed of programmatically balanced market contract directions:
 
 *   **`U4`** (Digit Under 4): Barrier = `4`. Wins if the tick's last digit is **0, 1, 2, or 3** (probability = 40%).
 *   **`O4`** (Digit Over 4): Barrier = `4`. Wins if the tick's last digit is **5, 6, 7, 8, or 9** (probability = 50%).
 *   **`U5`** (Digit Under 5): Barrier = `5`. Wins if the tick's last digit is **0, 1, 2, 3, or 4** (probability = 50%).
 *   **`O5`** (Digit Over 5): Barrier = `5`. Wins if the tick's last digit is **6, 7, 8, or 9** (probability = 40%).
+*   **`EV`** (Digit Even): Wins if the tick's last digit is **0, 2, 4, 6, or 8** (probability = 50%).
+*   **`OD`** (Digit Odd): Wins if the tick's last digit is **1, 3, 5, 7, or 9** (probability = 50%).
 
 ### The Permutation Deck
-In every 12-trade cycle, each of these elements is programmatically required to appear **exactly 3 times** (`[3, 3, 3, 3]`). This ensures a mathematically balanced distribution.
-*   This constraint yields exactly **369,600 unique balanced permutations** of the 12-trade cycle:
+*   **4-Element Deck (A, B, E, F, G)**: Uses `['U4', 'O4', 'U5', 'O5']`, each appearing **exactly 3 times** (`[3, 3, 3, 3]`). This yields **369,600 unique balanced permutations**:
     $$\frac{12!}{3! \times 3! \times 3! \times 3!} = 369,600$$
-*   **LCG Cycle-Walking Bijection**: The bot traverses this deck of 369,600 arrangements using a Linear Congruential Generator (LCG) cycle-walking bijection seeded at the session level. This allows the system to walk through every unique arrangement in a pseudo-randomized path with **zero duplicate sequences** and **$O(1)$ memory complexity** without storing a massive array in RAM.
+*   **6-Element Deck (C, D)**: Uses `['U4', 'O4', 'U5', 'O5', 'EV', 'OD']`, each appearing **exactly 2 times** (`[2, 2, 2, 2, 2, 2]`). This yields **7,484,400 unique balanced permutations**:
+    $$\frac{12!}{2! \times 2! \times 2! \times 2! \times 2! \times 2!} = 7,484,400$$
+*   **LCG Cycle-Walking Bijection**: The bot traverses the deck arrangements using a Linear Congruential Generator (LCG) cycle-walking bijection seeded at the session level. This allows the system to walk through every unique arrangement in a pseudo-randomized path with **zero duplicate sequences** and **$O(1)$ memory complexity** without storing a massive array in RAM.
 
 ### Risk & Stake Management (Martingale)
 *   **Base Stake**: The starting trade stake (e.g., $\$0.35$).
