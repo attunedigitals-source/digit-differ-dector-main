@@ -203,5 +203,55 @@ describe("Strategy A Arrangement Brain Math", () => {
       expect(computed).toBe(rank);
     });
   });
+
+  describe("Strategy J Generalized Fibonacci mod 8 mapping rules", () => {
+    const getGeneralizedFibonacci = (a: number, b: number, n: number): bigint => {
+      if (n <= 0) return BigInt(a);
+      if (n === 1) return BigInt(b);
+      let prev2 = BigInt(a);
+      let prev1 = BigInt(b);
+      for (let i = 2; i <= n; i++) {
+        const temp = prev2 + prev1;
+        prev2 = prev1;
+        prev1 = temp;
+      }
+      return prev1;
+    };
+
+    const mapModToTrade = (val: bigint): string => {
+      const mod = Number(val % 8n);
+      if (mod === 1) return "under4";
+      if (mod === 2) return "over5";
+      if (mod === 3) return "even";
+      if (mod === 4) return "rise";
+      if (mod === 5) return "under5";
+      if (mod === 6) return "over4";
+      if (mod === 7) return "fall";
+      return "odd"; // mod === 0
+    };
+
+    it("should compute correct terms for G(n)", () => {
+      // G(0)=3, G(1)=5
+      expect(getGeneralizedFibonacci(3, 5, 0)).toBe(3n);
+      expect(getGeneralizedFibonacci(3, 5, 1)).toBe(5n);
+      expect(getGeneralizedFibonacci(3, 5, 2)).toBe(8n);
+      expect(getGeneralizedFibonacci(3, 5, 3)).toBe(13n);
+      expect(getGeneralizedFibonacci(3, 5, 4)).toBe(21n);
+      expect(getGeneralizedFibonacci(3, 5, 5)).toBe(34n);
+    });
+
+    it("should map G(n) modulo 8 to correct trade types", () => {
+      expect(mapModToTrade(1n)).toBe("under4");
+      expect(mapModToTrade(2n)).toBe("over5");
+      expect(mapModToTrade(3n)).toBe("even");
+      expect(mapModToTrade(4n)).toBe("rise");
+      expect(mapModToTrade(5n)).toBe("under5");
+      expect(mapModToTrade(6n)).toBe("over4");
+      expect(mapModToTrade(7n)).toBe("fall");
+      expect(mapModToTrade(0n)).toBe("odd");
+      expect(mapModToTrade(8n)).toBe("odd");
+      expect(mapModToTrade(9n)).toBe("under4");
+    });
+  });
 });
 

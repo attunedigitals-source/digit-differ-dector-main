@@ -51,6 +51,20 @@ const getFibonacci = (k: number): bigint => {
   return b;
 };
 
+const getGeneralizedFibonacci = (a: number, b: number, n: number): bigint => {
+  if (n <= 0) return BigInt(a);
+  if (n === 1) return BigInt(b);
+  let prev2 = BigInt(a);
+  let prev1 = BigInt(b);
+  for (let i = 2; i <= n; i++) {
+    const temp = prev2 + prev1;
+    prev2 = prev1;
+    prev1 = temp;
+  }
+  return prev1;
+};
+
+
 const selectUnusedFibonacciIndex = (used: number[]): number => {
   const usedSet = new Set(used || []);
   const candidates: number[] = [];
@@ -144,6 +158,9 @@ export function useAutoTrader(
     const savedBlacklist = localStorage.getItem('blacklistedPrefixes');
     const savedFibIndex = localStorage.getItem('fibonacciIndex');
     const savedUsedIndices = localStorage.getItem('usedStartIndices');
+    const savedJStartA = localStorage.getItem('strategyJ_fibStartA');
+    const savedJStartB = localStorage.getItem('strategyJ_fibStartB');
+    const savedJStep = localStorage.getItem('strategyJ_fibStep');
     let usedIndices: number[] = [];
     if (savedUsedIndices) {
       try {
@@ -279,6 +296,9 @@ export function useAutoTrader(
       blacklistedPrefixes: blacklist,
       fibonacciIndex: savedFibIndex ? parseInt(savedFibIndex) : -1,
       usedStartIndices: usedIndices,
+      strategyJ_fibStartA: savedJStartA ? parseInt(savedJStartA) : -1,
+      strategyJ_fibStartB: savedJStartB ? parseInt(savedJStartB) : -1,
+      strategyJ_fibStep: savedJStep ? parseInt(savedJStep) : -1,
     };
   });
 
@@ -719,12 +739,36 @@ export function useAutoTrader(
             stepIndexRef.current += 1;
           }
         } else if (config.strategy === "strategy_j") {
-          const pool: TradeCategory[] = ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"];
-          const tradeDir = pool[Math.floor(Math.random() * pool.length)];
+          let startA = state.strategyJ_fibStartA ?? -1;
+          let startB = state.strategyJ_fibStartB ?? -1;
+          let step = state.strategyJ_fibStep ?? -1;
+
+          if (startA === -1 || startB === -1 || step === -1) {
+            startA = Math.floor(Math.random() * 10000) + 1;
+            startB = Math.floor(Math.random() * 10000) + 1;
+            step = 0;
+          }
+
+          const fibValue = getGeneralizedFibonacci(startA, startB, step);
+          const modValue = Number(fibValue % 8n);
+          
+          let tradeDir: TradeCategory;
+          if (modValue === 1) tradeDir = "under4";
+          else if (modValue === 2) tradeDir = "over5";
+          else if (modValue === 3) tradeDir = "even";
+          else if (modValue === 4) tradeDir = "rise";
+          else if (modValue === 5) tradeDir = "under5";
+          else if (modValue === 6) tradeDir = "over4";
+          else if (modValue === 7) tradeDir = "fall";
+          else tradeDir = "odd"; // modValue === 0
+
+          console.log(`[Strategy J Execution] Seeds: (${startA}, ${startB}), Step: ${step}, G(step): ${fibValue.toString()}, G(step) % 8: ${modValue} -> ${tradeDir}`);
+          
           trade = tradeDir;
           chosenGroup = getCategoryGroup(trade);
-
-          console.log(`[Strategy J Execution] Selected random direction from pool: ${tradeDir}`);
+          state.strategyJ_fibStartA = startA;
+          state.strategyJ_fibStartB = startB;
+          state.strategyJ_fibStep = step;
 
           if (state.status === "WIN" || state.status === "IDLE") {
             nextStep = 0;
@@ -931,6 +975,9 @@ export function useAutoTrader(
         forceSwapSymbol: false,
         fibonacciIndex: state.fibonacciIndex,
         usedStartIndices: state.usedStartIndices,
+        strategyJ_fibStartA: state.strategyJ_fibStartA,
+        strategyJ_fibStartB: state.strategyJ_fibStartB,
+        strategyJ_fibStep: state.strategyJ_fibStep,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -1529,6 +1576,21 @@ export function useAutoTrader(
       }
     }
 
+    let nextJStartA = state.strategyJ_fibStartA ?? -1;
+    let nextJStartB = state.strategyJ_fibStartB ?? -1;
+    let nextJStep = state.strategyJ_fibStep ?? -1;
+    if (config.strategy === "strategy_j") {
+      if (isWin) {
+        nextJStartA = Math.floor(Math.random() * 10000) + 1;
+        nextJStartB = Math.floor(Math.random() * 10000) + 1;
+        nextJStep = 0;
+        console.log(`[Strategy J Result] Trade Won! Re-seeding generalized Fibonacci seeds: A = ${nextJStartA}, B = ${nextJStartB}, step = ${nextJStep}`);
+      } else {
+        nextJStep = (state.strategyJ_fibStep ?? 0) + 1;
+        console.log(`[Strategy J Result] Trade Lost! Advancing step to next Fibonacci sequence number: step = ${nextJStep}`);
+      }
+    }
+
     const nextSessionState = {
       ...state,
       status: newStatus,
@@ -1545,6 +1607,9 @@ export function useAutoTrader(
       blacklistedPrefixes: nextBlacklist,
       fibonacciIndex: nextFibonacciIndex,
       usedStartIndices: nextUsedStartIndices,
+      strategyJ_fibStartA: nextJStartA,
+      strategyJ_fibStartB: nextJStartB,
+      strategyJ_fibStep: nextJStep,
     };
     sessionStateRef.current = nextSessionState;
     setSessionState(nextSessionState);
@@ -1830,6 +1895,9 @@ export function useAutoTrader(
     localStorage.setItem('blacklistedPrefixes', JSON.stringify(sessionState.blacklistedPrefixes || []));
     localStorage.setItem('fibonacciIndex', String(sessionState.fibonacciIndex ?? -1));
     localStorage.setItem('usedStartIndices', JSON.stringify(sessionState.usedStartIndices || []));
+    localStorage.setItem('strategyJ_fibStartA', String(sessionState.strategyJ_fibStartA ?? -1));
+    localStorage.setItem('strategyJ_fibStartB', String(sessionState.strategyJ_fibStartB ?? -1));
+    localStorage.setItem('strategyJ_fibStep', String(sessionState.strategyJ_fibStep ?? -1));
   }, [sessionState]);
 
   useEffect(() => {
