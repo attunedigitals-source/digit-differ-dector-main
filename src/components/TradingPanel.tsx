@@ -228,10 +228,11 @@ export function TradingPanel({
             <SelectItem value="strategy_g">Strategy G (Pre-Planned + Session Prefix Elimination)</SelectItem>
             <SelectItem value="strategy_h">Strategy H (Fibonacci Trade Engine)</SelectItem>
             <SelectItem value="strategy_i">Strategy I (Random Loop Engine)</SelectItem>
+            <SelectItem value="strategy_j">Strategy J (Random Volatility & Trade Loop)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a fully randomized volatility and direction pool loop with Strategy D martingale and stake rules.
         </p>
       </div>
 
@@ -543,6 +544,68 @@ export function TradingPanel({
                   label = "Over 4"; textClass = "text-emerald-400"; bgClass = "bg-emerald-950/20"; borderClass = "border-emerald-950/40";
                 } else {
                   label = "Odd"; textClass = "text-cyan-400"; bgClass = "bg-cyan-950/20"; borderClass = "border-cyan-950/40";
+                }
+
+                return (
+                  <div
+                    key={code}
+                    title={label}
+                    className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded border ${bgClass} ${borderClass} opacity-80`}
+                  >
+                    <span className={`text-[10px] font-mono font-black ${textClass}`}>
+                      {code}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {config.strategy === "strategy_j" && (
+        <div className="bg-gradient-to-br from-pink-500/15 via-card to-purple-500/15 border border-pink-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center justify-between border-b border-pink-500/10 pb-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-pink-400 uppercase tracking-wider flex items-center gap-1">
+                <Shuffle className="w-3.5 h-3.5 text-pink-400 animate-pulse" /> Strategy J (Random Volatility & Trade Loop)
+              </span>
+              <span className="text-[8px] text-muted-foreground">
+                Path: Fully randomized volatility & contract direction from pool
+              </span>
+            </div>
+            <Badge variant="outline" className="text-[9px] border-pink-500/30 text-pink-400 bg-pink-500/5 px-1.5 py-0.5 animate-pulse">
+              ACTIVE LOOP
+            </Badge>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[9px] text-muted-foreground uppercase tracking-wider block">Contract Candidates Pool:</span>
+            <div className="grid grid-cols-4 gap-1.5 py-1">
+              {["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"].map((code) => {
+                let textClass = "";
+                let bgClass = "";
+                let borderClass = "";
+                let label = "";
+
+                if (code === "U4") {
+                  label = "Under 4"; textClass = "text-blue-400"; bgClass = "bg-blue-950/20"; borderClass = "border-blue-950/40";
+                } else if (code === "O4") {
+                  label = "Over 4"; textClass = "text-emerald-400"; bgClass = "bg-emerald-950/20"; borderClass = "border-emerald-950/40";
+                } else if (code === "U5") {
+                  label = "Under 5"; textClass = "text-purple-400"; bgClass = "bg-purple-950/20"; borderClass = "border-purple-950/40";
+                } else if (code === "O5") {
+                  label = "Over 5"; textClass = "text-amber-400"; bgClass = "bg-amber-950/20"; borderClass = "border-amber-950/40";
+                } else if (code === "EV") {
+                  label = "Even"; textClass = "text-violet-400"; bgClass = "bg-violet-950/20"; borderClass = "border-violet-950/40";
+                } else if (code === "OD") {
+                  label = "Odd"; textClass = "text-cyan-400"; bgClass = "bg-cyan-950/20"; borderClass = "border-cyan-950/40";
+                } else if (code === "RISE") {
+                  label = "Rise (Put)"; textClass = "text-rose-400"; bgClass = "bg-rose-950/20"; borderClass = "border-rose-950/40";
+                } else {
+                  label = "Fall (Call)"; textClass = "text-red-400"; bgClass = "bg-red-950/20"; borderClass = "border-red-950/40";
                 }
 
                 return (

@@ -200,12 +200,14 @@ export function useAutoTrader(
       
       const savedConfig = localStorage.getItem('autoTraderConfig');
       let isStrategyC = false;
+      let isStrategyD = false;
       let isStrategyF = false;
       let isStrategyG = false;
       if (savedConfig) {
         try {
           const parsed = JSON.parse(savedConfig);
           isStrategyC = parsed.strategy === "strategy_c";
+          isStrategyD = parsed.strategy === "strategy_d";
           isStrategyF = parsed.strategy === "strategy_f";
           isStrategyG = parsed.strategy === "strategy_g";
         } catch (e) {}
@@ -494,7 +496,7 @@ export function useAutoTrader(
     const candidates = symbols
       .map((symbol) => {
         // Skip suspended symbols under Strategy C, D, E and F
-        if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") {
+        if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_j") {
           const tracking = volatilityTracking[symbol];
           if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
             return null;
@@ -532,7 +534,7 @@ export function useAutoTrader(
       return null;
     }
 
-    if (config.strategy === "strategy_g" || config.strategy === "strategy_i") {
+    if (config.strategy === "strategy_g" || config.strategy === "strategy_i" || config.strategy === "strategy_j") {
       const currentSymbol = sessionStateRef.current.currentSymbol;
       const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
       const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
@@ -672,7 +674,7 @@ export function useAutoTrader(
         fall: "Fall"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i" || config.strategy === "strategy_j") {
         if (config.strategy === "strategy_h") {
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
@@ -709,6 +711,20 @@ export function useAutoTrader(
           chosenGroup = getCategoryGroup(trade);
 
           console.log(`[Strategy I Execution] Selected random direction from pool: ${tradeDir}`);
+
+          if (state.status === "WIN" || state.status === "IDLE") {
+            nextStep = 0;
+          } else if (state.status === "LOSS") {
+            nextStep = state.martingaleStep + 1;
+            stepIndexRef.current += 1;
+          }
+        } else if (config.strategy === "strategy_j") {
+          const pool: TradeCategory[] = ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"];
+          const tradeDir = pool[Math.floor(Math.random() * pool.length)];
+          trade = tradeDir;
+          chosenGroup = getCategoryGroup(trade);
+
+          console.log(`[Strategy J Execution] Selected random direction from pool: ${tradeDir}`);
 
           if (state.status === "WIN" || state.status === "IDLE") {
             nextStep = 0;
