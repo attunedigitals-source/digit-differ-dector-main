@@ -749,18 +749,38 @@ export function useAutoTrader(
             step = 0;
           }
 
-          const fibValue = getGeneralizedFibonacci(startA, startB, step);
-          const modValue = Number(fibValue % 8n);
+          if (state.status === "WIN" || state.status === "IDLE") {
+            nextStep = 0;
+          } else if (state.status === "LOSS") {
+            nextStep = state.martingaleStep + 1;
+            stepIndexRef.current += 1;
+          }
+
+          let fibValue = getGeneralizedFibonacci(startA, startB, step);
+          let modValue = Number(fibValue % 8n);
           
-          let tradeDir: TradeCategory;
-          if (modValue === 1) tradeDir = "under4";
-          else if (modValue === 2) tradeDir = "over5";
-          else if (modValue === 3) tradeDir = "even";
-          else if (modValue === 4) tradeDir = "rise";
-          else if (modValue === 5) tradeDir = "under5";
-          else if (modValue === 6) tradeDir = "over4";
-          else if (modValue === 7) tradeDir = "fall";
-          else tradeDir = "odd"; // modValue === 0
+          const getDirFromMod = (mod: number): TradeCategory => {
+            if (mod === 1) return "under4";
+            if (mod === 2) return "over5";
+            if (mod === 3) return "even";
+            if (mod === 4) return "rise";
+            if (mod === 5) return "under5";
+            if (mod === 6) return "over4";
+            if (mod === 7) return "fall";
+            return "odd"; // mod === 0
+          };
+
+          let tradeDir = getDirFromMod(modValue);
+
+          if (nextStep >= 3) {
+            while (tradeDir === "under4" || tradeDir === "over5") {
+              step += 1;
+              fibValue = getGeneralizedFibonacci(startA, startB, step);
+              modValue = Number(fibValue % 8n);
+              tradeDir = getDirFromMod(modValue);
+              console.log(`[Strategy J Skipped] ${nextStep} consecutive losses. Skipped Over 5 / Under 4. Advanced step to ${step}, G(step) % 8: ${modValue} -> ${tradeDir}`);
+            }
+          }
 
           console.log(`[Strategy J Execution] Seeds: (${startA}, ${startB}), Step: ${step}, G(step): ${fibValue.toString()}, G(step) % 8: ${modValue} -> ${tradeDir}`);
           
@@ -769,13 +789,6 @@ export function useAutoTrader(
           state.strategyJ_fibStartA = startA;
           state.strategyJ_fibStartB = startB;
           state.strategyJ_fibStep = step;
-
-          if (state.status === "WIN" || state.status === "IDLE") {
-            nextStep = 0;
-          } else if (state.status === "LOSS") {
-            nextStep = state.martingaleStep + 1;
-            stepIndexRef.current += 1;
-          }
         } else {
           let currentArr = state.currentArrangement || [];
           let currentArrIdx = state.currentArrangementIndex || 0;

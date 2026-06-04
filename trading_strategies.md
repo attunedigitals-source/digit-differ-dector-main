@@ -116,17 +116,32 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Fully Randomized Direction**: Draws the next trade contract type purely randomly on *every* trade from the 6-direction pool: `['U4', 'O4', 'U5', 'O5', 'EV', 'OD']`.
     *   **Martingale and Staking**: Inherits the exact staking rules of Strategy H, resetting to base stake on wins, incrementing the martingale step on losses, and applying the extra **$1.26\times$** special multiplier on the special contract directions (`U5`, `O4`, `Even`, `Odd`) for payout coverage.
 
+### Strategy J: Generalized Fibonacci Loop Engine
+*   **Core Concept**: A mathematical loop engine where contract directions are selected using a generalized Fibonacci sequence modulo 8, coupled with random volatility selection and standard Martingale progression.
+*   **Trade Execution**:
+    *   **Fibonacci-Mapped Walk**: Mapped modulo 8 to 8 contract directions based on $G(\text{step}) \pmod 8$:
+        *   `1`: **`U4`** (Digit Under 4) - wins on 0, 1, 2, 3
+        *   `2`: **`O5`** (Digit Over 5) - wins on 6, 7, 8, 9
+        *   `3`: **`Even`** (Digit Even) - wins on 0, 2, 4, 6, 8 [Special Stake Multiplier 1.26x]
+        *   `4`: **`Rise`** (Allow Equals) - wins on tick rise [Special Stake Multiplier 1.26x]
+        *   `5`: **`U5`** (Digit Under 5) - wins on 0, 1, 2, 3, 4 [Special Stake Multiplier 1.26x]
+        *   `6`: **`O4`** (Digit Over 4) - wins on 5, 6, 7, 8, 9 [Special Stake Multiplier 1.26x]
+        *   `7`: **`Fall`** (Allow Equals) - wins on tick fall [Special Stake Multiplier 1.26x]
+        *   `0`: **`Odd`** (Digit Odd) - wins on 1, 3, 5, 7, 9 [Special Stake Multiplier 1.26x]
+    *   **Seed Generation**: Initializes with random seeds $A$ and $B$ in range $[1, 10000]$ at session start or after wins, starting at step 0.
+    *   **Drawdown Skip Rule**: After the 3rd consecutive loss (martingale step $\ge 3$), the trade directions `U4` (Under 4) and `O5` (Over 5) are skipped. If selected, the step is sequentially advanced ($n \rightarrow n+1$) until a non-skipped direction is selected.
+
 ---
 
 ## 3. Comparative Summary
 
-| Feature / Strategy | Strategy A | Strategy B | Strategy C | Strategy D | Strategy E (God Mode) | Strategy F | Strategy G | Strategy H | Strategy I |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | No (Fibonacci modulo 10) | No (Random) |
-| **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None | None | None |
-| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No | No |
-| **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No |
-| **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No | No |
-| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) | No |
-| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck (6-element Even/Odd) | LCG arrangement deck (8-element Even/Odd/Rise/Fall) | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection |
+| Feature / Strategy | Strategy A | Strategy B | Strategy C | Strategy D | Strategy E (God Mode) | Strategy F | Strategy G | Strategy H | Strategy I | Strategy J |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | No (Fibonacci modulo 10) | No (Random) | No (Random) |
+| **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None | None | None | None |
+| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No | No | Yes (Drawdown Skip) |
+| **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No | No |
+| **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No | No | No |
+| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) | No | No |
+| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck (6-element Even/Odd) | LCG arrangement deck (8-element Even/Odd/Rise/Fall) | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection | Generalized Fibonacci modulo 8 progression |
 

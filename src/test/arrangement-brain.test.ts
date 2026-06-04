@@ -252,6 +252,39 @@ describe("Strategy A Arrangement Brain Math", () => {
       expect(mapModToTrade(8n)).toBe("odd");
       expect(mapModToTrade(9n)).toBe("under4");
     });
+
+    it("should skip under4 and over5 trade directions after 3rd consecutive loss and advance step", () => {
+      const runSkipLogic = (startA: number, startB: number, initialStep: number, consecutiveLosses: number): { finalStep: number; direction: string } => {
+        let step = initialStep;
+        let fibValue = getGeneralizedFibonacci(startA, startB, step);
+        let tradeDir = mapModToTrade(fibValue);
+
+        if (consecutiveLosses >= 3) {
+          while (tradeDir === "under4" || tradeDir === "over5") {
+            step += 1;
+            fibValue = getGeneralizedFibonacci(startA, startB, step);
+            tradeDir = mapModToTrade(fibValue);
+          }
+        }
+        return { finalStep: step, direction: tradeDir };
+      };
+
+      // Less than 3 consecutive losses: should NOT skip and remain at step 0 ("under4")
+      expect(runSkipLogic(1, 2, 0, 2)).toEqual({ finalStep: 0, direction: "under4" });
+
+      // 3 consecutive losses, starting at step 0 (which maps to "under4"):
+      // Step 0 ("under4") -> skipped.
+      // Step 1 ("over5") -> skipped.
+      // Step 2 ("even") -> allowed!
+      // Final step should be 2, direction should be "even".
+      expect(runSkipLogic(1, 2, 0, 3)).toEqual({ finalStep: 2, direction: "even" });
+
+      // 3 consecutive losses, starting at step 1 (which maps to "over5"):
+      // Step 1 ("over5") -> skipped.
+      // Step 2 ("even") -> allowed!
+      // Final step should be 2, direction should be "even".
+      expect(runSkipLogic(1, 2, 1, 3)).toEqual({ finalStep: 2, direction: "even" });
+    });
   });
 });
 
