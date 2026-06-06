@@ -756,40 +756,62 @@ export function useAutoTrader(
             stepIndexRef.current += 1;
           }
 
-          let fibValue = getGeneralizedFibonacci(startA, startB, step);
-          let modValue = Number((fibValue % 10007n) % 8n);
-          
-          const getDirFromMod = (mod: number): TradeCategory => {
-            if (mod === 1) return "under4";
-            if (mod === 2) return "over5";
-            if (mod === 3) return "even";
-            if (mod === 4) return "rise";
-            if (mod === 5) return "under5";
-            if (mod === 6) return "over4";
-            if (mod === 7) return "fall";
-            return "odd"; // mod === 0
-          };
+          let tradeDir: TradeCategory;
 
-          let tradeDir = getDirFromMod(modValue);
-
-          if (nextStep >= 3) {
-            const shouldSkip = (dir: TradeCategory) => {
-              if (nextStep >= 5) {
-                return dir === "under4" || dir === "over5" || dir === "under5" || dir === "over4";
+          if (nextStep >= 5) {
+            if (nextStep === 5) {
+              const pool: TradeCategory[] = ["rise", "fall", "even", "odd"];
+              tradeDir = pool[Math.floor(Math.random() * pool.length)];
+              console.log(`[Strategy J Ping-Pong Start] 5 consecutive losses. 6th trade randomly selected: ${tradeDir}`);
+            } else {
+              const prevCategory = state.currentCategory;
+              if (prevCategory === "rise" || prevCategory === "fall") {
+                const pool: TradeCategory[] = ["even", "odd"];
+                tradeDir = pool[Math.floor(Math.random() * pool.length)];
+                console.log(`[Strategy J Ping-Pong Walk] Previous was ${prevCategory}. Selecting randomly from even/odd: ${tradeDir}`);
+              } else if (prevCategory === "even" || prevCategory === "odd") {
+                const pool: TradeCategory[] = ["rise", "fall"];
+                tradeDir = pool[Math.floor(Math.random() * pool.length)];
+                console.log(`[Strategy J Ping-Pong Walk] Previous was ${prevCategory}. Selecting randomly from rise/fall: ${tradeDir}`);
+              } else {
+                const pool: TradeCategory[] = ["rise", "fall", "even", "odd"];
+                tradeDir = pool[Math.floor(Math.random() * pool.length)];
+                console.log(`[Strategy J Ping-Pong Fallback] Previous was ${prevCategory}. Selecting randomly: ${tradeDir}`);
               }
-              return dir === "under4" || dir === "over5";
+            }
+          } else {
+            let fibValue = getGeneralizedFibonacci(startA, startB, step);
+            let modValue = Number((fibValue % 10007n) % 8n);
+            
+            const getDirFromMod = (mod: number): TradeCategory => {
+              if (mod === 1) return "under4";
+              if (mod === 2) return "over5";
+              if (mod === 3) return "even";
+              if (mod === 4) return "rise";
+              if (mod === 5) return "under5";
+              if (mod === 6) return "over4";
+              if (mod === 7) return "fall";
+              return "odd"; // mod === 0
             };
 
-            while (shouldSkip(tradeDir)) {
-              step += 1;
-              fibValue = getGeneralizedFibonacci(startA, startB, step);
-              modValue = Number((fibValue % 10007n) % 8n);
-              tradeDir = getDirFromMod(modValue);
-              console.log(`[Strategy J Skipped] ${nextStep} consecutive losses. Skipped tradeDir: ${tradeDir}. Advanced step to ${step}, G(step) % 8: ${modValue}`);
+            tradeDir = getDirFromMod(modValue);
+
+            if (nextStep >= 3) {
+              const shouldSkip = (dir: TradeCategory) => {
+                return dir === "under4" || dir === "over5";
+              };
+
+              while (shouldSkip(tradeDir)) {
+                step += 1;
+                fibValue = getGeneralizedFibonacci(startA, startB, step);
+                modValue = Number((fibValue % 10007n) % 8n);
+                tradeDir = getDirFromMod(modValue);
+                console.log(`[Strategy J Skipped] ${nextStep} consecutive losses. Skipped tradeDir: ${tradeDir}. Advanced step to ${step}, G(step) % 8: ${modValue}`);
+              }
             }
           }
 
-          console.log(`[Strategy J Execution] Seeds: (${startA}, ${startB}), Step: ${step}, G(step): ${fibValue.toString()}, G(step) % 8: ${modValue} -> ${tradeDir}`);
+          console.log(`[Strategy J Execution] Seeds: (${startA}, ${startB}), Step: ${step}, nextStep: ${nextStep} -> ${tradeDir}`);
           
           trade = tradeDir;
           chosenGroup = getCategoryGroup(trade);

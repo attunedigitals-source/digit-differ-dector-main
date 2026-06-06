@@ -285,6 +285,29 @@ describe("Strategy A Arrangement Brain Math", () => {
       // Final step should be 2, direction should be "even".
       expect(runSkipLogic(1, 2, 1, 3)).toEqual({ finalStep: 2, direction: "even" });
     });
+
+    it("should apply ping-pong logic starting at martingale step 5", () => {
+      const getTradeDirRange = (nextStep: number, prevCategory: string | null): string[] => {
+        if (nextStep >= 5) {
+          if (nextStep === 5) {
+            return ["rise", "fall", "even", "odd"];
+          } else {
+            if (prevCategory === "rise" || prevCategory === "fall") {
+              return ["even", "odd"];
+            } else if (prevCategory === "even" || prevCategory === "odd") {
+              return ["rise", "fall"];
+            }
+          }
+        }
+        return ["fib"];
+      };
+
+      expect(getTradeDirRange(5, null)).toEqual(["rise", "fall", "even", "odd"]);
+      expect(getTradeDirRange(6, "rise")).toEqual(["even", "odd"]);
+      expect(getTradeDirRange(6, "fall")).toEqual(["even", "odd"]);
+      expect(getTradeDirRange(6, "even")).toEqual(["rise", "fall"]);
+      expect(getTradeDirRange(6, "odd")).toEqual(["rise", "fall"]);
+    });
   });
 });
 

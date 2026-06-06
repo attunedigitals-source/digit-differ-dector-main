@@ -55,6 +55,7 @@ interface TradingPanelProps {
     strategyJ_fibStartA?: number;
     strategyJ_fibStartB?: number;
     strategyJ_fibStep?: number;
+    currentCategory?: string | null;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -628,61 +629,104 @@ export function TradingPanel({
                     );
                   }
 
-                  const val = getGeneralizedFibonacci(
-                    sessionState.strategyJ_fibStartA ?? 0,
-                    sessionState.strategyJ_fibStartB ?? 0,
-                    currentN
-                  );
-                  const valStr = val.toString();
-                  const mod = Number((val % 10007n) % 8n);
                   const isActive = offset === 0;
+                  const isPingPongPhase = sessionState.martingaleStep >= 5;
 
                   let code = "U4";
                   let label = "Under 4";
+                  let valStr = "";
                   let bgClass = "";
                   let borderClass = "";
                   let textClass = "";
 
-                  if (mod === 1) {
-                    code = "U4"; label = "Under 4";
-                    bgClass = isActive ? "bg-gradient-to-r from-blue-500/25 to-indigo-500/25" : "bg-blue-950/20";
-                    borderClass = isActive ? "border-blue-400/85 shadow-[0_0_10px_rgba(59,130,246,0.6)]" : "border-blue-950/40 hover:border-blue-900/60";
-                    textClass = "text-blue-400";
-                  } else if (mod === 2) {
-                    code = "O5"; label = "Over 5";
-                    bgClass = isActive ? "bg-gradient-to-r from-amber-500/25 to-orange-500/25" : "bg-amber-950/20";
-                    borderClass = isActive ? "border-amber-400/85 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "border-amber-950/40 hover:border-amber-900/60";
-                    textClass = "text-amber-400";
-                  } else if (mod === 3) {
-                    code = "Even"; label = "Even";
-                    bgClass = isActive ? "bg-gradient-to-r from-violet-500/25 to-fuchsia-500/25" : "bg-violet-950/20";
-                    borderClass = isActive ? "border-violet-400/85 shadow-[0_0_10px_rgba(139,92,246,0.6)]" : "border-violet-950/40 hover:border-violet-900/60";
-                    textClass = "text-violet-400";
-                  } else if (mod === 4) {
-                    code = "CALL"; label = "Call (Rise)";
-                    bgClass = isActive ? "bg-gradient-to-r from-rose-500/25 to-pink-500/25" : "bg-rose-950/20";
-                    borderClass = isActive ? "border-rose-400/85 shadow-[0_0_10px_rgba(244,63,94,0.6)]" : "border-rose-950/40 hover:border-rose-900/60";
-                    textClass = "text-rose-400";
-                  } else if (mod === 5) {
-                    code = "U5"; label = "Under 5";
-                    bgClass = isActive ? "bg-gradient-to-r from-purple-500/25 to-pink-500/25" : "bg-purple-950/20";
-                    borderClass = isActive ? "border-purple-400/85 shadow-[0_0_10px_rgba(168,85,247,0.6)]" : "border-purple-950/40 hover:border-purple-900/60";
-                    textClass = "text-purple-400";
-                  } else if (mod === 6) {
-                    code = "O4"; label = "Over 4";
-                    bgClass = isActive ? "bg-gradient-to-r from-emerald-500/25 to-teal-500/25" : "bg-emerald-950/20";
-                    borderClass = isActive ? "border-emerald-400/85 shadow-[0_0_10px_rgba(52,211,153,0.6)]" : "border-emerald-950/40 hover:border-emerald-900/60";
-                    textClass = "text-emerald-400";
-                  } else if (mod === 7) {
-                    code = "PUT"; label = "Put (Fall)";
-                    bgClass = isActive ? "bg-gradient-to-r from-red-500/25 to-orange-500/25" : "bg-red-950/20";
-                    borderClass = isActive ? "border-red-400/85 shadow-[0_0_10px_rgba(239,68,68,0.6)]" : "border-red-950/40 hover:border-red-900/60";
-                    textClass = "text-red-400";
+                  if (isPingPongPhase) {
+                    if (isActive) {
+                      const cat = sessionState.currentCategory;
+                      valStr = "PING";
+                      if (cat === "rise") {
+                        code = "CALL"; label = "Call (Rise)";
+                        bgClass = "bg-gradient-to-r from-rose-500/25 to-pink-500/25 animate-pulse";
+                        borderClass = "border-rose-400/85 shadow-[0_0_10px_rgba(244,63,94,0.6)]";
+                        textClass = "text-rose-400";
+                      } else if (cat === "fall") {
+                        code = "PUT"; label = "Put (Fall)";
+                        bgClass = "bg-gradient-to-r from-red-500/25 to-orange-500/25 animate-pulse";
+                        borderClass = "border-red-400/85 shadow-[0_0_10px_rgba(239,68,68,0.6)]";
+                        textClass = "text-red-400";
+                      } else if (cat === "even") {
+                        code = "Even"; label = "Even";
+                        bgClass = "bg-gradient-to-r from-violet-500/25 to-fuchsia-500/25 animate-pulse";
+                        borderClass = "border-violet-400/85 shadow-[0_0_10px_rgba(139,92,246,0.6)]";
+                        textClass = "text-violet-400";
+                      } else if (cat === "odd") {
+                        code = "Odd"; label = "Odd";
+                        bgClass = "bg-gradient-to-r from-cyan-500/25 to-sky-500/25 animate-pulse";
+                        borderClass = "border-cyan-400/85 shadow-[0_0_10px_rgba(6,182,212,0.6)]";
+                        textClass = "text-cyan-400";
+                      } else {
+                        code = "P-P"; label = "Ping-Pong";
+                        bgClass = "bg-pink-950/20";
+                        borderClass = "border-pink-950/40";
+                        textClass = "text-pink-400";
+                      }
+                    } else {
+                      code = "P-P";
+                      label = "Ping-Pong Phase";
+                      valStr = "?";
+                      bgClass = "bg-muted/10";
+                      borderClass = "border-dashed border-muted-foreground/20 opacity-40";
+                      textClass = "text-muted-foreground";
+                    }
                   } else {
-                    code = "Odd"; label = "Odd";
-                    bgClass = isActive ? "bg-gradient-to-r from-cyan-500/25 to-sky-500/25" : "bg-cyan-950/20";
-                    borderClass = isActive ? "border-cyan-400/85 shadow-[0_0_10px_rgba(6,182,212,0.6)]" : "border-cyan-950/40 hover:border-cyan-900/60";
-                    textClass = "text-cyan-400";
+                    const val = getGeneralizedFibonacci(
+                      sessionState.strategyJ_fibStartA ?? 0,
+                      sessionState.strategyJ_fibStartB ?? 0,
+                      currentN
+                    );
+                    valStr = val.toString();
+                    const mod = Number((val % 10007n) % 8n);
+
+                    if (mod === 1) {
+                      code = "U4"; label = "Under 4";
+                      bgClass = isActive ? "bg-gradient-to-r from-blue-500/25 to-indigo-500/25" : "bg-blue-950/20";
+                      borderClass = isActive ? "border-blue-400/85 shadow-[0_0_10px_rgba(59,130,246,0.6)]" : "border-blue-950/40 hover:border-blue-900/60";
+                      textClass = "text-blue-400";
+                    } else if (mod === 2) {
+                      code = "O5"; label = "Over 5";
+                      bgClass = isActive ? "bg-gradient-to-r from-amber-500/25 to-orange-500/25" : "bg-amber-950/20";
+                      borderClass = isActive ? "border-amber-400/85 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "border-amber-950/40 hover:border-amber-900/60";
+                      textClass = "text-amber-400";
+                    } else if (mod === 3) {
+                      code = "Even"; label = "Even";
+                      bgClass = isActive ? "bg-gradient-to-r from-violet-500/25 to-fuchsia-500/25" : "bg-violet-950/20";
+                      borderClass = isActive ? "border-violet-400/85 shadow-[0_0_10px_rgba(139,92,246,0.6)]" : "border-violet-950/40 hover:border-violet-900/60";
+                      textClass = "text-violet-400";
+                    } else if (mod === 4) {
+                      code = "CALL"; label = "Call (Rise)";
+                      bgClass = isActive ? "bg-gradient-to-r from-rose-500/25 to-pink-500/25" : "bg-rose-950/20";
+                      borderClass = isActive ? "border-rose-400/85 shadow-[0_0_10px_rgba(244,63,94,0.6)]" : "border-rose-950/40 hover:border-rose-900/60";
+                      textClass = "text-rose-400";
+                    } else if (mod === 5) {
+                      code = "U5"; label = "Under 5";
+                      bgClass = isActive ? "bg-gradient-to-r from-purple-500/25 to-pink-500/25" : "bg-purple-950/20";
+                      borderClass = isActive ? "border-purple-400/85 shadow-[0_0_10px_rgba(168,85,247,0.6)]" : "border-purple-950/40 hover:border-purple-900/60";
+                      textClass = "text-purple-400";
+                    } else if (mod === 6) {
+                      code = "O4"; label = "Over 4";
+                      bgClass = isActive ? "bg-gradient-to-r from-emerald-500/25 to-teal-500/25" : "bg-emerald-950/20";
+                      borderClass = isActive ? "border-emerald-400/85 shadow-[0_0_10px_rgba(52,211,153,0.6)]" : "border-emerald-950/40 hover:border-emerald-900/60";
+                      textClass = "text-emerald-400";
+                    } else if (mod === 7) {
+                      code = "PUT"; label = "Put (Fall)";
+                      bgClass = isActive ? "bg-gradient-to-r from-red-500/25 to-orange-500/25" : "bg-red-950/20";
+                      borderClass = isActive ? "border-red-400/85 shadow-[0_0_10px_rgba(239,68,68,0.6)]" : "border-red-950/40 hover:border-red-900/60";
+                      textClass = "text-red-400";
+                    } else {
+                      code = "Odd"; label = "Odd";
+                      bgClass = isActive ? "bg-gradient-to-r from-cyan-500/25 to-sky-500/25" : "bg-cyan-950/20";
+                      borderClass = isActive ? "border-cyan-400/85 shadow-[0_0_10px_rgba(6,182,212,0.6)]" : "border-cyan-950/40 hover:border-cyan-900/60";
+                      textClass = "text-cyan-400";
+                    }
                   }
 
                   return (
@@ -713,29 +757,40 @@ export function TradingPanel({
 
               <div className="flex items-center gap-1.5 justify-between text-[8px] bg-muted/40 px-2 py-1 rounded border border-border/40">
                 <span className="text-muted-foreground flex items-center gap-1">
-                  <AlertCircle className="w-2.5 h-2.5 text-pink-400 animate-pulse" /> Current Fibonacci Number:
+                  <AlertCircle className="w-2.5 h-2.5 text-pink-400 animate-pulse" /> {sessionState.martingaleStep >= 5 ? "Ping-Pong Recovery Active:" : "Current Fibonacci Number:"}
                 </span>
                 <span className="font-bold text-foreground font-mono">
-                  G({sessionState.strategyJ_fibStep}) = {getGeneralizedFibonacci(
-                    sessionState.strategyJ_fibStartA ?? 0,
-                    sessionState.strategyJ_fibStartB ?? 0,
-                    sessionState.strategyJ_fibStep ?? 0
-                  ).toString()} (Mapped to {(() => {
-                    const val = getGeneralizedFibonacci(
+                  {sessionState.martingaleStep >= 5 ? (
+                    `Step ${sessionState.martingaleStep} (Mapped to ${(() => {
+                      const cat = sessionState.currentCategory;
+                      if (cat === "rise") return "RISE (Allow Equals)";
+                      if (cat === "fall") return "FALL (Allow Equals)";
+                      if (cat === "even") return "DIGITEVEN (No Barrier)";
+                      if (cat === "odd") return "DIGITODD (No Barrier)";
+                      return "Initializing...";
+                    })()})`
+                  ) : (
+                    `G(${sessionState.strategyJ_fibStep}) = ${getGeneralizedFibonacci(
                       sessionState.strategyJ_fibStartA ?? 0,
                       sessionState.strategyJ_fibStartB ?? 0,
                       sessionState.strategyJ_fibStep ?? 0
-                    );
-                    const mod = Number((val % 10007n) % 8n);
-                    if (mod === 1) return "DIGITUNDER 4 (Barrier 4)";
-                    if (mod === 2) return "DIGITOVER 5 (Barrier 5)";
-                    if (mod === 3) return "DIGITEVEN (No Barrier)";
-                    if (mod === 4) return "RISE (Allow Equals)";
-                    if (mod === 5) return "DIGITUNDER 5 (Barrier 5)";
-                    if (mod === 6) return "DIGITOVER 4 (Barrier 4)";
-                    if (mod === 7) return "FALL (Allow Equals)";
-                    return "DIGITODD (No Barrier)";
-                  })()})
+                    ).toString()} (Mapped to ${(() => {
+                      const val = getGeneralizedFibonacci(
+                        sessionState.strategyJ_fibStartA ?? 0,
+                        sessionState.strategyJ_fibStartB ?? 0,
+                        sessionState.strategyJ_fibStep ?? 0
+                      );
+                      const mod = Number((val % 10007n) % 8n);
+                      if (mod === 1) return "DIGITUNDER 4 (Barrier 4)";
+                      if (mod === 2) return "DIGITOVER 5 (Barrier 5)";
+                      if (mod === 3) return "DIGITEVEN (No Barrier)";
+                      if (mod === 4) return "RISE (Allow Equals)";
+                      if (mod === 5) return "DIGITUNDER 5 (Barrier 5)";
+                      if (mod === 6) return "DIGITOVER 4 (Barrier 4)";
+                      if (mod === 7) return "FALL (Allow Equals)";
+                      return "DIGITODD (No Barrier)";
+                    })()})`
+                  )}
                 </span>
               </div>
             </div>
