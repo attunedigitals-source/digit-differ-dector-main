@@ -219,7 +219,7 @@ describe("Strategy A Arrangement Brain Math", () => {
     };
 
     const mapModToTrade = (val: bigint): string => {
-      const mod = Number(val % 8n);
+      const mod = Number((val % 10007n) % 8n);
       if (mod === 1) return "under4";
       if (mod === 2) return "over5";
       if (mod === 3) return "even";

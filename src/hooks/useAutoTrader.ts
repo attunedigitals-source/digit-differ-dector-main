@@ -757,7 +757,7 @@ export function useAutoTrader(
           }
 
           let fibValue = getGeneralizedFibonacci(startA, startB, step);
-          let modValue = Number(fibValue % 8n);
+          let modValue = Number((fibValue % 10007n) % 8n);
           
           const getDirFromMod = (mod: number): TradeCategory => {
             if (mod === 1) return "under4";
@@ -783,7 +783,7 @@ export function useAutoTrader(
             while (shouldSkip(tradeDir)) {
               step += 1;
               fibValue = getGeneralizedFibonacci(startA, startB, step);
-              modValue = Number(fibValue % 8n);
+              modValue = Number((fibValue % 10007n) % 8n);
               tradeDir = getDirFromMod(modValue);
               console.log(`[Strategy J Skipped] ${nextStep} consecutive losses. Skipped tradeDir: ${tradeDir}. Advanced step to ${step}, G(step) % 8: ${modValue}`);
             }

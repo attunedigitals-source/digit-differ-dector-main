@@ -634,7 +634,7 @@ export function TradingPanel({
                     currentN
                   );
                   const valStr = val.toString();
-                  const mod = Number(val % 8n);
+                  const mod = Number((val % 10007n) % 8n);
                   const isActive = offset === 0;
 
                   let code = "U4";
@@ -726,7 +726,7 @@ export function TradingPanel({
                       sessionState.strategyJ_fibStartB ?? 0,
                       sessionState.strategyJ_fibStep ?? 0
                     );
-                    const mod = Number(val % 8n);
+                    const mod = Number((val % 10007n) % 8n);
                     if (mod === 1) return "DIGITUNDER 4 (Barrier 4)";
                     if (mod === 2) return "DIGITOVER 5 (Barrier 5)";
                     if (mod === 3) return "DIGITEVEN (No Barrier)";
