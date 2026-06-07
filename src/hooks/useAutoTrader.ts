@@ -772,23 +772,6 @@ export function useAutoTrader(
 
           let tradeDir = getDirFromMod(modValue);
 
-          if (nextStep >= 3) {
-            const shouldSkip = (dir: TradeCategory) => {
-              if (nextStep >= 5) {
-                return dir === "under4" || dir === "over5" || dir === "under5" || dir === "over4";
-              }
-              return dir === "under4" || dir === "over5";
-            };
-
-            while (shouldSkip(tradeDir)) {
-              step += 1;
-              fibValue = getGeneralizedFibonacci(startA, startB, step);
-              modValue = Number(fibValue % 8n);
-              tradeDir = getDirFromMod(modValue);
-              console.log(`[Strategy J Skipped] ${nextStep} consecutive losses. Skipped tradeDir: ${tradeDir}. Advanced step to ${step}, G(step) % 8: ${modValue}`);
-            }
-          }
-
           console.log(`[Strategy J Execution] Seeds: (${startA}, ${startB}), Step: ${step}, G(step): ${fibValue.toString()}, G(step) % 8: ${modValue} -> ${tradeDir}`);
           
           trade = tradeDir;

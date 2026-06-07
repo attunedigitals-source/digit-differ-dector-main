@@ -245,11 +245,11 @@ export function TradingPanel({
             <SelectItem value="strategy_g">Strategy G (Pre-Planned + Session Prefix Elimination)</SelectItem>
             <SelectItem value="strategy_h">Strategy H (Fibonacci Trade Engine)</SelectItem>
             <SelectItem value="strategy_i">Strategy I (Random Loop Engine)</SelectItem>
-            <SelectItem value="strategy_j">Strategy J (Random Volatility & Trade Loop)</SelectItem>
+            <SelectItem value="strategy_j">Strategy J (Generalized Fibonacci Loop Engine)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a fully randomized volatility and direction pool loop with Strategy D martingale and stake rules.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection.
         </p>
       </div>
 

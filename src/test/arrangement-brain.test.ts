@@ -253,51 +253,19 @@ describe("Strategy A Arrangement Brain Math", () => {
       expect(mapModToTrade(9n)).toBe("under4");
     });
 
-    it("should skip under4 and over5 trade directions after 3rd consecutive loss and advance step", () => {
-      const runSkipLogic = (startA: number, startB: number, initialStep: number, consecutiveLosses: number): { finalStep: number; direction: string } => {
-        let step = initialStep;
-        let fibValue = getGeneralizedFibonacci(startA, startB, step);
-        let tradeDir = mapModToTrade(fibValue);
-
-        if (consecutiveLosses >= 3) {
-          const shouldSkip = (dir: string) => {
-            if (consecutiveLosses >= 5) {
-              return dir === "under4" || dir === "over5" || dir === "under5" || dir === "over4";
-            }
-            return dir === "under4" || dir === "over5";
-          };
-
-          while (shouldSkip(tradeDir)) {
-            step += 1;
-            fibValue = getGeneralizedFibonacci(startA, startB, step);
-            tradeDir = mapModToTrade(fibValue);
-          }
-        }
-        return { finalStep: step, direction: tradeDir };
+    it("should never skip trade directions regardless of consecutive losses", () => {
+      const getTrade = (startA: number, startB: number, step: number): string => {
+        const fibValue = getGeneralizedFibonacci(startA, startB, step);
+        return mapModToTrade(fibValue);
       };
 
-      // Less than 3 consecutive losses: should NOT skip and remain at step 0 ("under4")
-      expect(runSkipLogic(1, 2, 0, 2)).toEqual({ finalStep: 0, direction: "under4" });
-
-      // 3 consecutive losses, starting at step 0 (which maps to "under4"):
-      // Step 0 ("under4") -> skipped.
-      // Step 1 ("over5") -> skipped.
-      // Step 2 ("even") -> allowed!
-      // Final step should be 2, direction should be "even".
-      expect(runSkipLogic(1, 2, 0, 3)).toEqual({ finalStep: 2, direction: "even" });
-
-      // 3 consecutive losses, starting at step 1 (which maps to "over5"):
-      // Step 1 ("over5") -> skipped.
-      // Step 2 ("even") -> allowed!
-      // Final step should be 2, direction should be "even".
-      expect(runSkipLogic(1, 2, 1, 3)).toEqual({ finalStep: 2, direction: "even" });
-
-      // 5 consecutive losses, starting at step 0 (which maps to "under5" with seeds 5, 6):
-      // Step 0 ("under5") -> skipped.
-      // Step 1 ("over4") -> skipped.
-      // Step 2 ("even") -> allowed!
-      // Final step should be 2, direction should be "even".
-      expect(runSkipLogic(5, 6, 0, 5)).toEqual({ finalStep: 2, direction: "even" });
+      // Seeds 1, 2:
+      // G(0) = 1 -> "under4"
+      // G(1) = 2 -> "over5"
+      // G(2) = 3 -> "even"
+      expect(getTrade(1, 2, 0)).toBe("under4");
+      expect(getTrade(1, 2, 1)).toBe("over5");
+      expect(getTrade(1, 2, 2)).toBe("even");
     });
   });
 });

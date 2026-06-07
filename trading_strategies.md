@@ -117,7 +117,7 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Martingale and Staking**: Inherits the exact staking rules of Strategy H, resetting to base stake on wins, incrementing the martingale step on losses, and applying the extra **$1.26\times$** special multiplier on the special contract directions (`U5`, `O4`, `Even`, `Odd`) for payout coverage.
 
 ### Strategy J: Generalized Fibonacci Loop Engine
-*   **Core Concept**: A mathematical loop engine where contract directions are selected using a generalized Fibonacci sequence modulo a large prime ($1000000007$) mapped modulo 8 to 8 contract directions, coupled with random volatility selection, standard Martingale progression, and specialized drawdown skip rules.
+*   **Core Concept**: A mathematical loop engine where contract directions are selected using a generalized Fibonacci sequence modulo a large prime ($1000000007$) mapped modulo 8 to 8 contract directions, coupled with random volatility selection, standard Martingale progression, and no drawdown skip rules.
 *   **Trade Execution**:
     *   **Fibonacci-Mapped Walk**: Mapped modulo 1000000007 then modulo 8 to 8 contract directions based on $(G(\text{step}) \pmod{1000000007}) \pmod 8$:
         *   `1`: **`U4`** (Digit Under 4) - wins on 0, 1, 2, 3
@@ -129,10 +129,6 @@ Here is how each strategy determines when, where, and how to place its trades:
         *   `7`: **`Fall`** (Allow Equals) - wins on tick fall [Special Stake Multiplier 1.26x]
         *   `0`: **`Odd`** (Digit Odd) - wins on 1, 3, 5, 7, 9 [Special Stake Multiplier 1.26x]
     *   **Seed Generation**: Initializes with random seeds $A$ and $B$ in the high-entropy range $[1, 1000000000]$ at session start or after wins, starting at step 0. This ensures $10^{18}$ unique possible paths, providing perfect pseudo-randomness.
-    *   **Drawdown Skip Rules**:
-        *   **Martingale Step $\ge 3$**: The trade directions `U4` (Under 4) and `O5` (Over 5) are skipped to reduce exposure to lower-probability contracts during drawdown.
-        *   **Martingale Step $\ge 5$**: The skip list expands to also skip `U5` (Under 5) and `O4` (Over 4).
-        *   If a skipped direction is selected, the Fibonacci step is sequentially advanced ($n \rightarrow n+1$) until a non-skipped direction is selected.
 
 ---
 
@@ -142,7 +138,7 @@ Here is how each strategy determines when, where, and how to place its trades:
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | No (Fibonacci modulo 10) | No (Random) | No (Random) |
 | **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None | None | None | None |
-| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No | No | Yes (Drawdown Skip) |
+| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No | No | No |
 | **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No | No |
 | **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No | No | No |
 | **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) | No | No |
