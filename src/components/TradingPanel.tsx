@@ -246,15 +246,16 @@ export function TradingPanel({
             <SelectItem value="strategy_h">Strategy H (Fibonacci Trade Engine)</SelectItem>
             <SelectItem value="strategy_i">Strategy I (Random Loop Engine)</SelectItem>
             <SelectItem value="strategy_j">Strategy J (Generalized Fibonacci Loop Engine)</SelectItem>
+            <SelectItem value="strategy_k">Strategy K (Pre-Planned + Session Prefix Elimination + Expanded Deck)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists.
         </p>
       </div>
 
       {/* Strategy A/B/C/D Visualizer Panel */}
-      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g") && (
+      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k") && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -360,7 +361,7 @@ export function TradingPanel({
             </span>
           </div>
 
-          {config.strategy === "strategy_g" && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
+          {(config.strategy === "strategy_g" || config.strategy === "strategy_k") && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
             <div className="mt-2 space-y-1 bg-destructive/5 p-2 rounded border border-destructive/15">
               <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
                 🚫 Session Blacklisted Prefixes (Globally)

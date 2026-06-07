@@ -115,7 +115,6 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Always Changing Volatility**: Selects a new volatility index purely randomly on *every* trade, win or loss, automatically excluding the currently active symbol to guarantee no back-to-back duplicate selection.
     *   **Fully Randomized Direction**: Draws the next trade contract type purely randomly on *every* trade from the 6-direction pool: `['U4', 'O4', 'U5', 'O5', 'EV', 'OD']`.
     *   **Martingale and Staking**: Inherits the exact staking rules of Strategy H, resetting to base stake on wins, incrementing the martingale step on losses, and applying the extra **$1.26\times$** special multiplier on the special contract directions (`U5`, `O4`, `Even`, `Odd`) for payout coverage.
-
 ### Strategy J: Generalized Fibonacci Loop Engine
 *   **Core Concept**: A mathematical loop engine where contract directions are selected using a generalized Fibonacci sequence modulo a large prime ($1000000007$) mapped modulo 8 to 8 contract directions, coupled with random volatility selection, standard Martingale progression, and no drawdown skip rules.
 *   **Trade Execution**:
@@ -130,17 +129,27 @@ Here is how each strategy determines when, where, and how to place its trades:
         *   `0`: **`Odd`** (Digit Odd) - wins on 1, 3, 5, 7, 9 [Special Stake Multiplier 1.26x]
     *   **Seed Generation**: Initializes with random seeds $A$ and $B$ in the high-entropy range $[1, 1000000000]$ at session start or after wins, starting at step 0. This ensures $10^{18}$ unique possible paths, providing perfect pseudo-randomness.
 
+### Strategy K: Pre-Planned + Session Prefix Elimination + Expanded Deck
+*   **Core Concept**: A modification of Strategy A (Pre-Planned Cycles) that uses the 8-element expanded permutation deck (incorporating Even, Odd, Rise, and Fall as special contracts) and implements a global session-wide prefix blacklist to eliminate failing sequences.
+*   **Trade Execution**:
+    *   **The Permutation Deck**: Uses `['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL']` with counts `[2, 2, 2, 2, 1, 1, 1, 1]`, yielding 29,937,600 unique arrangements.
+    *   **Special Contracts**: The Rise, Fall, Even, Odd, Under 5, and Over 4 contract directions are treated as special contracts with the **1.26x** martingale stake multiplier.
+    *   **Purely Random Volatility Selection**: Like Strategy A, the bot selects a volatility index randomly for each trade, using the "Intelligent brain" to prioritize symbols with fewer consecutive losses.
+    *   **Global Session Blacklisting**: When the bot encounters **5 consecutive losses** in its current Martingale run, the active 5-element prefix of the arrangement is **blacklisted globally** for the entire session.
+    *   **Arrangement Pool Filtering**: Discards the current arrangement and shuffles a brand new one that has a clean, non-blacklisted prefix.
+
 ---
 
 ## 3. Comparative Summary
 
-| Feature / Strategy | Strategy A | Strategy B | Strategy C | Strategy D | Strategy E (God Mode) | Strategy F | Strategy G | Strategy H | Strategy I | Strategy J |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | No (Fibonacci modulo 10) | No (Random) | No (Random) |
-| **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None | None | None | None |
-| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No | No | No |
-| **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No | No |
-| **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No | No | No |
-| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) | No | No |
-| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck (6-element Even/Odd) | LCG arrangement deck (8-element Even/Odd/Rise/Fall) | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection | Generalized Fibonacci modulo 8 progression |
+| Feature / Strategy | Strategy A | Strategy B | Strategy C | Strategy D | Strategy E (God Mode) | Strategy F | Strategy G | Strategy H | Strategy I | Strategy J | Strategy K |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Vol. Index Lock-on on Loss** | No (Random) | Yes (Sticky) | Yes (Sticky) | Yes (until threshold) | Adaptive | Yes (until 5th loss) | No (Random) | No (Fibonacci modulo 10) | No (Random) | No (Random) | No (Random) |
+| **Suspension Trigger** | None | None | Deferred (5 losses) | Immediate (5 losses / 2 losses) | Hybrid (SD-based) | Deferred + Force Swap | None | None | None | None | None |
+| **Drawdown Reducers** | No | No | No | No | Yes (Upgrades barriers + 1.45x) | No | No | No | No | No | No |
+| **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No | No | No |
+| **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No | No | No | No |
+| **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) | No | No | Yes (Global session prefix) |
+| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck (6-element Even/Odd) | LCG arrangement deck (8-element Even/Odd/Rise/Fall) | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection | Generalized Fibonacci modulo 8 progression | LCG arrangement deck (8-element Even/Odd/Rise/Fall) |
+
 

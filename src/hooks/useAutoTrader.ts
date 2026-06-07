@@ -220,6 +220,7 @@ export function useAutoTrader(
       let isStrategyD = false;
       let isStrategyF = false;
       let isStrategyG = false;
+      let isStrategyK = false;
       if (savedConfig) {
         try {
           const parsed = JSON.parse(savedConfig);
@@ -227,6 +228,7 @@ export function useAutoTrader(
           isStrategyD = parsed.strategy === "strategy_d";
           isStrategyF = parsed.strategy === "strategy_f";
           isStrategyG = parsed.strategy === "strategy_g";
+          isStrategyK = parsed.strategy === "strategy_k";
         } catch (e) {}
       }
 
@@ -234,26 +236,28 @@ export function useAutoTrader(
         elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
         counts = [2, 2, 2, 2, 2, 2];
         totalArrangements = 7484400;
-      } else if (isStrategyD) {
+      } else if (isStrategyD || isStrategyK) {
         elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
         counts = [2, 2, 2, 2, 1, 1, 1, 1];
         totalArrangements = 29937600;
       }
 
-      if (isStrategyF || isStrategyG) {
+      if (isStrategyF || isStrategyG || isStrategyK) {
         let tempProgress = progress;
         while (true) {
-          const permIndex = lcgPermute(tempProgress, 369600, seed);
+          const permIndex = lcgPermute(tempProgress, totalArrangements, seed);
           const tempArrIndex = permIndex + 1;
           const tempArr = getNthPermutation(elements, counts, tempArrIndex);
           const prefix = tempArr.slice(0, 5).join(",");
           
           const isBlacklistedGlobally = blacklist["global"]?.includes(prefix);
           
-          const hasValidSymbol = isBlacklistedGlobally ? false : symbols.some(s => {
-            const symbolBlacklist = blacklist[s] || [];
-            return !symbolBlacklist.includes(prefix);
-          });
+          const hasValidSymbol = isBlacklistedGlobally ? false : (
+            isStrategyK ? true : symbols.some(s => {
+              const symbolBlacklist = blacklist[s] || [];
+              return !symbolBlacklist.includes(prefix);
+            })
+          );
 
           if (hasValidSymbol) {
             arrIndex = tempArrIndex;
@@ -261,7 +265,7 @@ export function useAutoTrader(
             progress = tempProgress;
             break;
           }
-          tempProgress = (tempProgress + 1) % 369600;
+          tempProgress = (tempProgress + 1) % totalArrangements;
         }
       } else {
         const permIndex = lcgPermute(progress, totalArrangements, seed);
@@ -694,7 +698,7 @@ export function useAutoTrader(
         fall: "Fall"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i" || config.strategy === "strategy_j") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_k") {
         if (config.strategy === "strategy_h") {
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
@@ -793,7 +797,7 @@ export function useAutoTrader(
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;
-            } else if (config.strategy === "strategy_d") {
+            } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
               counts = [2, 2, 2, 2, 1, 1, 1, 1];
               totalArrangements = 29937600;
@@ -1292,7 +1296,7 @@ export function useAutoTrader(
     let nextProgressIndex = state.arrangementProgressIndex;
     let nextSeed = state.shufflingSeed;
 
-    if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g") {
+    if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k") {
       if (isWin) {
         // Each win allows a new sequence to be selected
         nextSeqStep = 0;
@@ -1306,7 +1310,7 @@ export function useAutoTrader(
           elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
           counts = [2, 2, 2, 2, 2, 2];
           totalArrangements = 7484400;
-        } else if (config.strategy === "strategy_d") {
+        } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
           elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
           counts = [2, 2, 2, 2, 1, 1, 1, 1];
           totalArrangements = 29937600;
@@ -1317,7 +1321,7 @@ export function useAutoTrader(
           nextSeed = Math.floor(Math.random() * 100000) + 1;
         }
 
-        if (config.strategy === "strategy_f" || config.strategy === "strategy_g") {
+        if (config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k") {
           // Find the next valid non-blacklisted arrangement
           let tempProgress = nextProgressIndex;
           const symbols = [
@@ -1325,17 +1329,19 @@ export function useAutoTrader(
             "R_10", "R_25", "R_50", "R_75", "R_100",
           ];
           while (true) {
-            const permIndex = lcgPermute(tempProgress, 369600, nextSeed);
+            const permIndex = lcgPermute(tempProgress, totalArrangements, nextSeed);
             const tempArrIndex = permIndex + 1;
             const tempArr = getNthPermutation(elements, counts, tempArrIndex);
             const prefix = tempArr.slice(0, 5).join(",");
             
             const isBlacklistedGlobally = state.blacklistedPrefixes?.["global"]?.includes(prefix);
             
-            const hasValidSymbol = isBlacklistedGlobally ? false : symbols.some(s => {
-              const symbolBlacklist = state.blacklistedPrefixes?.[s] || [];
-              return !symbolBlacklist.includes(prefix);
-            });
+            const hasValidSymbol = isBlacklistedGlobally ? false : (
+              (config.strategy === "strategy_g" || config.strategy === "strategy_k") ? true : symbols.some(s => {
+                const symbolBlacklist = state.blacklistedPrefixes?.[s] || [];
+                return !symbolBlacklist.includes(prefix);
+              })
+            );
 
             if (hasValidSymbol) {
               nextArrIndex = tempArrIndex;
@@ -1343,8 +1349,8 @@ export function useAutoTrader(
               nextProgressIndex = tempProgress;
               break;
             }
-            console.log(`[Strategy F/G Pool Filter] Skipping prefix [${prefix}] because it is blacklisted globally or for all indices at arrangement #${tempArrIndex}`);
-            tempProgress = (tempProgress + 1) % 369600;
+            console.log(`[Strategy ${config.strategy.toUpperCase()} Pool Filter] Skipping prefix [${prefix}] because it is blacklisted globally or for all indices at arrangement #${tempArrIndex}`);
+            tempProgress = (tempProgress + 1) % totalArrangements;
           }
           toast.success(`Win! Selecting new valid arrangement #${nextArrIndex}`);
         } else {
@@ -1355,23 +1361,30 @@ export function useAutoTrader(
         }
       } else {
         if ((config.strategy === "strategy_f" && (state.currentSymbolLosses || 0) === 4) || 
-            (config.strategy === "strategy_g" && state.martingaleStep === 4)) {
-          // 5th consecutive loss under Strategy F/G: Discard old arrangement, shuffle a brand new one!
+            (config.strategy === "strategy_g" && state.martingaleStep === 4) ||
+            (config.strategy === "strategy_k" && state.martingaleStep === 4)) {
+          // 5th consecutive loss: Discard old arrangement, shuffle a brand new one!
           nextSeqStep = 0;
           nextProgressIndex = state.arrangementProgressIndex + 1;
-          if (nextProgressIndex >= 369600) {
+          
+          let elements = ['U4', 'O4', 'U5', 'O5'];
+          let counts = [3, 3, 3, 3];
+          let totalArrangements = 369600;
+          if (config.strategy === "strategy_k") {
+            elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+            counts = [2, 2, 2, 2, 1, 1, 1, 1];
+            totalArrangements = 29937600;
+          }
+
+          if (nextProgressIndex >= totalArrangements) {
             nextProgressIndex = 0;
             nextSeed = Math.floor(Math.random() * 100000) + 1;
           }
 
-          const elements = ['U4', 'O4', 'U5', 'O5'];
-          const counts = [3, 3, 3, 3];
           const symbols = [
             "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
             "R_10", "R_25", "R_50", "R_75", "R_100",
           ];
-
-          // Filter out the current symbol since we are swapping away from it!
           const remainingSymbols = symbols.filter(s => s !== symbol);
 
           // Get the nextBlacklist (calculate it here by adding the prefix that just failed to tempBlacklist)
@@ -1380,7 +1393,7 @@ export function useAutoTrader(
           
           const prefixToBlacklist = (state.currentArrangement || []).slice(0, 5).join(",");
           if (prefixToBlacklist) {
-            if (config.strategy === "strategy_g") {
+            if (config.strategy === "strategy_g" || config.strategy === "strategy_k") {
               const globalBlacklist = [...(tempBlacklist["global"] || [])];
               if (!globalBlacklist.includes(prefixToBlacklist)) {
                 globalBlacklist.push(prefixToBlacklist);
@@ -1388,7 +1401,7 @@ export function useAutoTrader(
                 toast.warning(`Prefix [${prefixToBlacklist.split(",").join(" -> ")}] blacklisted GLOBALLY for the session due to 5 consecutive losses. Shuffling new arrangement.`, {
                   duration: 8000
                 });
-                console.log(`[Strategy G] 5 consecutive losses. Blacklisted prefix globally: ${prefixToBlacklist}`);
+                console.log(`[Strategy ${config.strategy.toUpperCase()}] 5 consecutive losses. Blacklisted prefix globally: ${prefixToBlacklist}`);
               }
             } else {
               const symbolBlacklist = [...(tempBlacklist[symbol] || [])];
@@ -1402,29 +1415,32 @@ export function useAutoTrader(
             }
           }
 
-          let tempProgress = nextProgressIndex;
+          let tempProgress = tempProgressIndex => tempProgressIndex;
+          let tempProgressVal = nextProgressIndex;
           while (true) {
-            const permIndex = lcgPermute(tempProgress, 369600, nextSeed);
+            const permIndex = lcgPermute(tempProgressVal, totalArrangements, nextSeed);
             const tempArrIndex = permIndex + 1;
             const tempArr = getNthPermutation(elements, counts, tempArrIndex);
             const tempPrefix = tempArr.slice(0, 5).join(",");
             
             const isBlacklistedGlobally = tempBlacklist["global"]?.includes(tempPrefix);
             
-            const hasValidSymbol = isBlacklistedGlobally ? false : remainingSymbols.some(s => {
-              const symbolBlacklist = tempBlacklist[s] || [];
-              return !symbolBlacklist.includes(tempPrefix);
-            });
+            const hasValidSymbol = isBlacklistedGlobally ? false : (
+              (config.strategy === "strategy_g" || config.strategy === "strategy_k") ? true : remainingSymbols.some(s => {
+                const symbolBlacklist = tempBlacklist[s] || [];
+                return !symbolBlacklist.includes(tempPrefix);
+              })
+            );
 
             if (hasValidSymbol) {
               nextArrIndex = tempArrIndex;
               nextArr = tempArr;
-              nextProgressIndex = tempProgress;
+              nextProgressIndex = tempProgressVal;
               break;
             }
-            tempProgress = (tempProgress + 1) % 369600;
+            tempProgressVal = (tempProgressVal + 1) % totalArrangements;
           }
-          console.log(`[Strategy F/G 5th Loss] Shuffling brand new arrangement #${nextArrIndex} with prefix [${nextArr.slice(0, 5).join(" -> ")}] to prevent back-to-back prefix loss.`);
+          console.log(`[Strategy ${config.strategy.toUpperCase()} 5th Loss] Shuffling brand new arrangement #${nextArrIndex} with prefix [${nextArr.slice(0, 5).join(" -> ")}] to prevent back-to-back prefix loss.`);
         } else {
           // On Loss: pool all arrangements starting with the consecutive loss directions
           const lossPrefix = (state.currentArrangement || []).slice(0, state.sequenceStep + 1);
@@ -1436,12 +1452,23 @@ export function useAutoTrader(
             if (config.strategy === "strategy_c") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
-            } else if (config.strategy === "strategy_d") {
+            } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
               counts = [2, 2, 2, 2, 1, 1, 1, 1];
             }
             
-            nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
+            if (config.strategy === "strategy_k") {
+              let attempts = 0;
+              do {
+                nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
+                attempts++;
+              } while (
+                attempts < 100 &&
+                state.blacklistedPrefixes?.["global"]?.includes(nextArr.slice(0, 5).join(","))
+              );
+            } else {
+              nextArr = getRandomSequenceWithPrefix(lossPrefix, elements, counts);
+            }
             nextArrIndex = getPermutationIndex(elements, counts, nextArr);
             nextSeqStep = state.sequenceStep + 1;
             
@@ -1459,7 +1486,7 @@ export function useAutoTrader(
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;
-            } else if (config.strategy === "strategy_d") {
+            } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
               counts = [2, 2, 2, 2, 1, 1, 1, 1];
               totalArrangements = 29937600;
@@ -1469,9 +1496,26 @@ export function useAutoTrader(
               nextProgressIndex = 0;
               nextSeed = Math.floor(Math.random() * 100000) + 1;
             }
-            const permIndex = lcgPermute(nextProgressIndex, totalArrangements, nextSeed);
-            nextArrIndex = permIndex + 1;
-            nextArr = getNthPermutation(elements, counts, nextArrIndex);
+            if (config.strategy === "strategy_k") {
+              let tempProgressVal = nextProgressIndex;
+              while (true) {
+                const permIndex = lcgPermute(tempProgressVal, totalArrangements, nextSeed);
+                const tempArrIndex = permIndex + 1;
+                const tempArr = getNthPermutation(elements, counts, tempArrIndex);
+                const prefix = tempArr.slice(0, 5).join(",");
+                if (!state.blacklistedPrefixes?.["global"]?.includes(prefix)) {
+                  nextArrIndex = tempArrIndex;
+                  nextArr = tempArr;
+                  nextProgressIndex = tempProgressVal;
+                  break;
+                }
+                tempProgressVal = (tempProgressVal + 1) % totalArrangements;
+              }
+            } else {
+              const permIndex = lcgPermute(nextProgressIndex, totalArrangements, nextSeed);
+              nextArrIndex = permIndex + 1;
+              nextArr = getNthPermutation(elements, counts, nextArrIndex);
+            }
             toast.warning(`Cycle limit reached! Rotating to new arrangement #${nextArrIndex}`);
           }
         }
@@ -1484,7 +1528,7 @@ export function useAutoTrader(
     let nextForceSwapSymbol = state.forceSwapSymbol || false;
     let nextBlacklist = { ...(state.blacklistedPrefixes || {}) };
 
-    if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g") {
+    if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k") {
       if (isWin) {
         nextSymbolLosses = 0;
         nextForceSwapSymbol = false;
@@ -1511,7 +1555,7 @@ export function useAutoTrader(
             nextSymbolLosses = 0;
             nextForceSwapSymbol = true;
           }
-        } else if (config.strategy === "strategy_g") {
+        } else if (config.strategy === "strategy_g" || config.strategy === "strategy_k") {
           if (state.martingaleStep === 4) {
             const prefix = (state.currentArrangement || []).slice(0, 5).join(",");
             if (prefix) {
@@ -1523,7 +1567,7 @@ export function useAutoTrader(
                 toast.warning(`Prefix [${prefix.split(",").join(" -> ")}] blacklisted GLOBALLY for the session due to 5 consecutive losses. Shuffling new arrangement.`, {
                   duration: 8000
                 });
-                console.log(`[Strategy G] 5 consecutive losses. Blacklisted prefix globally: ${prefix}`);
+                console.log(`[Strategy ${config.strategy.toUpperCase()}] 5 consecutive losses. Blacklisted prefix globally: ${prefix}`);
               }
             }
           }
