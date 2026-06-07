@@ -205,13 +205,13 @@ describe("Strategy A Arrangement Brain Math", () => {
   });
 
   describe("Strategy J Generalized Fibonacci mod 8 mapping rules", () => {
-    const getGeneralizedFibonacci = (a: number, b: number, n: number): bigint => {
-      if (n <= 0) return BigInt(a);
-      if (n === 1) return BigInt(b);
-      let prev2 = BigInt(a);
-      let prev1 = BigInt(b);
+    const getGeneralizedFibonacci = (a: number, b: number, n: number, prime: bigint = 1000000007n): bigint => {
+      if (n <= 0) return BigInt(a) % prime;
+      if (n === 1) return BigInt(b) % prime;
+      let prev2 = BigInt(a) % prime;
+      let prev1 = BigInt(b) % prime;
       for (let i = 2; i <= n; i++) {
-        const temp = prev2 + prev1;
+        const temp = (prev2 + prev1) % prime;
         prev2 = prev1;
         prev1 = temp;
       }
@@ -219,7 +219,7 @@ describe("Strategy A Arrangement Brain Math", () => {
     };
 
     const mapModToTrade = (val: bigint): string => {
-      const mod = Number((val % 10007n) % 8n);
+      const mod = Number(val % 8n);
       if (mod === 1) return "under4";
       if (mod === 2) return "over5";
       if (mod === 3) return "even";
@@ -260,7 +260,14 @@ describe("Strategy A Arrangement Brain Math", () => {
         let tradeDir = mapModToTrade(fibValue);
 
         if (consecutiveLosses >= 3) {
-          while (tradeDir === "under4" || tradeDir === "over5") {
+          const shouldSkip = (dir: string) => {
+            if (consecutiveLosses >= 5) {
+              return dir === "under4" || dir === "over5" || dir === "under5" || dir === "over4";
+            }
+            return dir === "under4" || dir === "over5";
+          };
+
+          while (shouldSkip(tradeDir)) {
             step += 1;
             fibValue = getGeneralizedFibonacci(startA, startB, step);
             tradeDir = mapModToTrade(fibValue);
@@ -284,29 +291,13 @@ describe("Strategy A Arrangement Brain Math", () => {
       // Step 2 ("even") -> allowed!
       // Final step should be 2, direction should be "even".
       expect(runSkipLogic(1, 2, 1, 3)).toEqual({ finalStep: 2, direction: "even" });
-    });
 
-    it("should apply ping-pong logic starting at martingale step 5", () => {
-      const getTradeDirRange = (nextStep: number, prevCategory: string | null): string[] => {
-        if (nextStep >= 5) {
-          if (nextStep === 5) {
-            return ["rise", "fall", "even", "odd"];
-          } else {
-            if (prevCategory === "rise" || prevCategory === "fall") {
-              return ["even", "odd"];
-            } else if (prevCategory === "even" || prevCategory === "odd") {
-              return ["rise", "fall"];
-            }
-          }
-        }
-        return ["fib"];
-      };
-
-      expect(getTradeDirRange(5, null)).toEqual(["rise", "fall", "even", "odd"]);
-      expect(getTradeDirRange(6, "rise")).toEqual(["even", "odd"]);
-      expect(getTradeDirRange(6, "fall")).toEqual(["even", "odd"]);
-      expect(getTradeDirRange(6, "even")).toEqual(["rise", "fall"]);
-      expect(getTradeDirRange(6, "odd")).toEqual(["rise", "fall"]);
+      // 5 consecutive losses, starting at step 0 (which maps to "under5" with seeds 5, 6):
+      // Step 0 ("under5") -> skipped.
+      // Step 1 ("over4") -> skipped.
+      // Step 2 ("even") -> allowed!
+      // Final step should be 2, direction should be "even".
+      expect(runSkipLogic(5, 6, 0, 5)).toEqual({ finalStep: 2, direction: "even" });
     });
   });
 });

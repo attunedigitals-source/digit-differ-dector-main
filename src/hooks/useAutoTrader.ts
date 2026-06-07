@@ -51,13 +51,13 @@ const getFibonacci = (k: number): bigint => {
   return b;
 };
 
-const getGeneralizedFibonacci = (a: number, b: number, n: number): bigint => {
-  if (n <= 0) return BigInt(a);
-  if (n === 1) return BigInt(b);
-  let prev2 = BigInt(a);
-  let prev1 = BigInt(b);
+const getGeneralizedFibonacci = (a: number, b: number, n: number, prime: bigint = 1000000007n): bigint => {
+  if (n <= 0) return BigInt(a) % prime;
+  if (n === 1) return BigInt(b) % prime;
+  let prev2 = BigInt(a) % prime;
+  let prev1 = BigInt(b) % prime;
   for (let i = 2; i <= n; i++) {
-    const temp = prev2 + prev1;
+    const temp = (prev2 + prev1) % prime;
     prev2 = prev1;
     prev1 = temp;
   }
@@ -744,8 +744,8 @@ export function useAutoTrader(
           let step = state.strategyJ_fibStep ?? -1;
 
           if (startA === -1 || startB === -1 || step === -1) {
-            startA = Math.floor(Math.random() * 10000) + 1;
-            startB = Math.floor(Math.random() * 10000) + 1;
+            startA = Math.floor(Math.random() * 1000000000) + 1;
+            startB = Math.floor(Math.random() * 1000000000) + 1;
             step = 0;
           }
 
@@ -756,62 +756,40 @@ export function useAutoTrader(
             stepIndexRef.current += 1;
           }
 
-          let tradeDir: TradeCategory;
+          let fibValue = getGeneralizedFibonacci(startA, startB, step);
+          let modValue = Number(fibValue % 8n);
+          
+          const getDirFromMod = (mod: number): TradeCategory => {
+            if (mod === 1) return "under4";
+            if (mod === 2) return "over5";
+            if (mod === 3) return "even";
+            if (mod === 4) return "rise";
+            if (mod === 5) return "under5";
+            if (mod === 6) return "over4";
+            if (mod === 7) return "fall";
+            return "odd"; // mod === 0
+          };
 
-          if (nextStep >= 5) {
-            if (nextStep === 5) {
-              const pool: TradeCategory[] = ["rise", "fall", "even", "odd"];
-              tradeDir = pool[Math.floor(Math.random() * pool.length)];
-              console.log(`[Strategy J Ping-Pong Start] 5 consecutive losses. 6th trade randomly selected: ${tradeDir}`);
-            } else {
-              const prevCategory = state.currentCategory;
-              if (prevCategory === "rise" || prevCategory === "fall") {
-                const pool: TradeCategory[] = ["even", "odd"];
-                tradeDir = pool[Math.floor(Math.random() * pool.length)];
-                console.log(`[Strategy J Ping-Pong Walk] Previous was ${prevCategory}. Selecting randomly from even/odd: ${tradeDir}`);
-              } else if (prevCategory === "even" || prevCategory === "odd") {
-                const pool: TradeCategory[] = ["rise", "fall"];
-                tradeDir = pool[Math.floor(Math.random() * pool.length)];
-                console.log(`[Strategy J Ping-Pong Walk] Previous was ${prevCategory}. Selecting randomly from rise/fall: ${tradeDir}`);
-              } else {
-                const pool: TradeCategory[] = ["rise", "fall", "even", "odd"];
-                tradeDir = pool[Math.floor(Math.random() * pool.length)];
-                console.log(`[Strategy J Ping-Pong Fallback] Previous was ${prevCategory}. Selecting randomly: ${tradeDir}`);
+          let tradeDir = getDirFromMod(modValue);
+
+          if (nextStep >= 3) {
+            const shouldSkip = (dir: TradeCategory) => {
+              if (nextStep >= 5) {
+                return dir === "under4" || dir === "over5" || dir === "under5" || dir === "over4";
               }
-            }
-          } else {
-            let fibValue = getGeneralizedFibonacci(startA, startB, step);
-            let modValue = Number((fibValue % 10007n) % 8n);
-            
-            const getDirFromMod = (mod: number): TradeCategory => {
-              if (mod === 1) return "under4";
-              if (mod === 2) return "over5";
-              if (mod === 3) return "even";
-              if (mod === 4) return "rise";
-              if (mod === 5) return "under5";
-              if (mod === 6) return "over4";
-              if (mod === 7) return "fall";
-              return "odd"; // mod === 0
+              return dir === "under4" || dir === "over5";
             };
 
-            tradeDir = getDirFromMod(modValue);
-
-            if (nextStep >= 3) {
-              const shouldSkip = (dir: TradeCategory) => {
-                return dir === "under4" || dir === "over5";
-              };
-
-              while (shouldSkip(tradeDir)) {
-                step += 1;
-                fibValue = getGeneralizedFibonacci(startA, startB, step);
-                modValue = Number((fibValue % 10007n) % 8n);
-                tradeDir = getDirFromMod(modValue);
-                console.log(`[Strategy J Skipped] ${nextStep} consecutive losses. Skipped tradeDir: ${tradeDir}. Advanced step to ${step}, G(step) % 8: ${modValue}`);
-              }
+            while (shouldSkip(tradeDir)) {
+              step += 1;
+              fibValue = getGeneralizedFibonacci(startA, startB, step);
+              modValue = Number(fibValue % 8n);
+              tradeDir = getDirFromMod(modValue);
+              console.log(`[Strategy J Skipped] ${nextStep} consecutive losses. Skipped tradeDir: ${tradeDir}. Advanced step to ${step}, G(step) % 8: ${modValue}`);
             }
           }
 
-          console.log(`[Strategy J Execution] Seeds: (${startA}, ${startB}), Step: ${step}, nextStep: ${nextStep} -> ${tradeDir}`);
+          console.log(`[Strategy J Execution] Seeds: (${startA}, ${startB}), Step: ${step}, G(step): ${fibValue.toString()}, G(step) % 8: ${modValue} -> ${tradeDir}`);
           
           trade = tradeDir;
           chosenGroup = getCategoryGroup(trade);
@@ -1623,8 +1601,8 @@ export function useAutoTrader(
     let nextJStep = state.strategyJ_fibStep ?? -1;
     if (config.strategy === "strategy_j") {
       if (isWin) {
-        nextJStartA = Math.floor(Math.random() * 10000) + 1;
-        nextJStartB = Math.floor(Math.random() * 10000) + 1;
+        nextJStartA = Math.floor(Math.random() * 1000000000) + 1;
+        nextJStartB = Math.floor(Math.random() * 1000000000) + 1;
         nextJStep = 0;
         console.log(`[Strategy J Result] Trade Won! Re-seeding generalized Fibonacci seeds: A = ${nextJStartA}, B = ${nextJStartB}, step = ${nextJStep}`);
       } else {

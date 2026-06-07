@@ -117,9 +117,9 @@ Here is how each strategy determines when, where, and how to place its trades:
     *   **Martingale and Staking**: Inherits the exact staking rules of Strategy H, resetting to base stake on wins, incrementing the martingale step on losses, and applying the extra **$1.26\times$** special multiplier on the special contract directions (`U5`, `O4`, `Even`, `Odd`) for payout coverage.
 
 ### Strategy J: Generalized Fibonacci Loop Engine
-*   **Core Concept**: A mathematical loop engine where contract directions are selected using a generalized Fibonacci sequence modulo 10007 mapped modulo 8 to 8 contract directions, coupled with random volatility selection, standard Martingale progression, and a ping-pong drawdown recovery engine.
+*   **Core Concept**: A mathematical loop engine where contract directions are selected using a generalized Fibonacci sequence modulo a large prime ($1000000007$) mapped modulo 8 to 8 contract directions, coupled with random volatility selection, standard Martingale progression, and specialized drawdown skip rules.
 *   **Trade Execution**:
-    *   **Fibonacci-Mapped Walk**: Mapped modulo 10007 then modulo 8 to 8 contract directions based on $(G(\text{step}) \pmod{10007}) \pmod 8$:
+    *   **Fibonacci-Mapped Walk**: Mapped modulo 1000000007 then modulo 8 to 8 contract directions based on $(G(\text{step}) \pmod{1000000007}) \pmod 8$:
         *   `1`: **`U4`** (Digit Under 4) - wins on 0, 1, 2, 3
         *   `2`: **`O5`** (Digit Over 5) - wins on 6, 7, 8, 9
         *   `3`: **`Even`** (Digit Even) - wins on 0, 2, 4, 6, 8 [Special Stake Multiplier 1.26x]
@@ -128,12 +128,11 @@ Here is how each strategy determines when, where, and how to place its trades:
         *   `6`: **`O4`** (Digit Over 4) - wins on 5, 6, 7, 8, 9 [Special Stake Multiplier 1.26x]
         *   `7`: **`Fall`** (Allow Equals) - wins on tick fall [Special Stake Multiplier 1.26x]
         *   `0`: **`Odd`** (Digit Odd) - wins on 1, 3, 5, 7, 9 [Special Stake Multiplier 1.26x]
-    *   **Seed Generation**: Initializes with random seeds $A$ and $B$ in range $[1, 10000]$ at session start or after wins, starting at step 0.
-    *   **Drawdown Skip Rule**: After the 3rd consecutive loss (martingale step $\ge 3$), the trade directions `U4` (Under 4) and `O5` (Over 5) are skipped. If selected, the step is sequentially advanced ($n \rightarrow n+1$) until a non-skipped direction is selected.
-    *   **Ping-Pong Recovery Phase**: After the 5th consecutive loss (martingale step $\ge 5$), the strategy overrides the Fibonacci sequence and enters a ping-pong alternation phase:
-        *   The 6th trade (martingale step 5) is randomly selected from `['rise', 'fall', 'even', 'odd']`.
-        *   Subsequent trades (martingale step > 5) alternate: if the previous trade was `rise` or `fall`, the next is selected from `['even', 'odd']`; if the previous was `even` or `odd`, the next is selected from `['rise', 'fall']`.
-        *   This continues until a win registers, which resets the martingale step to 0, regenerates seeds, and returns to step 0 of the Fibonacci sequence.
+    *   **Seed Generation**: Initializes with random seeds $A$ and $B$ in the high-entropy range $[1, 1000000000]$ at session start or after wins, starting at step 0. This ensures $10^{18}$ unique possible paths, providing perfect pseudo-randomness.
+    *   **Drawdown Skip Rules**:
+        *   **Martingale Step $\ge 3$**: The trade directions `U4` (Under 4) and `O5` (Over 5) are skipped to reduce exposure to lower-probability contracts during drawdown.
+        *   **Martingale Step $\ge 5$**: The skip list expands to also skip `U5` (Under 5) and `O4` (Over 4).
+        *   If a skipped direction is selected, the Fibonacci step is sequentially advanced ($n \rightarrow n+1$) until a non-skipped direction is selected.
 
 ---
 
