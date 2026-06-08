@@ -236,3 +236,21 @@ export function getRandomSequenceWithPrefix(
   const shuffledRemaining = shuffle(remainingElements);
   return [...prefix, ...shuffledRemaining];
 }
+
+/**
+ * Checks if a candidate arrangement starts with any blacklisted prefix (of any length)
+ */
+export function isPrefixBlacklisted(
+  arr: string[],
+  blacklistedPrefixes: string[]
+): boolean {
+  if (!blacklistedPrefixes || blacklistedPrefixes.length === 0) return false;
+  return blacklistedPrefixes.some(blacklisted => {
+    const prefixElems = blacklisted.split(",");
+    if (prefixElems.length > arr.length) return false;
+    for (let i = 0; i < prefixElems.length; i++) {
+      if (arr[i] !== prefixElems[i]) return false;
+    }
+    return true;
+  });
+}

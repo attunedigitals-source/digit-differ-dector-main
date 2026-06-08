@@ -6,7 +6,8 @@ import {
   getNextArrangement,
   directionToDetails,
   getPermutationIndex,
-  getRandomSequenceWithPrefix
+  getRandomSequenceWithPrefix,
+  isPrefixBlacklisted
 } from "../lib/arrangement-brain";
 
 describe("Strategy A Arrangement Brain Math", () => {
@@ -309,6 +310,31 @@ describe("Strategy A Arrangement Brain Math", () => {
       const arr = getNthPermutation(STRAT_K_ELEMENTS, STRAT_K_COUNTS, rank);
       const computed = getPermutationIndex(STRAT_K_ELEMENTS, STRAT_K_COUNTS, arr);
       expect(computed).toBe(rank);
+    });
+  });
+
+  describe("isPrefixBlacklisted (Dynamic Prefix Length Matching)", () => {
+    it("should return false if blacklist is empty", () => {
+      const arr = ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"];
+      expect(isPrefixBlacklisted(arr, [])).toBe(false);
+    });
+
+    it("should return true if arrangement prefix matches a 5-element blacklist item", () => {
+      const arr = ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"];
+      const blacklist = ["U4,O4,U5,O5,EV"];
+      expect(isPrefixBlacklisted(arr, blacklist)).toBe(true);
+    });
+
+    it("should return true if arrangement prefix matches a 6-element blacklist item", () => {
+      const arr = ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"];
+      const blacklist = ["U4,O4,U5,O5,EV,OD"];
+      expect(isPrefixBlacklisted(arr, blacklist)).toBe(true);
+    });
+
+    it("should return false if arrangement prefix does not match any blacklist item", () => {
+      const arr = ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"];
+      const blacklist = ["U4,O4,U5,O5,OD", "U4,O4,U5,O5,EV,FALL"];
+      expect(isPrefixBlacklisted(arr, blacklist)).toBe(false);
     });
   });
 });

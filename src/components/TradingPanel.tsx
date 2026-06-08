@@ -56,6 +56,7 @@ interface TradingPanelProps {
     strategyJ_fibStartB?: number;
     strategyJ_fibStep?: number;
     currentCategory?: string | null;
+    currentLossSequence?: string[];
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
