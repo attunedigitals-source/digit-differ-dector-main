@@ -367,10 +367,10 @@ export function TradingPanel({
               <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
                 🚫 Session Blacklisted Prefixes (Globally)
               </span>
-              <div className="flex flex-wrap gap-1">
-                {sessionState.blacklistedPrefixes["global"].map((prefix, idx) => (
+              <div className="max-h-[72px] overflow-y-auto pr-1 custom-scrollbar flex flex-wrap gap-1 align-content-start">
+                {[...sessionState.blacklistedPrefixes["global"]].reverse().map((prefix) => (
                   <Badge 
-                    key={idx} 
+                    key={prefix} 
                     variant="outline" 
                     className="text-[7px] font-mono bg-destructive/10 text-destructive border-destructive/20 px-1 py-0.5"
                     title={prefix.split(",").join(" -> ")}
