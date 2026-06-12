@@ -272,8 +272,8 @@ describe("Strategy A Arrangement Brain Math", () => {
 
   describe("Strategy K Expanded Deck Math (Even, Odd, Rise, Fall)", () => {
     const STRAT_K_ELEMENTS = ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"];
-    const STRAT_K_COUNTS = [2, 2, 2, 2, 1, 1, 1, 1];
-    const STRAT_K_SIZE = 29937600;
+    const STRAT_K_COUNTS = [1, 1, 1, 1, 1, 1, 1, 1];
+    const STRAT_K_SIZE = 40320;
 
     it("should map every index uniquely for Strategy K deck using LCG walking", () => {
       const size = 1000;
@@ -289,16 +289,16 @@ describe("Strategy A Arrangement Brain Math", () => {
 
     it("should generate a valid Strategy K arrangement with correct counts", () => {
       const arr = getNthPermutation(STRAT_K_ELEMENTS, STRAT_K_COUNTS, 1);
-      expect(arr.length).toBe(12);
+      expect(arr.length).toBe(8);
 
       const counts: Record<string, number> = {};
       arr.forEach(dir => {
         counts[dir] = (counts[dir] || 0) + 1;
       });
-      expect(counts["U4"]).toBe(2);
-      expect(counts["O4"]).toBe(2);
-      expect(counts["U5"]).toBe(2);
-      expect(counts["O5"]).toBe(2);
+      expect(counts["U4"]).toBe(1);
+      expect(counts["O4"]).toBe(1);
+      expect(counts["U5"]).toBe(1);
+      expect(counts["O5"]).toBe(1);
       expect(counts["EV"]).toBe(1);
       expect(counts["OD"]).toBe(1);
       expect(counts["RISE"]).toBe(1);
@@ -306,7 +306,7 @@ describe("Strategy A Arrangement Brain Math", () => {
     });
 
     it("should rank Strategy K permutations bijectively", () => {
-      const rank = 1234567;
+      const rank = 12345;
       const arr = getNthPermutation(STRAT_K_ELEMENTS, STRAT_K_COUNTS, rank);
       const computed = getPermutationIndex(STRAT_K_ELEMENTS, STRAT_K_COUNTS, arr);
       expect(computed).toBe(rank);

@@ -132,7 +132,7 @@ Here is how each strategy determines when, where, and how to place its trades:
 ### Strategy K: Pre-Planned + Session Prefix Elimination + Expanded Deck
 *   **Core Concept**: A modification of Strategy A (Pre-Planned Cycles) that uses the 8-element expanded permutation deck (incorporating Even, Odd, Rise, and Fall as special contracts) and implements a global session-wide prefix blacklist to eliminate failing sequences.
 *   **Trade Execution**:
-    *   **The Permutation Deck**: Uses `['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL']` with counts `[2, 2, 2, 2, 1, 1, 1, 1]`, yielding 29,937,600 unique arrangements.
+    *   **The Permutation Deck**: Uses `['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL']` with counts `[1, 1, 1, 1, 1, 1, 1, 1]`, yielding 40,320 unique arrangements (each contract direction appears exactly 1 time).
     *   **Special Contracts**: The Rise, Fall, Even, Odd, Under 5, and Over 4 contract directions are treated as special contracts with the **1.26x** martingale stake multiplier.
     *   **Purely Random Volatility Selection**: Like Strategy A, the bot selects a volatility index randomly for each trade, using the "Intelligent brain" to prioritize symbols with fewer consecutive losses.
     *   **Global Session Blacklisting**: When the bot encounters **5 consecutive losses** in its current Martingale run, the active 5-element prefix of the arrangement is **blacklisted globally** for the entire session.
@@ -150,6 +150,6 @@ Here is how each strategy determines when, where, and how to place its trades:
 | **Probability Overlays** | No | No | No | No | Yes (Dynamic 25-tick overlay) | No | No | No | No | No | No |
 | **Smart Entry Filter** | No | No | No | No | Yes (2s delay on danger digit) | No | No | No | No | No | No |
 | **Pattern Elimination** | No | No | No | No | No | Yes (Symbol-specific prefix) | Yes (Global session prefix) | Yes (Start Index Elimination) | No | No | Yes (Global session prefix) |
-| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck (6-element Even/Odd) | LCG arrangement deck (8-element Even/Odd/Rise/Fall) | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection | Generalized Fibonacci modulo 8 progression | LCG arrangement deck (8-element Even/Odd/Rise/Fall) |
+| **Trade Progression Path** | LCG arrangement deck | LCG arrangement deck | LCG arrangement deck (6-element Even/Odd) | LCG arrangement deck (8-element Even/Odd/Rise/Fall) | LCG arrangement deck with dynamic upgrades | LCG arrangement deck with blacklists | LCG arrangement deck with global blacklists | Fibonacci modulo 6 progression | Purely random direction pool selection | Generalized Fibonacci modulo 8 progression | LCG arrangement deck (8-element, 1 of each) |
 
 

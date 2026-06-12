@@ -243,10 +243,14 @@ export function useAutoTrader(
         elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
         counts = [2, 2, 2, 2, 2, 2];
         totalArrangements = 7484400;
-      } else if (isStrategyD || isStrategyK) {
+      } else if (isStrategyD) {
         elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
         counts = [2, 2, 2, 2, 1, 1, 1, 1];
         totalArrangements = 29937600;
+      } else if (isStrategyK) {
+        elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+        counts = [1, 1, 1, 1, 1, 1, 1, 1];
+        totalArrangements = 40320;
       }
 
       if (isStrategyF || isStrategyG || isStrategyK) {
@@ -804,10 +808,14 @@ export function useAutoTrader(
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;
-            } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
+            } else if (config.strategy === "strategy_d") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
               counts = [2, 2, 2, 2, 1, 1, 1, 1];
               totalArrangements = 29937600;
+            } else if (config.strategy === "strategy_k") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+              counts = [1, 1, 1, 1, 1, 1, 1, 1];
+              totalArrangements = 40320;
             }
             const permIndex = lcgPermute(progressIdx, totalArrangements, seed);
             currentArrIdx = permIndex + 1;
@@ -1319,10 +1327,14 @@ export function useAutoTrader(
           elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
           counts = [2, 2, 2, 2, 2, 2];
           totalArrangements = 7484400;
-        } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
+        } else if (config.strategy === "strategy_d") {
           elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
           counts = [2, 2, 2, 2, 1, 1, 1, 1];
           totalArrangements = 29937600;
+        } else if (config.strategy === "strategy_k") {
+          elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+          counts = [1, 1, 1, 1, 1, 1, 1, 1];
+          totalArrangements = 40320;
         }
 
         if (nextProgressIndex >= totalArrangements) {
@@ -1380,8 +1392,8 @@ export function useAutoTrader(
           let totalArrangements = 369600;
           if (config.strategy === "strategy_k") {
             elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
-            counts = [2, 2, 2, 2, 1, 1, 1, 1];
-            totalArrangements = 29937600;
+            counts = [1, 1, 1, 1, 1, 1, 1, 1];
+            totalArrangements = 40320;
           }
 
           if (nextProgressIndex >= totalArrangements) {
@@ -1452,15 +1464,18 @@ export function useAutoTrader(
           const lossPrefix = (state.currentArrangement || []).slice(0, state.sequenceStep + 1);
           
           // If loss prefix is valid (e.g. within 12 elements), pool and draw
-          if (lossPrefix.length < 12) {
+          if (lossPrefix.length < (config.strategy === "strategy_k" ? 8 : 12)) {
             let elements = ['U4', 'O4', 'U5', 'O5'];
             let counts = [3, 3, 3, 3];
             if (config.strategy === "strategy_c") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
-            } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
+            } else if (config.strategy === "strategy_d") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
               counts = [2, 2, 2, 2, 1, 1, 1, 1];
+            } else if (config.strategy === "strategy_k") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+              counts = [1, 1, 1, 1, 1, 1, 1, 1];
             }
             
             if (config.strategy === "strategy_k") {
@@ -1492,10 +1507,14 @@ export function useAutoTrader(
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
               counts = [2, 2, 2, 2, 2, 2];
               totalArrangements = 7484400;
-            } else if (config.strategy === "strategy_d" || config.strategy === "strategy_k") {
+            } else if (config.strategy === "strategy_d") {
               elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
               counts = [2, 2, 2, 2, 1, 1, 1, 1];
               totalArrangements = 29937600;
+            } else if (config.strategy === "strategy_k") {
+              elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+              counts = [1, 1, 1, 1, 1, 1, 1, 1];
+              totalArrangements = 40320;
             }
 
             if (nextProgressIndex >= totalArrangements) {
@@ -2092,6 +2111,14 @@ export function useAutoTrader(
       elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD'];
       counts = [2, 2, 2, 2, 2, 2];
       totalArrangements = 7484400;
+    } else if (config.strategy === "strategy_d") {
+      elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+      counts = [2, 2, 2, 2, 1, 1, 1, 1];
+      totalArrangements = 29937600;
+    } else if (config.strategy === "strategy_k") {
+      elements = ['U4', 'O4', 'U5', 'O5', 'EV', 'OD', 'RISE', 'FALL'];
+      counts = [1, 1, 1, 1, 1, 1, 1, 1];
+      totalArrangements = 40320;
     }
 
     const permIndex = lcgPermute(newProgress, totalArrangements, newSeed);

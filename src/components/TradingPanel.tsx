@@ -266,11 +266,16 @@ export function TradingPanel({
                 <Target className="w-3.5 h-3.5 text-primary animate-pulse" /> Arrangement #{sessionState.currentArrangementIndex ?? 1}
               </span>
               <span className="text-[8px] text-muted-foreground">
-                Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / {(config.strategy === "strategy_c" || config.strategy === "strategy_d") ? "7,484,400" : "369,600"}
+                Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / {
+                  config.strategy === "strategy_c" ? "7,484,400" :
+                  config.strategy === "strategy_d" ? "29,937,600" :
+                  config.strategy === "strategy_k" ? "40,320" :
+                  "369,600"
+                }
               </span>
             </div>
             <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 px-1.5 py-0.5">
-              Step {(sessionState.sequenceStep ?? 0) + 1}/12
+              Step {(sessionState.sequenceStep ?? 0) + 1}/{config.strategy === "strategy_k" ? 8 : 12}
             </Badge>
           </div>
  

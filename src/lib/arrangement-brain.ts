@@ -80,7 +80,7 @@ export function lcgPermute(index: number, size: number, seed: number): number {
   // For size 369,600, P = 369623
   // For size 7,484,400 (Strategy C with Even and Odd), P = 7484401
   // For size 29,937,600 (Strategy D with Even, Odd, Rise, Fall), P = 29937601
-  const P = size === 29937600 ? 29937601 : (size === 7484400 ? 7484401 : 369623);
+  const P = size === 29937600 ? 29937601 : (size === 7484400 ? 7484401 : (size === 40320 ? 40343 : 369623));
   
   // High quality prime-based LCG multipliers
   const a = 15485863;
