@@ -38,6 +38,14 @@ const getCategoryGroup = (cat: TradeCategory): "NORMAL" | "SPECIAL" => {
   return "SPECIAL";
 };
 
+const getLocalDayString = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const getFibonacci = (k: number): bigint => {
   if (k <= 0) return 0n;
   if (k === 1) return 1n;
@@ -2079,6 +2087,34 @@ export function useAutoTrader(
     }
   }, [config.enabled, continuousTradeStartAt]);
 
+  // Reset session blacklist on new day session start
+  useEffect(() => {
+    if (config.enabled) {
+      const currentDay = getLocalDayString();
+      const lastSessionDay = localStorage.getItem('lastSessionDate');
+
+      if (lastSessionDay && lastSessionDay !== currentDay) {
+        const emptyBlacklist: Record<string, string[]> = {};
+        const symbols = [
+          "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+          "R_10", "R_25", "R_50", "R_75", "R_100",
+        ];
+        symbols.forEach(s => emptyBlacklist[s] = []);
+        emptyBlacklist["global"] = [];
+        
+        setSessionState(prev => ({
+          ...prev,
+          blacklistedPrefixes: emptyBlacklist
+        }));
+        localStorage.setItem('blacklistedPrefixes', JSON.stringify(emptyBlacklist));
+        toast.info("New day detected. Resetting session blacklist.");
+        console.log(`[AutoTrader] New day detected (${currentDay} vs ${lastSessionDay}). Resetting blacklist.`);
+      }
+      
+      localStorage.setItem('lastSessionDate', currentDay);
+    }
+  }, [config.enabled]);
+
   const activateWindDown = useCallback(() => {
     if (!config.enabled) {
       toast.error("Enable auto-automation before activating wind down.");
@@ -2125,9 +2161,23 @@ export function useAutoTrader(
     const newArrIndex = permIndex + 1;
     const newArr = getNthPermutation(elements, counts, newArrIndex);
 
-    const emptyBlacklist: Record<string, string[]> = {};
-    symbols.forEach(s => emptyBlacklist[s] = []);
-    emptyBlacklist["global"] = [];
+    const currentDay = getLocalDayString();
+    const lastSessionDay = localStorage.getItem('lastSessionDate');
+
+    let blacklistToUse: Record<string, string[]> = {};
+    if (lastSessionDay === currentDay) {
+      const saved = localStorage.getItem('blacklistedPrefixes');
+      if (saved) {
+        try {
+          blacklistToUse = JSON.parse(saved);
+        } catch (e) {}
+      }
+    }
+
+    if (!blacklistToUse || Object.keys(blacklistToUse).length === 0) {
+      symbols.forEach(s => blacklistToUse[s] = []);
+      blacklistToUse["global"] = [];
+    }
 
     setSessionState({
       currentStake: config.baseStake,
@@ -2147,7 +2197,7 @@ export function useAutoTrader(
       shufflingSeed: newSeed,
       currentSymbolLosses: 0,
       forceSwapSymbol: false,
-      blacklistedPrefixes: emptyBlacklist,
+      blacklistedPrefixes: blacklistToUse,
       fibonacciIndex: -1,
       usedStartIndices: [],
     });
