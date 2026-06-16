@@ -20,7 +20,113 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd" | "rise" | "fall";
+export type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd" | "rise" | "fall";
+
+export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
+  strategy_a: ["under4", "over4", "under5", "over5"],
+  strategy_b: ["under4", "over4", "under5", "over5"],
+  strategy_c: ["under4", "over4", "under5", "over5", "even", "odd"],
+  strategy_d: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
+  strategy_e: ["under4", "over4", "under5", "over5"],
+  strategy_f: ["under4", "over4", "under5", "over5"],
+  strategy_g: ["under4", "over4", "under5", "over5"],
+  strategy_h: ["under4", "over5", "even", "under5", "over4", "odd"],
+  strategy_i: ["under4", "over4", "under5", "over5", "even", "odd"],
+  strategy_j: ["under4", "over5", "even", "rise", "under5", "over4", "fall", "odd"],
+  strategy_k: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
+  alternating: ["under4", "over4", "under5", "over5"]
+};
+
+export const categoryToCode = (cat: TradeCategory): string => {
+  if (cat === "under4") return "U4";
+  if (cat === "over4") return "O4";
+  if (cat === "under5") return "U5";
+  if (cat === "over5") return "O5";
+  if (cat === "even") return "EV";
+  if (cat === "odd") return "OD";
+  if (cat === "rise") return "RISE";
+  if (cat === "fall") return "FALL";
+  if (cat === "over0") return "O0";
+  if (cat === "under9") return "U9";
+  return cat;
+};
+
+export const codeToCategory = (code: string): TradeCategory => {
+  if (code === "U4") return "under4";
+  if (code === "O4") return "over4";
+  if (code === "U5") return "under5";
+  if (code === "O5") return "over5";
+  if (code === "EV") return "even";
+  if (code === "OD") return "odd";
+  if (code === "RISE") return "rise";
+  if (code === "FALL") return "fall";
+  if (code === "O0") return "over0";
+  if (code === "U9") return "under9";
+  return code as TradeCategory;
+};
+
+export function resolveNextDirection(
+  trade: TradeCategory,
+  nextStep: number,
+  currentLossSequence: string[] | undefined,
+  strategy: string,
+  currentArrangement: string[] | undefined,
+  sequenceStep: number,
+  strategyPool: TradeCategory[]
+): { trade: TradeCategory; currentArrangement?: string[] } {
+  if (nextStep < 5 || !currentLossSequence || currentLossSequence.length === 0) {
+    return { trade };
+  }
+
+  const lossSeq = currentLossSequence.map(codeToCategory);
+  if (!lossSeq.includes(trade)) {
+    return { trade };
+  }
+
+  // If we are using an arrangement-based strategy, try to swap with a future element in the arrangement
+  if (["strategy_a", "strategy_b", "strategy_c", "strategy_d", "strategy_e", "strategy_f", "strategy_g", "strategy_k"].includes(strategy)) {
+    const currentArr = currentArrangement ? [...currentArrangement] : [];
+    
+    for (let j = sequenceStep + 1; j < currentArr.length; j++) {
+      const nextCode = currentArr[j];
+      const candidateTrade = codeToCategory(nextCode);
+      
+      if (!lossSeq.includes(candidateTrade)) {
+        // Swap elements
+        const temp = currentArr[sequenceStep];
+        currentArr[sequenceStep] = currentArr[j];
+        currentArr[j] = temp;
+        
+        return {
+          trade: candidateTrade,
+          currentArrangement: currentArr
+        };
+      }
+    }
+  }
+
+  // Fallback / non-arrangement strategies: filter pool
+  const availableDirections = strategyPool.filter(d => !lossSeq.includes(d));
+  if (availableDirections.length > 0) {
+    return {
+      trade: availableDirections[Math.floor(Math.random() * availableDirections.length)]
+    };
+  }
+
+  // If all allowed directions are in the loss sequence, at least avoid the immediately preceding one
+  const lastLoss = lossSeq[lossSeq.length - 1];
+  const backupDirections = strategyPool.filter(d => d !== lastLoss);
+  if (backupDirections.length > 0) {
+    return {
+      trade: backupDirections[Math.floor(Math.random() * backupDirections.length)]
+    };
+  }
+
+  return {
+    trade: strategyPool[Math.floor(Math.random() * strategyPool.length)]
+  };
+}
+
 interface SymbolStatus {
   lastGroup: "NORMAL" | "SPECIAL" | null;
 }
@@ -649,6 +755,7 @@ export function useAutoTrader(
       let nextStake = state.currentStake;
       let nextStep = state.martingaleStep;
       let seqStep = state.sequenceStep;
+      let updatedArrangement = state.currentArrangement;
 
       let symbol: string;
       const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "alternating";
@@ -911,6 +1018,24 @@ export function useAutoTrader(
         }
       }
 
+      // Avoid repeating the same direction of trade during consecutive losses (from 5th loss up to 11th trade)
+      const resolution = resolveNextDirection(
+        trade,
+        nextStep,
+        state.currentLossSequence,
+        config.strategy,
+        state.currentArrangement,
+        state.sequenceStep,
+        STRATEGY_DIRECTIONS[config.strategy] || STRATEGY_DIRECTIONS["alternating"]
+      );
+      if (resolution.trade !== trade) {
+        trade = resolution.trade;
+        chosenGroup = getCategoryGroup(trade);
+        if (resolution.currentArrangement) {
+          updatedArrangement = resolution.currentArrangement;
+        }
+      }
+
       console.log("[AutoTrader] Volatility and Strategy Selection", {
         strategy: config.strategy,
         symbol,
@@ -1008,6 +1133,7 @@ export function useAutoTrader(
         strategyJ_fibStartA: state.strategyJ_fibStartA,
         strategyJ_fibStartB: state.strategyJ_fibStartB,
         strategyJ_fibStep: state.strategyJ_fibStep,
+        currentArrangement: updatedArrangement,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -1120,7 +1246,11 @@ export function useAutoTrader(
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
     const state = sessionStateRef.current;
-    const failedDirection = state.currentArrangement?.[state.sequenceStep] || "O5";
+    const failedDirection = state.currentCategory
+      ? categoryToCode(state.currentCategory)
+      : (state.currentArrangement && state.currentArrangement.length > 0 && state.currentArrangement[state.sequenceStep]
+          ? state.currentArrangement[state.sequenceStep]
+          : "O5");
     const nextLossSeq = isWin ? [] : [...(state.currentLossSequence || []), failedDirection];
     
     // Update per-symbol tracker
