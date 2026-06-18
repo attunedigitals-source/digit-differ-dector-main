@@ -89,4 +89,150 @@ describe("resolveNextDirection consecutive loss protection", () => {
     expect(res.trade).not.toBe("over5");
     expect(pool).toContain(res.trade);
   });
+
+  describe("Strategy K prefix-based blacklist sequence avoidance", () => {
+    const strategyPool: TradeCategory[] = ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"];
+
+    it("ignores blacklist logic when nextStep < 5", () => {
+      const blacklists = {
+        global: ["U4,O4,U5,O5,EV,RISE"]
+      };
+      // 1st step (nextStep = 0)
+      const res = resolveNextDirection(
+        "under4",
+        0,
+        [],
+        "strategy_k",
+        ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"],
+        0,
+        strategyPool,
+        blacklists
+      );
+      expect(res.trade).toBe("under4");
+    });
+
+    it("uses planned direction if no matching blacklist entry is found", () => {
+      const blacklists = {
+        global: ["U5,O4,U4,O5,EV,RISE"]
+      };
+      // current loss seq is different: U4,O4,U5,O5,EV
+      const res = resolveNextDirection(
+        "rise",
+        5,
+        ["U4", "O4", "U5", "O5", "EV"],
+        "strategy_k",
+        ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"],
+        5,
+        strategyPool,
+        blacklists
+      );
+      expect(res.trade).toBe("rise");
+    });
+
+    it("uses a randomly selected trade from all 8 directions if no 6th direction is in sequence found in blacklist", () => {
+      const blacklists = {
+        global: ["U4,O4,U5,O5,EV"] // length is exactly 5
+      };
+      const res = resolveNextDirection(
+        "rise",
+        5,
+        ["U4", "O4", "U5", "O5", "EV"],
+        "strategy_k",
+        ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"],
+        5,
+        strategyPool,
+        blacklists
+      );
+      expect(strategyPool).toContain(res.trade);
+    });
+
+    it("uses a different trade direction from that which is on the found sequence in blacklist", () => {
+      const blacklists = {
+        global: ["U4,O4,U5,O5,EV,RISE"] // 6th element is RISE
+      };
+      const res = resolveNextDirection(
+        "rise",
+        5,
+        ["U4", "O4", "U5", "O5", "EV"],
+        "strategy_k",
+        ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"],
+        5,
+        strategyPool,
+        blacklists
+      );
+      expect(res.trade).not.toBe("rise"); // RISE is mapped from code "RISE"
+      expect(strategyPool).toContain(res.trade);
+      expect(res.currentArrangement![5]).not.toBe("RISE");
+    });
+
+    it("collates 6th trades from multiple matched entries and avoids all of them", () => {
+      const blacklists = {
+        global: [
+          "U4,O4,U5,O5,EV,RISE", // RISE at index 5
+          "U4,O4,U5,O5,EV,FALL"  // FALL at index 5
+        ]
+      };
+      const res = resolveNextDirection(
+        "rise",
+        5,
+        ["U4", "O4", "U5", "O5", "EV"],
+        "strategy_k",
+        ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"],
+        5,
+        strategyPool,
+        blacklists
+      );
+      expect(res.trade).not.toBe("rise");
+      expect(res.trade).not.toBe("fall");
+      expect(strategyPool).toContain(res.trade);
+    });
+
+    it("selects randomly from all 8 directions if matching entries have completed all 8 directions at index 5", () => {
+      const blacklists = {
+        global: [
+          "U4,O4,U5,O5,EV,U4",
+          "U4,O4,U5,O5,EV,O4",
+          "U4,O4,U5,O5,EV,U5",
+          "U4,O4,U5,O5,EV,O5",
+          "U4,O4,U5,O5,EV,EV",
+          "U4,O4,U5,O5,EV,OD",
+          "U4,O4,U5,O5,EV,RISE",
+          "U4,O4,U5,O5,EV,FALL"
+        ]
+      };
+      const res = resolveNextDirection(
+        "rise",
+        5,
+        ["U4", "O4", "U5", "O5", "EV"],
+        "strategy_k",
+        ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"],
+        5,
+        strategyPool,
+        blacklists
+      );
+      expect(strategyPool).toContain(res.trade);
+    });
+
+    it("checks the 7th trade direction (index 6) if the 6th trade resulted in a loss", () => {
+      const blacklists = {
+        global: [
+          "U4,O4,U5,O5,EV,RISE,FALL" // 7th element is FALL
+        ]
+      };
+      // lost 6 trades: U4,O4,U5,O5,EV,RISE
+      const res = resolveNextDirection(
+        "fall",
+        6,
+        ["U4", "O4", "U5", "O5", "EV", "RISE"],
+        "strategy_k",
+        ["U4", "O4", "U5", "O5", "EV", "OD", "RISE", "FALL"],
+        6,
+        strategyPool,
+        blacklists
+      );
+      expect(res.trade).not.toBe("fall");
+      expect(strategyPool).toContain(res.trade);
+      expect(res.currentArrangement![6]).not.toBe("FALL");
+    });
+  });
 });

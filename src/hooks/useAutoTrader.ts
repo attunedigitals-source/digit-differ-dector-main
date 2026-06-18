@@ -72,8 +72,63 @@ export function resolveNextDirection(
   strategy: string,
   currentArrangement: string[] | undefined,
   sequenceStep: number,
-  strategyPool: TradeCategory[]
+  strategyPool: TradeCategory[],
+  blacklistedPrefixes?: Record<string, string[]>
 ): { trade: TradeCategory; currentArrangement?: string[] } {
+  if (strategy === "strategy_k") {
+    if (nextStep < 5 || !currentLossSequence || currentLossSequence.length < 5) {
+      return { trade };
+    }
+
+    const globalBlacklist = blacklistedPrefixes?.["global"] || [];
+    const currentFirst5 = currentLossSequence.slice(0, 5);
+
+    const matches = globalBlacklist.filter(entry => {
+      const parts = entry.split(",");
+      if (parts.length < 5) return false;
+      for (let i = 0; i < 5; i++) {
+        if (parts[i] !== currentFirst5[i]) return false;
+      }
+      return true;
+    });
+
+    if (matches.length === 0) {
+      return { trade };
+    }
+
+    const appearedCodes = new Set<string>();
+    matches.forEach(entry => {
+      const parts = entry.split(",");
+      if (parts.length > nextStep) {
+        appearedCodes.add(parts[nextStep]);
+      }
+    });
+
+    const pool: TradeCategory[] = ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"];
+    let selectedTrade: TradeCategory;
+
+    if (appearedCodes.size === 0) {
+      selectedTrade = pool[Math.floor(Math.random() * pool.length)];
+    } else {
+      const availablePool = pool.filter(cat => !appearedCodes.has(categoryToCode(cat)));
+      if (availablePool.length > 0) {
+        selectedTrade = availablePool[Math.floor(Math.random() * availablePool.length)];
+      } else {
+        selectedTrade = pool[Math.floor(Math.random() * pool.length)];
+      }
+    }
+
+    const currentArr = currentArrangement ? [...currentArrangement] : [];
+    if (currentArr.length > sequenceStep) {
+      currentArr[sequenceStep] = categoryToCode(selectedTrade);
+    }
+
+    return {
+      trade: selectedTrade,
+      currentArrangement: currentArr
+    };
+  }
+
   if (nextStep < 5 || !currentLossSequence || currentLossSequence.length === 0) {
     return { trade };
   }
@@ -84,7 +139,7 @@ export function resolveNextDirection(
   }
 
   // If we are using an arrangement-based strategy, try to swap with a future element in the arrangement
-  if (["strategy_a", "strategy_b", "strategy_c", "strategy_d", "strategy_e", "strategy_f", "strategy_g", "strategy_k"].includes(strategy)) {
+  if (["strategy_a", "strategy_b", "strategy_c", "strategy_d", "strategy_e", "strategy_f", "strategy_g"].includes(strategy)) {
     const currentArr = currentArrangement ? [...currentArrangement] : [];
     
     for (let j = sequenceStep + 1; j < currentArr.length; j++) {
@@ -1026,7 +1081,8 @@ export function useAutoTrader(
         config.strategy,
         state.currentArrangement,
         state.sequenceStep,
-        STRATEGY_DIRECTIONS[config.strategy] || STRATEGY_DIRECTIONS["alternating"]
+        STRATEGY_DIRECTIONS[config.strategy] || STRATEGY_DIRECTIONS["alternating"],
+        state.blacklistedPrefixes
       );
       if (resolution.trade !== trade) {
         trade = resolution.trade;
@@ -2422,6 +2478,23 @@ export function useAutoTrader(
     }
   }, [user?.id, windDownMode, sanitizeConfigWithToasts]);
 
+  const clearBlacklist = useCallback(() => {
+    const symbols = [
+      "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+      "R_10", "R_25", "R_50", "R_75", "R_100",
+    ];
+    const emptyBlacklist: Record<string, string[]> = {};
+    symbols.forEach(s => emptyBlacklist[s] = []);
+    emptyBlacklist["global"] = [];
+
+    setSessionState(prev => ({
+      ...prev,
+      blacklistedPrefixes: emptyBlacklist
+    }));
+    localStorage.setItem('blacklistedPrefixes', JSON.stringify(emptyBlacklist));
+    toast.success("Session blacklist successfully cleared.");
+  }, []);
+
   return {
     config,
     setConfig: stableSetConfig,
@@ -2437,5 +2510,6 @@ export function useAutoTrader(
     windDownMode,
     activateWindDown,
     volatilityTracking,
+    clearBlacklist,
   };
 }

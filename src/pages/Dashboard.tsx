@@ -76,7 +76,7 @@ export default function Dashboard() {
   const { 
     config, setConfig, tradeLog, setTradeLog, 
     dailyPL, dailyStats, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown,
-    volatilityTracking
+    volatilityTracking, clearBlacklist
   } = useAutoTrader(wsRef, activeAccount, connected, getSymbolState);
 
   // Wire auto-trader message handler
@@ -156,6 +156,7 @@ export default function Dashboard() {
               onActivateWindDown={activateWindDown}
               profile={profile}
               volatilityTracking={volatilityTracking}
+              onClearBlacklist={clearBlacklist}
             />
           </div>
 

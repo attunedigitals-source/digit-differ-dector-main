@@ -1,4 +1,4 @@
-project_id = "bnjzhzbfiflsfpxwmteb"
+project_id = "kecfosxifvwbkqtjjfzz"
 [functions.deriv-token-exchange]
 enabled = true
 verify_jwt = true

@@ -67,6 +67,7 @@ interface TradingPanelProps {
   onActivateWindDown: () => void;
   profile?: UserProfile | null;
   volatilityTracking?: Record<string, VolatilityTracking>;
+  onClearBlacklist?: () => void;
 }
 
 export function TradingPanel({
@@ -82,6 +83,7 @@ export function TradingPanel({
   onActivateWindDown,
   profile,
   volatilityTracking,
+  onClearBlacklist,
 }: TradingPanelProps) {
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
@@ -219,9 +221,22 @@ export function TradingPanel({
 
       {/* Trading Strategy Selection */}
       <div className="space-y-1.5 bg-muted/20 p-3 rounded-md border border-border/50">
-        <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-          <Shuffle className="w-3 h-3 text-primary animate-pulse" /> Trading Strategy
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Shuffle className="w-3.5 h-3.5 text-primary animate-pulse" /> Trading Strategy
+          </label>
+          {onClearBlacklist && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-5 px-2 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider border border-destructive/10"
+              onClick={onClearBlacklist}
+            >
+              Clear Blacklist
+            </Button>
+          )}
+        </div>
         <Select
           value={config.strategy}
           disabled={config.enabled}
@@ -369,9 +384,22 @@ export function TradingPanel({
 
           {(config.strategy === "strategy_g" || config.strategy === "strategy_k") && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
             <div className="mt-2 space-y-1 bg-destructive/5 p-2 rounded border border-destructive/15">
-              <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
-                🚫 Session Blacklisted Prefixes (Globally)
-              </span>
+              <div className="flex items-center justify-between pb-1">
+                <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
+                  🚫 Session Blacklisted Prefixes (Globally)
+                </span>
+                {onClearBlacklist && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 px-1.5 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider"
+                    onClick={onClearBlacklist}
+                  >
+                    Clear Blacklist
+                  </Button>
+                )}
+              </div>
               <div className="max-h-[72px] overflow-y-auto pr-1 custom-scrollbar flex flex-wrap gap-1 align-content-start">
                 {[...sessionState.blacklistedPrefixes["global"]].reverse().map((prefix) => (
                   <Badge 
@@ -757,9 +785,22 @@ export function TradingPanel({
             <span className="text-[10px] font-bold text-foreground uppercase tracking-wider flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-primary animate-pulse" /> Volatility Trackers & Suspensions
             </span>
-            <Badge variant="outline" className="text-[8px] bg-primary/5 text-primary border-primary/20 px-1.5 py-0.5">
-              {config.strategy === "strategy_c" ? "STRATEGY C" : config.strategy === "strategy_d" ? "STRATEGY D" : config.strategy === "strategy_e" ? "STRATEGY E" : "STRATEGY F"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {config.strategy === "strategy_f" && onClearBlacklist && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-2 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider border border-destructive/20"
+                  onClick={onClearBlacklist}
+                >
+                  Clear Blacklists
+                </Button>
+              )}
+              <Badge variant="outline" className="text-[8px] bg-primary/5 text-primary border-primary/20 px-1.5 py-0.5">
+                {config.strategy === "strategy_c" ? "STRATEGY C" : config.strategy === "strategy_d" ? "STRATEGY D" : config.strategy === "strategy_e" ? "STRATEGY E" : "STRATEGY F"}
+              </Badge>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
