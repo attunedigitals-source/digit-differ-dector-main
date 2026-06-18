@@ -1606,8 +1606,8 @@ export function useAutoTrader(
           if (!tempBlacklist["global"]) tempBlacklist["global"] = [];
           
           const prefixToBlacklist = nextLossSeq.join(",");
-          if (prefixToBlacklist) {
-            if (config.strategy === "strategy_g" || config.strategy === "strategy_k") {
+          if (prefixToBlacklist && config.strategy !== "strategy_k") {
+            if (config.strategy === "strategy_g") {
               const globalBlacklist = [...(tempBlacklist["global"] || [])];
               if (!globalBlacklist.includes(prefixToBlacklist)) {
                 globalBlacklist.push(prefixToBlacklist);
@@ -1746,6 +1746,22 @@ export function useAutoTrader(
     let nextForceSwapSymbol = state.forceSwapSymbol || false;
     let nextBlacklist = { ...(state.blacklistedPrefixes || {}) };
 
+    if (isWin && config.strategy === "strategy_k") {
+      if (state.currentLossSequence && state.currentLossSequence.length >= 5) {
+        const prefixToBlacklist = state.currentLossSequence.join(",");
+        if (!nextBlacklist["global"]) nextBlacklist["global"] = [];
+        const globalBlacklist = [...(nextBlacklist["global"] || [])];
+        if (!globalBlacklist.includes(prefixToBlacklist)) {
+          globalBlacklist.push(prefixToBlacklist);
+          nextBlacklist["global"] = globalBlacklist;
+          toast.warning(`Prefix [${prefixToBlacklist.split(",").join(" -> ")}] blacklisted GLOBALLY for the session after recovery from ${state.currentLossSequence.length} consecutive losses.`, {
+            duration: 8000
+          });
+          console.log(`[Strategy K] Recovery win. Blacklisted prefix globally: ${prefixToBlacklist}`);
+        }
+      }
+    }
+
     if (config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k") {
       if (isWin) {
         nextSymbolLosses = 0;
@@ -1767,13 +1783,13 @@ export function useAutoTrader(
                 toast.warning(`Prefix [${prefix.split(",").join(" -> ")}] blacklisted specifically for ${symbol} due to ${nextLossSeq.length} consecutive losses. Swapping index.`, {
                   duration: 8000
                 });
-                console.log(`[Strategy F] ${nextLossSeq.length} consecutive losses on ${symbol}. Blacklisted prefix: ${prefix}. Swapping symbol.`);
+                console.log(`[Strategy F] ${nextSymbolLosses} consecutive losses on ${symbol}. Blacklisted prefix: ${prefix}. Swapping symbol.`);
               }
             }
             nextSymbolLosses = 0;
             nextForceSwapSymbol = true;
           }
-        } else if (config.strategy === "strategy_g" || config.strategy === "strategy_k") {
+        } else if (config.strategy === "strategy_g") {
           if (state.martingaleStep >= 4) {
             const prefix = nextLossSeq.join(",");
             if (prefix) {
