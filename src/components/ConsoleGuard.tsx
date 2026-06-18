@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+// Store original console methods once on file load to prevent losing them when console is silenced
+const originalLog = window.console.log;
+const originalInfo = window.console.info;
+const originalWarn = window.console.warn;
+const originalDebug = window.console.debug;
+const originalError = window.console.error;
+
 export const ConsoleGuard = ({ children }: { children: React.ReactNode }) => {
   const [globalEnabled, setGlobalEnabled] = useState(false);
   const [userEnabled, setUserEnabled] = useState(false);
 
   useEffect(() => {
-    // Store original console methods locally in the effect to keep them pure
-    const originalLog = window.console.log;
-    const originalInfo = window.console.info;
-    const originalWarn = window.console.warn;
-    const originalDebug = window.console.debug;
-    const originalError = window.console.error;
-
     const isCurrentlyEnabled = globalEnabled && userEnabled;
 
     if (!isCurrentlyEnabled) {
