@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle } from "lucide-react";
+import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking } from "@/hooks/useAutoTrader";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
@@ -133,6 +133,74 @@ export function TradingPanel({
     return `${minutes}:${String(secs).padStart(2, "0")}`;
   };
 
+  const hasAnyBlacklist = () => {
+    const prefixes = sessionState.blacklistedPrefixes || {};
+    return Object.keys(prefixes).some(key => prefixes[key] && prefixes[key].length > 0);
+  };
+
+  const exportBlacklistToCSV = () => {
+    const isGlobal = config.strategy === "strategy_g" || config.strategy === "strategy_k";
+    let csvContent = "\uFEFF"; // BOM for UTF-8 Excel compatibility
+
+    if (isGlobal) {
+      const globalBlacklist = sessionState.blacklistedPrefixes?.["global"] || [];
+      if (globalBlacklist.length === 0) {
+        toast.error("No blacklisted prefixes to export.");
+        return;
+      }
+      csvContent += "Index,Prefix,Friendly Name\n";
+      globalBlacklist.forEach((prefix, index) => {
+        const friendlyName = prefix.split(",").map(step => {
+          if (step === "U4") return "Under 4";
+          if (step === "O4") return "Over 4";
+          if (step === "U5") return "Under 5";
+          if (step === "O5") return "Over 5";
+          if (step === "EV") return "Even";
+          if (step === "OD") return "Odd";
+          if (step === "RISE") return "Rise";
+          if (step === "FALL") return "Fall";
+          return step;
+        }).join(" -> ");
+        csvContent += `${index + 1},"${prefix}","${friendlyName}"\n`;
+      });
+    } else {
+      const prefixes = sessionState.blacklistedPrefixes || {};
+      const symbols = Object.keys(prefixes).filter(key => key !== "global" && prefixes[key] && prefixes[key].length > 0);
+      if (symbols.length === 0) {
+        toast.error("No blacklisted prefixes to export.");
+        return;
+      }
+      csvContent += "Symbol,Index,Prefix,Friendly Name\n";
+      symbols.forEach(symbol => {
+        prefixes[symbol].forEach((prefix, index) => {
+          const friendlyName = prefix.split(",").map(step => {
+            if (step === "U4") return "Under 4";
+            if (step === "O4") return "Over 4";
+            if (step === "U5") return "Under 5";
+            if (step === "O5") return "Over 5";
+            if (step === "EV") return "Even";
+            if (step === "OD") return "Odd";
+            if (step === "RISE") return "Rise";
+            if (step === "FALL") return "Fall";
+            return step;
+          }).join(" -> ");
+          csvContent += `${symbol},${index + 1},"${prefix}","${friendlyName}"\n`;
+        });
+      });
+    }
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${config.strategy}_blacklist_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Blacklist exported successfully to CSV!");
+  };
+
   return (
     <div className="bg-card border border-border rounded-lg p-4 space-y-4 shadow-lg backdrop-blur-sm bg-opacity-80">
       {/* Header */}
@@ -225,17 +293,30 @@ export function TradingPanel({
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Shuffle className="w-3.5 h-3.5 text-primary animate-pulse" /> Trading Strategy
           </label>
-          {onClearBlacklist && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-5 px-2 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider border border-destructive/10"
-              onClick={onClearBlacklist}
-            >
-              Clear Blacklist
-            </Button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {hasAnyBlacklist() && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-2 text-[8px] text-primary hover:bg-primary/10 hover:text-primary font-bold uppercase tracking-wider border border-primary/20 flex items-center gap-1"
+                onClick={exportBlacklistToCSV}
+              >
+                <Download className="w-2.5 h-2.5" /> Export Blacklist
+              </Button>
+            )}
+            {onClearBlacklist && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-2 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider border border-destructive/10"
+                onClick={onClearBlacklist}
+              >
+                Clear Blacklist
+              </Button>
+            )}
+          </div>
         </div>
         <Select
           value={config.strategy}
@@ -388,17 +469,28 @@ export function TradingPanel({
                 <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
                   🚫 Session Blacklisted Prefixes (Globally)
                 </span>
-                {onClearBlacklist && (
+                <div className="flex items-center gap-1">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-4 px-1.5 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider"
-                    onClick={onClearBlacklist}
+                    className="h-4 px-1.5 text-[8px] text-primary hover:bg-primary/10 hover:text-primary font-bold uppercase tracking-wider flex items-center gap-0.5 border border-primary/10 shadow-[0_0_8px_rgba(59,130,246,0.1)]"
+                    onClick={exportBlacklistToCSV}
                   >
-                    Clear Blacklist
+                    <Download className="w-2 h-2" /> Export CSV
                   </Button>
-                )}
+                  {onClearBlacklist && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 px-1.5 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider"
+                      onClick={onClearBlacklist}
+                    >
+                      Clear Blacklist
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="max-h-[72px] overflow-y-auto pr-1 custom-scrollbar flex flex-wrap gap-1 align-content-start">
                 {[...sessionState.blacklistedPrefixes["global"]].reverse().map((prefix) => (
@@ -786,16 +878,31 @@ export function TradingPanel({
               <Clock className="w-3.5 h-3.5 text-primary animate-pulse" /> Volatility Trackers & Suspensions
             </span>
             <div className="flex items-center gap-2">
-              {config.strategy === "strategy_f" && onClearBlacklist && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 px-2 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider border border-destructive/20"
-                  onClick={onClearBlacklist}
-                >
-                  Clear Blacklists
-                </Button>
+              {config.strategy === "strategy_f" && (
+                <>
+                  {hasAnyBlacklist() && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-2 text-[8px] text-primary hover:bg-primary/10 hover:text-primary font-bold uppercase tracking-wider border border-primary/20 flex items-center gap-1 shadow-[0_0_8px_rgba(59,130,246,0.1)]"
+                      onClick={exportBlacklistToCSV}
+                    >
+                      <Download className="w-2.5 h-2.5" /> Export CSV
+                    </Button>
+                  )}
+                  {onClearBlacklist && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-2 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider border border-destructive/20"
+                      onClick={onClearBlacklist}
+                    >
+                      Clear Blacklists
+                    </Button>
+                  )}
+                </>
               )}
               <Badge variant="outline" className="text-[8px] bg-primary/5 text-primary border-primary/20 px-1.5 py-0.5">
                 {config.strategy === "strategy_c" ? "STRATEGY C" : config.strategy === "strategy_d" ? "STRATEGY D" : config.strategy === "strategy_e" ? "STRATEGY E" : "STRATEGY F"}
