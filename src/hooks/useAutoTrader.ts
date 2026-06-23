@@ -1161,7 +1161,7 @@ export function useAutoTrader(
             }
           }
         } else if (state.status === "LOSS") {
-          nextStake = Number((state.currentStake * 3.0).toFixed(2));
+          nextStake = Number((state.currentStake * 3.5).toFixed(2));
         } else {
           nextStake = config.baseStake;
         }
