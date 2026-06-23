@@ -20,7 +20,7 @@ const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;
 const WIN_TRADE_COOLDOWN_MAX_TICKS = 3;
 const LOSS_TRADE_COOLDOWN_MIN_TICKS = 1;
 const LOSS_TRADE_COOLDOWN_MAX_TICKS = 3;
-export type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd" | "rise" | "fall";
+export type TradeCategory = "under4" | "over4" | "under5" | "over5" | "over0" | "under9" | "even" | "odd" | "rise" | "fall" | "over2" | "under7";
 
 export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_a: ["under4", "over4", "under5", "over5"],
@@ -34,6 +34,7 @@ export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_i: ["under4", "over4", "under5", "over5", "even", "odd"],
   strategy_j: ["under4", "over5", "even", "rise", "under5", "over4", "fall", "odd"],
   strategy_k: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
+  strategy_l: ["over2", "under7"],
   alternating: ["under4", "over4", "under5", "over5"]
 };
 
@@ -48,6 +49,8 @@ export const categoryToCode = (cat: TradeCategory): string => {
   if (cat === "fall") return "FALL";
   if (cat === "over0") return "O0";
   if (cat === "under9") return "U9";
+  if (cat === "over2") return "O2";
+  if (cat === "under7") return "U7";
   return cat;
 };
 
@@ -62,6 +65,8 @@ export const codeToCategory = (code: string): TradeCategory => {
   if (code === "FALL") return "fall";
   if (code === "O0") return "over0";
   if (code === "U9") return "under9";
+  if (code === "O2") return "over2";
+  if (code === "U7") return "under7";
   return code as TradeCategory;
 };
 
@@ -738,7 +743,7 @@ export function useAutoTrader(
       return null;
     }
 
-    if (config.strategy === "strategy_g" || config.strategy === "strategy_i" || config.strategy === "strategy_j") {
+    if (config.strategy === "strategy_g" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_l") {
       const currentSymbol = sessionStateRef.current.currentSymbol;
       const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
       const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
@@ -876,10 +881,12 @@ export function useAutoTrader(
         even: "Even",
         odd: "Odd",
         rise: "Rise",
-        fall: "Fall"
+        fall: "Fall",
+        over2: "Over 2",
+        under7: "Under 7"
       };
 
-      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_k") {
+      if (config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_h" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_k" || config.strategy === "strategy_l") {
         if (config.strategy === "strategy_h") {
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
@@ -964,6 +971,20 @@ export function useAutoTrader(
           state.strategyJ_fibStartA = startA;
           state.strategyJ_fibStartB = startB;
           state.strategyJ_fibStep = step;
+        } else if (config.strategy === "strategy_l") {
+          const pool: TradeCategory[] = ["over2", "under7"];
+          const tradeDir = pool[Math.floor(Math.random() * pool.length)];
+          trade = tradeDir;
+          chosenGroup = getCategoryGroup(trade);
+
+          console.log(`[Strategy L Execution] Selected random direction from pool: ${tradeDir}`);
+
+          if (state.status === "WIN" || state.status === "IDLE") {
+            nextStep = 0;
+          } else if (state.status === "LOSS") {
+            nextStep = state.martingaleStep + 1;
+            stepIndexRef.current += 1;
+          }
         } else {
           let currentArr = state.currentArrangement || [];
           let currentArrIdx = state.currentArrangementIndex || 0;
@@ -1118,13 +1139,30 @@ export function useAutoTrader(
       else if (trade === "rise") { type = "PUTE"; barrier = undefined; }
       else if (trade === "fall") { type = "CALLE"; barrier = undefined; }
       else if (trade === "over0") { type = "DIGITOVER"; barrier = 0; }
+      else if (trade === "over2") { type = "DIGITOVER"; barrier = 2; }
+      else if (trade === "under7") { type = "DIGITUNDER"; barrier = 7; }
       else { type = "DIGITUNDER"; barrier = 9; }
 
       const isFirstTrade = state.status === "IDLE";
       const isSpecialStakeTrade = trade === "under5" || trade === "over4" || trade === "even" || trade === "odd" || trade === "rise" || trade === "fall";
       const isWin = state.status === "WIN";
 
-      if (isFirstTrade || isWin) {
+      if (config.strategy === "strategy_l") {
+        if (isFirstTrade) {
+          nextStake = config.baseStake;
+        } else if (isWin) {
+          const reduced = state.currentStake / 2;
+          if (reduced < 0.35) {
+            nextStake = config.baseStake;
+          } else {
+            nextStake = Number(reduced.toFixed(2));
+          }
+        } else if (state.status === "LOSS") {
+          nextStake = Number((state.currentStake * 3.0).toFixed(2));
+        } else {
+          nextStake = config.baseStake;
+        }
+      } else if (isFirstTrade || isWin) {
         nextStake = config.baseStake;
       } else if (state.status === "LOSS") {
         if (config.strategy === "strategy_e" && nextStep >= 5) {
@@ -1441,7 +1479,9 @@ export function useAutoTrader(
     });
 
     const newStatus = isWin ? "WIN" : "LOSS";
-    let ticksToWaitNext = randomTradeCooldownTicks(isWin);
+    let ticksToWaitNext = config.strategy === "strategy_l"
+      ? Math.floor(Math.random() * 4) + 5
+      : randomTradeCooldownTicks(isWin);
     let nextAction = isWin
       ? `P_CD_${ticksToWaitNext}T`
       : `L_CD_${ticksToWaitNext}T`;

@@ -344,10 +344,11 @@ export function TradingPanel({
             <SelectItem value="strategy_i">Strategy I (Random Loop Engine)</SelectItem>
             <SelectItem value="strategy_j">Strategy J (Generalized Fibonacci Loop Engine)</SelectItem>
             <SelectItem value="strategy_k">Strategy K (Pre-Planned + Session Prefix Elimination + Expanded Deck)</SelectItem>
+            <SelectItem value="strategy_l">Strategy L (Random Over 2 / Under 7 Loop)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), and scaling stake by a 3x Martingale multiplier on losses.
         </p>
       </div>
 
@@ -868,6 +869,71 @@ export function TradingPanel({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {config.strategy === "strategy_l" && (
+        <div className="bg-gradient-to-br from-teal-500/15 via-card to-emerald-500/15 border border-teal-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center justify-between border-b border-teal-500/10 pb-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1">
+                <Shuffle className="w-3.5 h-3.5 text-teal-400 animate-pulse" /> Strategy L (Random Over 2 / Under 7)
+              </span>
+              <span className="text-[8px] text-muted-foreground">
+                Path: Random volatility & random Over 2 or Under 7 contracts
+              </span>
+            </div>
+            <Badge variant="outline" className="text-[9px] border-teal-500/30 text-teal-400 bg-teal-500/5 px-1.5 py-0.5 animate-pulse">
+              ACTIVE LOOP
+            </Badge>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[9px] text-muted-foreground uppercase tracking-wider block">Contract Candidates Pool:</span>
+            <div className="grid grid-cols-2 gap-2 py-1">
+              {[
+                { code: "O2", label: "Over 2", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40" },
+                { code: "U7", label: "Under 7", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40" }
+              ].map((item) => {
+                const isActive = sessionState.currentCategory === (item.code === "O2" ? "over2" : "under7");
+                return (
+                  <div
+                    key={item.code}
+                    title={item.label}
+                    className={`flex flex-col items-center justify-center py-2 px-1 rounded border transition-all duration-300 relative cursor-default select-none ${item.bgClass} ${item.borderClass} ${isActive ? "scale-105 border-2 border-primary" : "opacity-60"}`}
+                  >
+                    <span className={`text-xs font-mono font-black ${item.textClass}`}>
+                      {item.code}
+                    </span>
+                    <span className="text-[7px] text-muted-foreground mt-0.5">{item.label}</span>
+                    {isActive && (
+                      <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="flex items-center gap-1.5 justify-between text-[8px] bg-muted/40 px-2 py-1 rounded border border-border/40 mt-1">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <AlertCircle className="w-2.5 h-2.5 text-teal-400 animate-pulse" /> Active trade target:
+              </span>
+              <span className="font-bold text-foreground">
+                {(() => {
+                  const cat = sessionState.currentCategory;
+                  if (!cat) return "None (Waiting...)";
+                  if (cat === "over2") return "DIGITOVER 2 (Barrier 2)";
+                  if (cat === "under7") return "DIGITUNDER 7 (Barrier 7)";
+                  return cat;
+                })()}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
