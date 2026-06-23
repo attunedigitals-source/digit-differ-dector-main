@@ -1151,11 +1151,15 @@ export function useAutoTrader(
         if (isFirstTrade) {
           nextStake = config.baseStake;
         } else if (isWin) {
-          const reduced = state.currentStake / 2;
-          if (reduced < 0.35) {
+          if (state.currentStake > config.baseStake) {
             nextStake = config.baseStake;
           } else {
-            nextStake = Number(reduced.toFixed(2));
+            const reduced = state.currentStake / 2;
+            if (reduced < 0.35) {
+              nextStake = config.baseStake;
+            } else {
+              nextStake = Number(reduced.toFixed(2));
+            }
           }
         } else if (state.status === "LOSS") {
           nextStake = Number((state.currentStake * 3.0).toFixed(2));
