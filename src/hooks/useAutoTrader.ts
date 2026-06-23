@@ -857,7 +857,6 @@ export function useAutoTrader(
 
           setSessionState(prev => ({
             ...prev,
-            status: "SKIP",
             nextAction: "SKP_STALE",
           }));
 
@@ -1199,7 +1198,6 @@ export function useAutoTrader(
               
               setSessionState(prev => ({
                 ...prev,
-                status: "SKIP",
                 nextAction: "FILT_DGR",
               }));
               
@@ -1920,7 +1918,9 @@ export function useAutoTrader(
       ...state,
       status: newStatus,
       nextAction,
-      currentStake: isWin ? config.baseStake : state.currentStake,
+      currentStake: config.strategy === "strategy_l" 
+        ? state.currentStake 
+        : (isWin ? config.baseStake : state.currentStake),
       martingaleStep: isWin ? 0 : state.martingaleStep,
       sequenceStep: nextSeqStep,
       currentArrangementIndex: nextArrIndex,
