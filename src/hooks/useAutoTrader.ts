@@ -336,6 +336,7 @@ export function useAutoTrader(
     const savedJStartB = localStorage.getItem('strategyJ_fibStartB');
     const savedJStep = localStorage.getItem('strategyJ_fibStep');
     const savedLossSeq = localStorage.getItem('currentLossSequence');
+    const savedLMode = localStorage.getItem('strategyLMode') as "loss_sticky" | "win_sticky" | null;
     let lossSeq: string[] = [];
     if (savedLossSeq) {
       try {
@@ -488,6 +489,7 @@ export function useAutoTrader(
       strategyJ_fibStartB: savedJStartB ? parseInt(savedJStartB) : -1,
       strategyJ_fibStep: savedJStep ? parseInt(savedJStep) : -1,
       currentLossSequence: lossSeq,
+      strategyLMode: savedLMode || undefined,
     };
   });
 
@@ -818,7 +820,7 @@ export function useAutoTrader(
       let updatedArrangement = state.currentArrangement;
 
       let symbol: string;
-      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_l" || config.strategy === "alternating";
+      const keepSymbolOnLoss = config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "alternating";
       
       const isSuspended = (sym: string) => {
         const tracking = volatilityTracking[sym];
@@ -830,6 +832,8 @@ export function useAutoTrader(
                          state.currentSymbol && 
                          !isSuspended(state.currentSymbol) && 
                          !((config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") && state.forceSwapSymbol);
+
+      let nextLMode: "loss_sticky" | "win_sticky" | undefined = state.strategyLMode;
 
       if (config.strategy === "strategy_h") {
         let k = state.fibonacciIndex ?? -1;
@@ -846,6 +850,51 @@ export function useAutoTrader(
         const symbolMod = Number(fibValue % 10n);
         symbol = symbols[symbolMod];
         console.log(`[Strategy H Volatility] Index k: ${k}, F(k): ${fibValue.toString()}, F(k) % 10: ${symbolMod} -> ${symbol}`);
+      } else if (config.strategy === "strategy_l") {
+        const isFirstTrade = state.status === "IDLE";
+        let shouldSwitchSymbol = false;
+
+        if (isFirstTrade || !state.currentSymbol || !state.strategyLMode) {
+          shouldSwitchSymbol = true;
+          nextLMode = Math.random() < 0.5 ? "loss_sticky" : "win_sticky";
+        } else {
+          const currentMode = state.strategyLMode || "loss_sticky";
+          if (currentMode === "loss_sticky") {
+            if (state.status === "WIN") {
+              shouldSwitchSymbol = true;
+              nextLMode = Math.random() < 0.5 ? "loss_sticky" : "win_sticky";
+            } else {
+              shouldSwitchSymbol = false;
+            }
+          } else {
+            // win_sticky
+            if (state.status === "LOSS") {
+              shouldSwitchSymbol = true;
+              nextLMode = Math.random() < 0.5 ? "loss_sticky" : "win_sticky";
+            } else {
+              shouldSwitchSymbol = false;
+            }
+          }
+        }
+
+        if (shouldSwitchSymbol) {
+          const selectedSymbol = select_random_active_symbol();
+          if (!selectedSymbol) {
+            console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
+            setSessionState(prev => ({
+              ...prev,
+              nextAction: "SKP_STALE",
+            }));
+            setTicksToWait(3);
+            isExecutingRef.current = false;
+            return;
+          }
+          symbol = selectedSymbol.symbol;
+          console.log(`[Strategy L Volatility] Switched symbol to ${symbol}. Chosen mode: ${nextLMode}`);
+        } else {
+          symbol = state.currentSymbol;
+          console.log(`[Strategy L Volatility] Sticky symbol ${symbol}. Mode: ${nextLMode}`);
+        }
       } else if (shouldKeep) {
         symbol = state.currentSymbol;
       } else {
@@ -1230,6 +1279,7 @@ export function useAutoTrader(
         strategyJ_fibStartB: state.strategyJ_fibStartB,
         strategyJ_fibStep: state.strategyJ_fibStep,
         currentArrangement: updatedArrangement,
+        strategyLMode: nextLMode,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -2225,6 +2275,11 @@ export function useAutoTrader(
     localStorage.setItem('strategyJ_fibStartB', String(sessionState.strategyJ_fibStartB ?? -1));
     localStorage.setItem('strategyJ_fibStep', String(sessionState.strategyJ_fibStep ?? -1));
     localStorage.setItem('currentLossSequence', JSON.stringify(sessionState.currentLossSequence || []));
+    if (sessionState.strategyLMode) {
+      localStorage.setItem('strategyLMode', sessionState.strategyLMode);
+    } else {
+      localStorage.removeItem('strategyLMode');
+    }
   }, [sessionState]);
 
   useEffect(() => {
@@ -2446,6 +2501,7 @@ export function useAutoTrader(
       blacklistedPrefixes: blacklistToUse,
       fibonacciIndex: -1,
       usedStartIndices: [],
+      strategyLMode: undefined,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);

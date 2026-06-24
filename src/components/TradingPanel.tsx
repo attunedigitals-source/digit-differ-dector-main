@@ -57,6 +57,7 @@ interface TradingPanelProps {
     strategyJ_fibStep?: number;
     currentCategory?: string | null;
     currentLossSequence?: string[];
+    strategyLMode?: "loss_sticky" | "win_sticky";
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -885,9 +886,16 @@ export function TradingPanel({
                 Path: Random volatility & random Over 2 or Under 7 contracts
               </span>
             </div>
-            <Badge variant="outline" className="text-[9px] border-teal-500/30 text-teal-400 bg-teal-500/5 px-1.5 py-0.5 animate-pulse">
-              ACTIVE LOOP
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              {sessionState.strategyLMode && (
+                <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${sessionState.strategyLMode === 'loss_sticky' ? 'border-amber-500/30 text-amber-400 bg-amber-500/5' : 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'}`}>
+                  {sessionState.strategyLMode === 'loss_sticky' ? 'Loss Sticky' : 'Win Sticky'}
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-[9px] border-teal-500/30 text-teal-400 bg-teal-500/5 px-1.5 py-0.5 animate-pulse">
+                ACTIVE LOOP
+              </Badge>
+            </div>
           </div>
 
           <div className="space-y-2">
