@@ -10,11 +10,11 @@ import { TradingPanel } from "@/components/TradingPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Zap } from "lucide-react";
-import { getActiveAccount, clearDerivAuth } from "@/lib/deriv-oauth";
+import { getActiveAccount, getAccounts, setActiveAccount, clearDerivAuth } from "@/lib/deriv-oauth";
 import { TrialCountdown } from "@/components/TrialCountdown";
 
 export default function Dashboard() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, isPaid, isAdmin } = useAuth();
   
   const [activeOAuthAccount, setActiveOAuthAccount] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -24,6 +24,19 @@ export default function Dashboard() {
     const checkAccount = () => {
       const acc = getActiveAccount();
       if (acc) {
+        // Enforce demo account default and subscription check
+        const hasAccessToReal = isPaid || isAdmin;
+        if (!hasAccessToReal && !acc.is_virtual) {
+          // Find a demo account to switch to
+          const sessionAccounts = getAccounts();
+          const demoAccount = sessionAccounts.find(a => a.is_virtual);
+          if (demoAccount) {
+            setActiveAccount(demoAccount.loginid);
+            setActiveOAuthAccount(demoAccount);
+            setSessionLoading(false);
+            return true;
+          }
+        }
         setActiveOAuthAccount(acc);
         setSessionLoading(false);
         return true;
@@ -44,7 +57,7 @@ export default function Dashboard() {
       }, 200);
       return () => clearInterval(interval);
     }
-  }, []);
+  }, [isPaid, isAdmin]);
 
   const handleLogout = async () => {
     // 1. Clear Deriv specific session data
@@ -68,7 +81,9 @@ export default function Dashboard() {
     wsRef, onMessageRef, getAllStates, getSymbolState
   } = useDerivWebSocket({
     accountId: activeOAuthAccount?.loginid,
-    userId: user?.id
+    userId: user?.id,
+    isPaid,
+    isAdmin
   });
 
   const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? null;
@@ -115,7 +130,12 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
             <ConnectionStatus
               connected={connected}
-              onConnect={connect}
+              onConnect={async () => {
+                if (config.enabled) {
+                  setConfig({ ...config, enabled: false });
+                }
+                await connect();
+              }}
               onDisconnect={disconnect}
               hasToken={!!activeOAuthAccount || accounts.length > 0}
             />

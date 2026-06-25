@@ -55,8 +55,9 @@ export default function AuthCallback() {
           }
 
           if (accounts.length > 0) {
-            const activeToken = accounts[0].token!;
-            const activeLoginid = accounts[0].loginid;
+            const defaultAccount = accounts.find(a => a.is_virtual) ?? accounts[0];
+            const activeToken = defaultAccount.token || accounts[0].token!;
+            const activeLoginid = defaultAccount.loginid;
             
             // Save legacy session (expires far in the future or handle dynamically)
             const session: DerivSession = {
@@ -224,12 +225,13 @@ export default function AuthCallback() {
           }];
         }
 
-        // Save the session to localStorage
+        // Save the session to localStorage, defaulting to a demo account if available
+        const defaultAccount = accounts.find(a => a.is_virtual) ?? accounts[0];
         const session: DerivSession = {
           access_token: tokenData.access_token,
           expires_at: Date.now() + (tokenData.expires_in || 3600) * 1000,
           accounts,
-          active_loginid: accounts[0]?.loginid ?? jwtSub,
+          active_loginid: defaultAccount?.loginid ?? jwtSub,
         };
         saveSession(session);
 

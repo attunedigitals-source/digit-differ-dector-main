@@ -42,6 +42,8 @@ export interface DerivWebSocketOptions {
   apiToken?: string;
   accountId?: string;
   userId?: string;
+  isPaid?: boolean;
+  isAdmin?: boolean;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -125,7 +127,7 @@ async function fetchWebSocketUrl(accessToken: string, accountId: string, appId: 
   throw new Error("OTP response did not include an authenticated WebSocket URL");
 }
 
-export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivWebSocketOptions = {}) {
+export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid = false, isAdmin = false }: DerivWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const statesRef = useRef<Map<string, SymbolState>>(new Map());
   const pendingRequestsRef = useRef<Map<string, (data: JsonObject) => void>>(new Map());
@@ -183,7 +185,16 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
 
     const accessToken = getAccessToken();
     const activeAccount = getActiveAccount();
-    const loginIdToUse = activeAccount?.loginid || accountId;
+    const sessionAccounts = getAccounts();
+    let loginIdToUse = activeAccount?.loginid || accountId;
+
+    const hasAccessToReal = isPaid || isAdmin;
+    if (!hasAccessToReal) {
+      const demoAccount = sessionAccounts.find(a => a.is_virtual);
+      if (demoAccount) {
+        loginIdToUse = demoAccount.loginid;
+      }
+    }
 
     if (!accessToken || !loginIdToUse) {
       // Unauthenticated mode: ticks only via legacy public WebSocket
@@ -232,7 +243,20 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
         // Immediately load accounts from session storage
         const sessionAccounts = getAccounts();
         setAccounts(sessionAccounts);
-        setActiveLoginId(loginIdToUse);
+        
+        let loginIdToUseAfterVerification = loginIdToUse;
+        const hasAccessToReal = isPaid || isAdmin;
+        if (!hasAccessToReal) {
+          const demoAccount = sessionAccounts.find(a => a.is_virtual);
+          if (demoAccount) {
+            loginIdToUseAfterVerification = demoAccount.loginid;
+          }
+        }
+
+        setActiveLoginId(loginIdToUseAfterVerification);
+        if (activeAccount && loginIdToUseAfterVerification !== activeAccount.loginid) {
+          setActiveAccount(loginIdToUseAfterVerification);
+        }
 
         // Start ping keepalive
         if (pingTimer.current) clearInterval(pingTimer.current);
@@ -408,11 +432,18 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId }: DerivW
 
   const switchAccount = useCallback((loginid: string) => {
     if (loginid === activeLoginId) return;
+
+    const targetAccount = accounts.find(a => a.loginid === loginid);
+    if (targetAccount && !targetAccount.is_virtual && !isPaid && !isAdmin) {
+      toast.error("Upgrade required to trade on Real account.");
+      return;
+    }
+
     console.log(`[WebSocket] Switching to account ${loginid} — reconnecting with new OTP`);
     setActiveAccount(loginid);
     // Close and reconnect — the connect fn will fetch a new OTP for the new account
     wsRef.current?.close();
-  }, [activeLoginId]);
+  }, [activeLoginId, accounts, isPaid, isAdmin]);
 
   const disconnect = useCallback(() => {
     isManualDisconnectRef.current = true;

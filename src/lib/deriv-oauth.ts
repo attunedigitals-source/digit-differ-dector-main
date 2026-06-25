@@ -98,17 +98,25 @@ export function getAccounts(): DerivAccount[] {
 export function getActiveAccount(): DerivAccount | null {
   const session = getSession();
   if (session) {
-    return (
-      session.accounts.find((a) => a.loginid === session.active_loginid) ??
-      session.accounts[0] ??
-      null
-    );
+    const foundActive = session.accounts.find((a) => a.loginid === session.active_loginid);
+    if (foundActive) return foundActive;
+
+    const demo = session.accounts.find((a) => a.is_virtual);
+    if (demo) return demo;
+
+    return session.accounts[0] ?? null;
   }
 
   // Legacy fallback
   const accs = getAccounts();
   const active = localStorage.getItem(LEGACY_ACTIVE_KEY);
-  return accs.find((a) => a.loginid === active) ?? accs[0] ?? null;
+  const foundActive = accs.find((a) => a.loginid === active);
+  if (foundActive) return foundActive;
+
+  const demo = accs.find((a) => a.is_virtual);
+  if (demo) return demo;
+
+  return accs[0] ?? null;
 }
 
 export function setActiveAccount(loginid: string): void {
