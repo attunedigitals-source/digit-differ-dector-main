@@ -63,6 +63,7 @@ interface TradingPanelProps {
   tradeLog: TradeRecord[];
   connected: boolean;
   hasToken: boolean;
+  balance?: number;
   dailyPL: number;
   windDownMode: boolean;
   onActivateWindDown: () => void;
@@ -79,6 +80,7 @@ export function TradingPanel({
   tradeLog,
   connected,
   hasToken,
+  balance,
   dailyPL,
   windDownMode,
   onActivateWindDown,
@@ -1141,6 +1143,11 @@ export function TradingPanel({
               }
               if (!canTrade) {
                 toast.error("Requirements not met: Stake ≥ 0.35 and Steps ≥ 1");
+                return;
+              }
+              const requiredStake = sessionState.currentStake > 0 ? sessionState.currentStake : config.baseStake;
+              if (balance !== undefined && balance !== null && balance < requiredStake) {
+                toast.error(`Insufficient balance. Available: $${balance.toFixed(2)}, Required stake: $${requiredStake.toFixed(2)}. AI-automation stopped.`);
                 return;
               }
             }

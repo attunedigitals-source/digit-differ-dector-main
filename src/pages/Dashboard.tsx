@@ -171,6 +171,7 @@ export default function Dashboard() {
               tradeLog={tradeLog}
               connected={connected}
               hasToken={!!activeOAuthAccount}
+              balance={activeAccount?.balance}
               dailyPL={dailyPL}
               windDownMode={windDownMode}
               onActivateWindDown={activateWindDown}

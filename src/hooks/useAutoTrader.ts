@@ -1260,6 +1260,16 @@ export function useAutoTrader(
 
       console.log("[AutoTrader] Trade selection finalized", { symbol, trade: categoryLabels[trade], stake: nextStake });
 
+      const availableBalance = accountInfo?.balance;
+      if (availableBalance !== undefined && availableBalance !== null) {
+        if (availableBalance < nextStake) {
+          toast.error(`Insufficient balance. Available: $${availableBalance.toFixed(2)}, Required stake: $${nextStake.toFixed(2)}. AI-automation stopped.`);
+          setConfig(prev => ({ ...prev, enabled: false }));
+          isExecutingRef.current = false;
+          return;
+        }
+      }
+
       setSessionState(prev => ({
         ...prev,
         currentStake: nextStake,
@@ -2366,6 +2376,20 @@ export function useAutoTrader(
       execute_trade();
     }
   }, [config.enabled, sessionState.status, ticksToWait, execute_trade]);
+
+  // Monitor balance changes and disable bot if balance is lower than stake
+  useEffect(() => {
+    if (!config.enabled) return;
+    const balance = accountInfo?.balance;
+    if (balance !== undefined && balance !== null) {
+      const requiredStake = sessionState.status === "PENDING" ? sessionState.currentStake : (sessionState.currentStake || config.baseStake);
+      if (balance < requiredStake) {
+        console.warn(`[AutoTrader] Insufficient balance: Available: $${balance.toFixed(2)}, Required: $${requiredStake.toFixed(2)}. Disabling bot.`);
+        toast.error(`Insufficient balance. Available: $${balance.toFixed(2)}, Required stake: $${requiredStake.toFixed(2)}. AI-automation stopped.`);
+        setConfig(prev => ({ ...prev, enabled: false }));
+      }
+    }
+  }, [accountInfo?.balance, config.baseStake, config.enabled, sessionState.currentStake, sessionState.status]);
 
   useEffect(() => {
     if (!config.enabled && windDownMode) {
