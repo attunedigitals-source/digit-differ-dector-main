@@ -57,7 +57,7 @@ interface TradingPanelProps {
     strategyJ_fibStep?: number;
     currentCategory?: string | null;
     currentLossSequence?: string[];
-    strategyLMode?: "loss_sticky" | "win_sticky";
+    strategyLMode?: "loss_sticky" | "win_sticky" | "none_sticky";
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -351,7 +351,7 @@ export function TradingPanel({
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), and scaling stake by a 3x Martingale multiplier on losses.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky, Loss Sticky, and None Sticky (random volatility at every trade) modes.
         </p>
       </div>
 
@@ -890,8 +890,18 @@ export function TradingPanel({
             </div>
             <div className="flex items-center gap-1.5">
               {sessionState.strategyLMode && (
-                <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${sessionState.strategyLMode === 'loss_sticky' ? 'border-amber-500/30 text-amber-400 bg-amber-500/5' : 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'}`}>
-                  {sessionState.strategyLMode === 'loss_sticky' ? 'Loss Sticky' : 'Win Sticky'}
+                <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
+                  sessionState.strategyLMode === 'loss_sticky' 
+                    ? 'border-amber-500/30 text-amber-400 bg-amber-500/5' 
+                    : sessionState.strategyLMode === 'win_sticky'
+                    ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
+                    : 'border-blue-500/30 text-blue-400 bg-blue-500/5'
+                }`}>
+                  {sessionState.strategyLMode === 'loss_sticky' 
+                    ? 'Loss Sticky' 
+                    : sessionState.strategyLMode === 'win_sticky'
+                    ? 'Win Sticky'
+                    : 'None Sticky'}
                 </Badge>
               )}
               <Badge variant="outline" className="text-[9px] border-teal-500/30 text-teal-400 bg-teal-500/5 px-1.5 py-0.5 animate-pulse">

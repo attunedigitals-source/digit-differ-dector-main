@@ -336,7 +336,7 @@ export function useAutoTrader(
     const savedJStartB = localStorage.getItem('strategyJ_fibStartB');
     const savedJStep = localStorage.getItem('strategyJ_fibStep');
     const savedLossSeq = localStorage.getItem('currentLossSequence');
-    const savedLMode = localStorage.getItem('strategyLMode') as "loss_sticky" | "win_sticky" | null;
+    const savedLMode = localStorage.getItem('strategyLMode') as "loss_sticky" | "win_sticky" | "none_sticky" | null;
     let lossSeq: string[] = [];
     if (savedLossSeq) {
       try {
@@ -833,7 +833,7 @@ export function useAutoTrader(
                          !isSuspended(state.currentSymbol) && 
                          !((config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f") && state.forceSwapSymbol);
 
-      let nextLMode: "loss_sticky" | "win_sticky" | undefined = state.strategyLMode;
+      let nextLMode: "loss_sticky" | "win_sticky" | "none_sticky" | undefined = state.strategyLMode;
 
       if (config.strategy === "strategy_h") {
         let k = state.fibonacciIndex ?? -1;
@@ -853,16 +853,21 @@ export function useAutoTrader(
       } else if (config.strategy === "strategy_l") {
         const isFirstTrade = state.status === "IDLE";
         let shouldSwitchSymbol = false;
+        const lModes: Array<"loss_sticky" | "win_sticky" | "none_sticky"> = ["loss_sticky", "win_sticky", "none_sticky"];
+        const getRandomLMode = () => lModes[Math.floor(Math.random() * lModes.length)];
 
         if (isFirstTrade || !state.currentSymbol || !state.strategyLMode) {
           shouldSwitchSymbol = true;
-          nextLMode = Math.random() < 0.5 ? "loss_sticky" : "win_sticky";
+          nextLMode = getRandomLMode();
         } else {
           const currentMode = state.strategyLMode || "loss_sticky";
-          if (currentMode === "loss_sticky") {
+          if (currentMode === "none_sticky") {
+            shouldSwitchSymbol = true;
+            nextLMode = getRandomLMode();
+          } else if (currentMode === "loss_sticky") {
             if (state.status === "WIN") {
               shouldSwitchSymbol = true;
-              nextLMode = Math.random() < 0.5 ? "loss_sticky" : "win_sticky";
+              nextLMode = getRandomLMode();
             } else {
               shouldSwitchSymbol = false;
             }
@@ -870,7 +875,7 @@ export function useAutoTrader(
             // win_sticky
             if (state.status === "LOSS") {
               shouldSwitchSymbol = true;
-              nextLMode = Math.random() < 0.5 ? "loss_sticky" : "win_sticky";
+              nextLMode = getRandomLMode();
             } else {
               shouldSwitchSymbol = false;
             }
