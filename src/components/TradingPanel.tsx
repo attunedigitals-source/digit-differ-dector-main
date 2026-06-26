@@ -58,6 +58,8 @@ interface TradingPanelProps {
     currentCategory?: string | null;
     currentLossSequence?: string[];
     strategyLMode?: "loss_sticky" | "win_sticky" | "none_sticky";
+    strategyNActiveSub?: "strategy_l" | "strategy_m";
+    strategyNNextSwitchTime?: number;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -89,6 +91,8 @@ export function TradingPanel({
   onClearBlacklist,
 }: TradingPanelProps) {
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
+  const [localStakeL, setLocalStakeL] = useState((config.strategyLBaseStake ?? config.baseStake).toString());
+  const [localStakeM, setLocalStakeM] = useState((config.strategyMBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -105,12 +109,30 @@ export function TradingPanel({
   }, [config.baseStake]);
 
   useEffect(() => {
+    setLocalStakeL((config.strategyLBaseStake ?? config.baseStake).toString());
+  }, [config.strategyLBaseStake, config.baseStake]);
+
+  useEffect(() => {
+    setLocalStakeM((config.strategyMBaseStake ?? config.baseStake).toString());
+  }, [config.strategyMBaseStake, config.baseStake]);
+
+  useEffect(() => {
     setLocalSteps(config.maxMartingaleSteps.toString());
   }, [config.maxMartingaleSteps]);
 
   const handleStakeBlur = () => {
     const val = parseFloat(localStake);
     onConfigChange({ ...config, baseStake: isNaN(val) ? 0.35 : val });
+  };
+
+  const handleStakeLBlur = () => {
+    const val = parseFloat(localStakeL);
+    onConfigChange({ ...config, strategyLBaseStake: isNaN(val) ? 0.35 : val });
+  };
+
+  const handleStakeMBlur = () => {
+    const val = parseFloat(localStakeM);
+    onConfigChange({ ...config, strategyMBaseStake: isNaN(val) ? 0.35 : val });
   };
 
   const handleStepsBlur = () => {
@@ -122,6 +144,11 @@ export function TradingPanel({
   const isStakeValid = !isNaN(stakeVal) && stakeVal >= 0.35;
   const isStepsValid = !isNaN(stepsVal) && stepsVal >= 1;
 
+  const stakeLVal = parseFloat(localStakeL);
+  const stakeMVal = parseFloat(localStakeM);
+  const isStakeLValid = !isNaN(stakeLVal) && stakeLVal >= 0.35;
+  const isStakeMValid = !isNaN(stakeMVal) && stakeMVal >= 0.35;
+
   const isTrialExpired = (() => {
     if (!profile || profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
     const startTime = new Date(profile.trial_started_at).getTime();
@@ -129,7 +156,9 @@ export function TradingPanel({
     return (startTime + durationMs) < new Date().getTime();
   })();
 
-  const canTrade = connected && hasToken && isStakeValid && isStepsValid && !isTrialExpired;
+  const canTrade = connected && hasToken && isStakeValid && isStepsValid &&
+                   (config.strategy !== "strategy_n" || (isStakeLValid && isStakeMValid)) &&
+                   !isTrialExpired;
   const formatCooldown = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -223,24 +252,63 @@ export function TradingPanel({
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <DollarSign className="w-3 h-3" /> Base Stake
-          </label>
-          <Input
-            type="number"
-            min={0.35}
-            step={0.1}
-            value={localStake}
-            onChange={(e) => setLocalStake(e.target.value)}
-            onBlur={handleStakeBlur}
-            className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeValid && localStake !== "" ? "border-destructive text-destructive" : ""}`}
-          />
-          {!isStakeValid && localStake !== "" && (
-            <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
-          )}
-        </div>
+      <div className={`grid ${config.strategy === "strategy_n" ? "grid-cols-3" : "grid-cols-2"} gap-4`}>
+        {config.strategy === "strategy_n" ? (
+          <>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> Stake (L)
+              </label>
+              <Input
+                type="number"
+                min={0.35}
+                step={0.1}
+                value={localStakeL}
+                onChange={(e) => setLocalStakeL(e.target.value)}
+                onBlur={handleStakeLBlur}
+                className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeLValid && localStakeL !== "" ? "border-destructive text-destructive" : ""}`}
+              />
+              {!isStakeLValid && localStakeL !== "" && (
+                <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> Stake (M)
+              </label>
+              <Input
+                type="number"
+                min={0.35}
+                step={0.1}
+                value={localStakeM}
+                onChange={(e) => setLocalStakeM(e.target.value)}
+                onBlur={handleStakeMBlur}
+                className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeMValid && localStakeM !== "" ? "border-destructive text-destructive" : ""}`}
+              />
+              {!isStakeMValid && localStakeM !== "" && (
+                <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <DollarSign className="w-3 h-3" /> Base Stake
+            </label>
+            <Input
+              type="number"
+              min={0.35}
+              step={0.1}
+              value={localStake}
+              onChange={(e) => setLocalStake(e.target.value)}
+              onBlur={handleStakeBlur}
+              className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeValid && localStake !== "" ? "border-destructive text-destructive" : ""}`}
+            />
+            {!isStakeValid && localStake !== "" && (
+              <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
+            )}
+          </div>
+        )}
         <div className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Target className="w-3 h-3" /> Max Step
@@ -349,15 +417,16 @@ export function TradingPanel({
             <SelectItem value="strategy_k">Strategy K (Pre-Planned + Session Prefix Elimination + Expanded Deck)</SelectItem>
             <SelectItem value="strategy_l">Strategy L (Random Over 2 / Under 7 Loop)</SelectItem>
             <SelectItem value="strategy_m">Strategy M (Strategy K + Sticky Volatility Mix)</SelectItem>
+            <SelectItem value="strategy_n">Strategy N (Strategy M + L Wrapper)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky, Loss Sticky, and None Sticky (random volatility at every trade) modes.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky, Loss Sticky, and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters.
         </p>
       </div>
 
       {/* Strategy A/B/C/D Visualizer Panel */}
-      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m") && (
+      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -370,13 +439,13 @@ export function TradingPanel({
                 Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / {
                   config.strategy === "strategy_c" ? "7,484,400" :
                   config.strategy === "strategy_d" ? "29,937,600" :
-                  (config.strategy === "strategy_k" || config.strategy === "strategy_m") ? "40,320" :
+                  (config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) ? "40,320" :
                   "369,600"
                 }
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              {config.strategy === "strategy_m" && sessionState.strategyLMode && (
+              {(config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) && sessionState.strategyLMode && (
                 <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
                   sessionState.strategyLMode === 'loss_sticky' 
                     ? 'border-amber-500/30 text-amber-400 bg-amber-500/5' 
@@ -392,7 +461,7 @@ export function TradingPanel({
                 </Badge>
               )}
               <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 px-1.5 py-0.5">
-                Step {(sessionState.sequenceStep ?? 0) + 1}/{(config.strategy === "strategy_k" || config.strategy === "strategy_m") ? 8 : 12}
+                Step {(sessionState.sequenceStep ?? 0) + 1}/{(config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) ? 8 : 12}
               </Badge>
             </div>
           </div>
@@ -485,7 +554,7 @@ export function TradingPanel({
             </span>
           </div>
 
-          {(config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m") && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
+          {(config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
             <div className="mt-2 space-y-1 bg-destructive/5 p-2 rounded border border-destructive/15">
               <div className="flex items-center justify-between pb-1">
                 <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
@@ -893,7 +962,7 @@ export function TradingPanel({
         </div>
       )}
 
-      {config.strategy === "strategy_l" && (
+      {(config.strategy === "strategy_l" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_l")) && (
         <div className="bg-gradient-to-br from-teal-500/15 via-card to-emerald-500/15 border border-teal-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -1204,6 +1273,21 @@ export function TradingPanel({
       {/* Status Bar */}
       {config.enabled && (
         <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+          {config.strategy === "strategy_n" && sessionState.strategyNNextSwitchTime !== undefined && (
+            <div className="flex items-center justify-between text-[11px] border-b border-border/20 pb-1.5 mb-1.5">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3 text-orange-400" /> Switch:
+              </span>
+              <span className="font-mono font-bold text-orange-400">
+                {(() => {
+                  const ms = sessionState.strategyNNextSwitchTime - currentTime;
+                  if (ms <= 0) return "SWITCH PENDING (NEXT WIN)";
+                  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+                  return formatCooldown(totalSeconds);
+                })()}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground flex items-center gap-1">
               <Clock className="w-3 h-3" /> Cooldown:

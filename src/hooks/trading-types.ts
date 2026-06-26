@@ -12,7 +12,7 @@ export interface TradeRecord {
   timestamp: Date;
 }
 
-export type TradingStrategy = "alternating" | "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | "strategy_e" | "strategy_f" | "strategy_g" | "strategy_h" | "strategy_i" | "strategy_j" | "strategy_k" | "strategy_l" | "strategy_m";
+export type TradingStrategy = "alternating" | "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | "strategy_e" | "strategy_f" | "strategy_g" | "strategy_h" | "strategy_i" | "strategy_j" | "strategy_k" | "strategy_l" | "strategy_m" | "strategy_n";
 
 export interface AutoTraderConfig {
   enabled: boolean;
@@ -20,4 +20,6 @@ export interface AutoTraderConfig {
   maxMartingaleSteps: number;
   cooldownIntervalMinutes: 30 | 40 | 50 | 60;
   strategy: TradingStrategy;
+  strategyLBaseStake?: number;
+  strategyMBaseStake?: number;
 }
