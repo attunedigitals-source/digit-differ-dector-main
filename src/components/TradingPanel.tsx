@@ -142,7 +142,7 @@ export function TradingPanel({
   };
 
   const exportBlacklistToCSV = () => {
-    const isGlobal = config.strategy === "strategy_g" || config.strategy === "strategy_k";
+    const isGlobal = config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m";
     let csvContent = "\uFEFF"; // BOM for UTF-8 Excel compatibility
 
     if (isGlobal) {
@@ -348,6 +348,7 @@ export function TradingPanel({
             <SelectItem value="strategy_j">Strategy J (Generalized Fibonacci Loop Engine)</SelectItem>
             <SelectItem value="strategy_k">Strategy K (Pre-Planned + Session Prefix Elimination + Expanded Deck)</SelectItem>
             <SelectItem value="strategy_l">Strategy L (Random Over 2 / Under 7 Loop)</SelectItem>
+            <SelectItem value="strategy_m">Strategy M (Strategy K + Sticky Volatility Mix)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
@@ -356,7 +357,7 @@ export function TradingPanel({
       </div>
 
       {/* Strategy A/B/C/D Visualizer Panel */}
-      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k") && (
+      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m") && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -369,14 +370,31 @@ export function TradingPanel({
                 Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / {
                   config.strategy === "strategy_c" ? "7,484,400" :
                   config.strategy === "strategy_d" ? "29,937,600" :
-                  config.strategy === "strategy_k" ? "40,320" :
+                  (config.strategy === "strategy_k" || config.strategy === "strategy_m") ? "40,320" :
                   "369,600"
                 }
               </span>
             </div>
-            <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 px-1.5 py-0.5">
-              Step {(sessionState.sequenceStep ?? 0) + 1}/{config.strategy === "strategy_k" ? 8 : 12}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              {config.strategy === "strategy_m" && sessionState.strategyLMode && (
+                <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
+                  sessionState.strategyLMode === 'loss_sticky' 
+                    ? 'border-amber-500/30 text-amber-400 bg-amber-500/5' 
+                    : sessionState.strategyLMode === 'win_sticky'
+                    ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
+                    : 'border-blue-500/30 text-blue-400 bg-blue-500/5'
+                }`}>
+                  {sessionState.strategyLMode === 'loss_sticky' 
+                    ? 'Loss Sticky' 
+                    : sessionState.strategyLMode === 'win_sticky'
+                    ? 'Win Sticky'
+                    : 'None Sticky'}
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 px-1.5 py-0.5">
+                Step {(sessionState.sequenceStep ?? 0) + 1}/{(config.strategy === "strategy_k" || config.strategy === "strategy_m") ? 8 : 12}
+              </Badge>
+            </div>
           </div>
  
           <div className="grid grid-cols-6 gap-1.5 py-1">
@@ -467,7 +485,7 @@ export function TradingPanel({
             </span>
           </div>
 
-          {(config.strategy === "strategy_g" || config.strategy === "strategy_k") && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
+          {(config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m") && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
             <div className="mt-2 space-y-1 bg-destructive/5 p-2 rounded border border-destructive/15">
               <div className="flex items-center justify-between pb-1">
                 <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
