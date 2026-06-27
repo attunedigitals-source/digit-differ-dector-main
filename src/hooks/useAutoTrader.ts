@@ -343,6 +343,14 @@ export function useAutoTrader(
     const savedJStep = localStorage.getItem('strategyJ_fibStep');
     const savedLossSeq = localStorage.getItem('currentLossSequence');
     const savedLMode = localStorage.getItem('strategyLMode') as "loss_sticky" | "win_sticky" | "none_sticky" | null;
+    const savedLNoneStickyCount = localStorage.getItem('strategyLNoneStickyCount');
+    let lNoneStickyCount: number | undefined = undefined;
+    if (savedLNoneStickyCount) {
+      const parsed = parseInt(savedLNoneStickyCount, 10);
+      if (!isNaN(parsed)) {
+        lNoneStickyCount = parsed;
+      }
+    }
     const savedNActiveSub = localStorage.getItem('strategyNActiveSub') as "strategy_l" | "strategy_m" | null;
     const savedNNextSwitchTime = localStorage.getItem('strategyNNextSwitchTime');
     let lossSeq: string[] = [];
@@ -500,6 +508,7 @@ export function useAutoTrader(
       strategyJ_fibStep: savedJStep ? parseInt(savedJStep) : -1,
       currentLossSequence: lossSeq,
       strategyLMode: savedLMode || undefined,
+      strategyLNoneStickyCount: lNoneStickyCount,
       strategyNActiveSub: savedNActiveSub || undefined,
       strategyNNextSwitchTime: savedNNextSwitchTime ? parseInt(savedNNextSwitchTime) : undefined,
     };
@@ -865,6 +874,7 @@ export function useAutoTrader(
                          !((activeStrategy === "strategy_d" || activeStrategy === "strategy_e" || activeStrategy === "strategy_f") && state.forceSwapSymbol);
 
       let nextLMode: "loss_sticky" | "win_sticky" | "none_sticky" | undefined = state.strategyLMode;
+      let nextNoneStickyCount: number | undefined = state.strategyLNoneStickyCount;
 
       if (activeStrategy === "strategy_h") {
         let k = state.fibonacciIndex ?? -1;
@@ -890,25 +900,61 @@ export function useAutoTrader(
         if (isFirstTrade || !state.currentSymbol || !state.strategyLMode) {
           shouldSwitchSymbol = true;
           nextLMode = getRandomLMode();
+          if (nextLMode === "none_sticky") {
+            nextNoneStickyCount = Math.floor(Math.random() * 3) + 3;
+            console.log(`[Strategy ${activeStrategy === "strategy_m" ? "M" : "L"} Volatility] Initialized None Sticky count: ${nextNoneStickyCount}`);
+          } else {
+            nextNoneStickyCount = undefined;
+          }
         } else {
           const currentMode = state.strategyLMode || "loss_sticky";
           if (currentMode === "none_sticky") {
-            shouldSwitchSymbol = true;
-            nextLMode = getRandomLMode();
+            const currentCount = state.strategyLNoneStickyCount ?? 1;
+            if (currentCount > 1) {
+              shouldSwitchSymbol = true;
+              nextLMode = "none_sticky";
+              nextNoneStickyCount = currentCount - 1;
+              console.log(`[Strategy ${activeStrategy === "strategy_m" ? "M" : "L"} Volatility] Continuing None Sticky. Trades remaining: ${nextNoneStickyCount}`);
+            } else {
+              shouldSwitchSymbol = true;
+              nextLMode = getRandomLMode();
+              if (nextLMode === "none_sticky") {
+                nextNoneStickyCount = Math.floor(Math.random() * 3) + 3;
+                console.log(`[Strategy ${activeStrategy === "strategy_m" ? "M" : "L"} Volatility] None Sticky selected again. Count: ${nextNoneStickyCount}`);
+              } else {
+                nextNoneStickyCount = undefined;
+              }
+            }
           } else if (currentMode === "loss_sticky") {
             if (state.status === "WIN") {
               shouldSwitchSymbol = true;
               nextLMode = getRandomLMode();
+              if (nextLMode === "none_sticky") {
+                nextNoneStickyCount = Math.floor(Math.random() * 3) + 3;
+                console.log(`[Strategy ${activeStrategy === "strategy_m" ? "M" : "L"} Volatility] Swapped from Loss Sticky to None Sticky. Count: ${nextNoneStickyCount}`);
+              } else {
+                nextNoneStickyCount = undefined;
+              }
             } else {
               shouldSwitchSymbol = false;
+              nextLMode = "loss_sticky";
+              nextNoneStickyCount = undefined;
             }
           } else {
             // win_sticky
             if (state.status === "LOSS") {
               shouldSwitchSymbol = true;
               nextLMode = getRandomLMode();
+              if (nextLMode === "none_sticky") {
+                nextNoneStickyCount = Math.floor(Math.random() * 3) + 3;
+                console.log(`[Strategy ${activeStrategy === "strategy_m" ? "M" : "L"} Volatility] Swapped from Win Sticky to None Sticky. Count: ${nextNoneStickyCount}`);
+              } else {
+                nextNoneStickyCount = undefined;
+              }
             } else {
               shouldSwitchSymbol = false;
+              nextLMode = "win_sticky";
+              nextNoneStickyCount = undefined;
             }
           }
         }
@@ -1327,6 +1373,7 @@ export function useAutoTrader(
         strategyJ_fibStep: state.strategyJ_fibStep,
         currentArrangement: updatedArrangement,
         strategyLMode: nextLMode,
+        strategyLNoneStickyCount: nextNoneStickyCount,
         strategyNActiveSub: nextNActiveSub,
         strategyNNextSwitchTime: nextNNextSwitchTime,
       }));
@@ -2084,6 +2131,7 @@ export function useAutoTrader(
         forceSwapSymbol: false,
         currentLossSequence: [],
         strategyLMode: undefined,
+        strategyLNoneStickyCount: undefined,
       };
     }
 
@@ -2380,6 +2428,11 @@ export function useAutoTrader(
     } else {
       localStorage.removeItem('strategyLMode');
     }
+    if (sessionState.strategyLNoneStickyCount !== undefined) {
+      localStorage.setItem('strategyLNoneStickyCount', String(sessionState.strategyLNoneStickyCount));
+    } else {
+      localStorage.removeItem('strategyLNoneStickyCount');
+    }
     if (sessionState.strategyNActiveSub) {
       localStorage.setItem('strategyNActiveSub', sessionState.strategyNActiveSub);
     } else {
@@ -2626,6 +2679,7 @@ export function useAutoTrader(
       fibonacciIndex: -1,
       usedStartIndices: [],
       strategyLMode: undefined,
+      strategyLNoneStickyCount: undefined,
       strategyNActiveSub: undefined,
       strategyNNextSwitchTime: undefined,
     });
