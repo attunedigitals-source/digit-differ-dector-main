@@ -894,7 +894,7 @@ export function useAutoTrader(
       } else if (activeStrategy === "strategy_l" || activeStrategy === "strategy_m") {
         const isFirstTrade = state.status === "IDLE";
         let shouldSwitchSymbol = false;
-        const lModes: Array<"loss_sticky" | "win_sticky" | "none_sticky"> = ["loss_sticky", "win_sticky", "none_sticky"];
+        const lModes: Array<"win_sticky" | "none_sticky"> = ["win_sticky", "none_sticky"];
         const getRandomLMode = () => lModes[Math.floor(Math.random() * lModes.length)];
 
         if (isFirstTrade || !state.currentSymbol || !state.strategyLMode) {

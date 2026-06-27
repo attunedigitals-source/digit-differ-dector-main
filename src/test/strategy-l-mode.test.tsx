@@ -64,7 +64,7 @@ describe("useAutoTrader Strategy L Mode Transitions", () => {
 
   it("should initialize None Sticky count to between 3 and 5 when first trade selects none_sticky", async () => {
     // Mock random returns:
-    // 1st: 0.7 for getRandomLMode() -> Math.floor(0.7 * 3) = 2 ("none_sticky")
+    // 1st: 0.7 for getRandomLMode() -> Math.floor(0.7 * 2) = 1 ("none_sticky")
     // 2nd: 0.5 for count -> Math.floor(0.5 * 3) + 3 = 4
     // 3rd: 0.2 for select_random_active_symbol
     const mockRandom = vi.spyOn(Math, "random")
@@ -142,7 +142,7 @@ describe("useAutoTrader Strategy L Mode Transitions", () => {
     localStorage.setItem("strategyLNoneStickyCount", "1");
 
     // Mock random returns:
-    // 1st: 0.4 for getRandomLMode() -> Math.floor(0.4 * 3) = 1 ("win_sticky")
+    // 1st: 0.4 for getRandomLMode() -> Math.floor(0.4 * 2) = 0 ("win_sticky")
     // 2nd: 0.1 for select_random_active_symbol
     vi.spyOn(Math, "random")
       .mockReturnValueOnce(0.4)
