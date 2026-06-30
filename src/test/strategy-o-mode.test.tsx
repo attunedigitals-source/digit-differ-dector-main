@@ -222,4 +222,32 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     expect(result.current.sessionState.currentStake).toBe(1.40);
     expect(result.current.sessionState.martingaleStep).toBe(0);
   });
+
+  it("should calculate recovery stake from actual first loss stake if it was halved", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_o"
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "LOSS");
+    localStorage.setItem("martingaleStep", "0"); // Step 0 loss (Even/Odd)
+    localStorage.setItem("currentStake", "0.70"); // Stake was halved to 0.70 on win, then lost!
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    // Step 1: (0.70 / 1.40) * 3.90 = 1.95
+    expect(result.current.sessionState.currentStake).toBe(1.95);
+    expect(result.current.sessionState.martingaleStep).toBe(1);
+  });
 });

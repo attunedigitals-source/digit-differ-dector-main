@@ -360,6 +360,7 @@ export function useAutoTrader(
     }
     const savedNActiveSub = localStorage.getItem('strategyNActiveSub') as "strategy_l" | "strategy_m" | null;
     const savedNNextSwitchTime = localStorage.getItem('strategyNNextSwitchTime');
+    const savedOSeqBase = localStorage.getItem('strategyOSequenceBaseStake');
     let lossSeq: string[] = [];
     if (savedLossSeq) {
       try {
@@ -518,6 +519,7 @@ export function useAutoTrader(
       strategyLNoneStickyCount: lNoneStickyCount,
       strategyNActiveSub: savedNActiveSub || undefined,
       strategyNNextSwitchTime: savedNNextSwitchTime ? parseInt(savedNNextSwitchTime) : undefined,
+      strategyOSequenceBaseStake: savedOSeqBase ? parseFloat(savedOSeqBase) : undefined,
     };
   });
 
@@ -867,6 +869,17 @@ export function useAutoTrader(
           : (activeStrategy === "strategy_o"
             ? (config.strategyOBaseStake ?? config.baseStake)
             : config.baseStake));
+
+      let nextOSeqBase = state.strategyOSequenceBaseStake;
+      if (activeStrategy === "strategy_o") {
+        if (state.status === "LOSS" && state.martingaleStep !== 2) {
+          if (state.martingaleStep === 0) {
+            nextOSeqBase = state.currentStake;
+          }
+        } else {
+          nextOSeqBase = undefined;
+        }
+      }
 
       let symbol: string;
       const keepSymbolOnLoss = activeStrategy === "strategy_b" || activeStrategy === "strategy_c" || activeStrategy === "strategy_d" || activeStrategy === "strategy_e" || activeStrategy === "strategy_f" || activeStrategy === "alternating";
@@ -1364,7 +1377,8 @@ export function useAutoTrader(
           const stakesO = [1.40, 3.90, 24.54, 137.11, 766.06, 4280.09, 23913.53];
           const stepIndex = nextStep;
           if (stepIndex >= 0 && stepIndex < stakesO.length) {
-            const calculatedStake = (baseStakeToUse / 1.40) * stakesO[stepIndex];
+            const seqBase = nextOSeqBase ?? baseStakeToUse;
+            const calculatedStake = (seqBase / 1.40) * stakesO[stepIndex];
             nextStake = Number(calculatedStake.toFixed(2));
             if (nextStake < 0.35) nextStake = 0.35;
           } else {
@@ -1452,6 +1466,7 @@ export function useAutoTrader(
         strategyLNoneStickyCount: nextNoneStickyCount,
         strategyNActiveSub: nextNActiveSub,
         strategyNNextSwitchTime: nextNNextSwitchTime,
+        strategyOSequenceBaseStake: nextOSeqBase,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -2193,6 +2208,7 @@ export function useAutoTrader(
       currentLossSequence: nextLossSeq,
       strategyNActiveSub: nextNActiveSub,
       strategyNNextSwitchTime: nextNNextSwitchTime,
+      strategyOSequenceBaseStake: isWin || (activeStrategy === "strategy_o" && state.martingaleStep === 2) ? undefined : state.strategyOSequenceBaseStake,
     };
 
     if (isStrategyNSwitching) {
@@ -2522,6 +2538,11 @@ export function useAutoTrader(
       localStorage.setItem('strategyNNextSwitchTime', String(sessionState.strategyNNextSwitchTime));
     } else {
       localStorage.removeItem('strategyNNextSwitchTime');
+    }
+    if (sessionState.strategyOSequenceBaseStake !== undefined) {
+      localStorage.setItem('strategyOSequenceBaseStake', String(sessionState.strategyOSequenceBaseStake));
+    } else {
+      localStorage.removeItem('strategyOSequenceBaseStake');
     }
   }, [sessionState]);
 
