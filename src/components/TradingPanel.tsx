@@ -1074,7 +1074,7 @@ export function TradingPanel({
                 <Shuffle className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> Strategy O (Dynamic Staking & Progression)
               </span>
               <span className="text-[8px] text-muted-foreground">
-                Path: Even/Odd -> Over 2/Under 7 -> Over 1/Under 8 -> Stop at 7 Losses
+                {"Path: Even/Odd -> Over 2/Under 7 -> Over 1/Under 8 -> Stop at 7 Losses"}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
