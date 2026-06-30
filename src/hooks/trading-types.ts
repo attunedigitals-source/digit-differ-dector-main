@@ -12,7 +12,7 @@ export interface TradeRecord {
   timestamp: Date;
 }
 
-export type TradingStrategy = "alternating" | "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | "strategy_e" | "strategy_f" | "strategy_g" | "strategy_h" | "strategy_i" | "strategy_j" | "strategy_k" | "strategy_l" | "strategy_m" | "strategy_n";
+export type TradingStrategy = "alternating" | "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | "strategy_e" | "strategy_f" | "strategy_g" | "strategy_h" | "strategy_i" | "strategy_j" | "strategy_k" | "strategy_l" | "strategy_m" | "strategy_n" | "strategy_o";
 
 export interface AutoTraderConfig {
   enabled: boolean;
@@ -22,4 +22,6 @@ export interface AutoTraderConfig {
   strategy: TradingStrategy;
   strategyLBaseStake?: number;
   strategyMBaseStake?: number;
+  strategyOBaseStake?: number;
 }
+

@@ -93,6 +93,7 @@ export function TradingPanel({
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
   const [localStakeL, setLocalStakeL] = useState((config.strategyLBaseStake ?? config.baseStake).toString());
   const [localStakeM, setLocalStakeM] = useState((config.strategyMBaseStake ?? config.baseStake).toString());
+  const [localStakeO, setLocalStakeO] = useState((config.strategyOBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -117,6 +118,10 @@ export function TradingPanel({
   }, [config.strategyMBaseStake, config.baseStake]);
 
   useEffect(() => {
+    setLocalStakeO((config.strategyOBaseStake ?? config.baseStake).toString());
+  }, [config.strategyOBaseStake, config.baseStake]);
+
+  useEffect(() => {
     setLocalSteps(config.maxMartingaleSteps.toString());
   }, [config.maxMartingaleSteps]);
 
@@ -135,6 +140,11 @@ export function TradingPanel({
     onConfigChange({ ...config, strategyMBaseStake: isNaN(val) ? 0.35 : val });
   };
 
+  const handleStakeOBlur = () => {
+    const val = parseFloat(localStakeO);
+    onConfigChange({ ...config, strategyOBaseStake: isNaN(val) ? 0.35 : val });
+  };
+
   const handleStepsBlur = () => {
     const val = parseInt(localSteps);
     onConfigChange({ ...config, maxMartingaleSteps: isNaN(val) ? 12 : val });
@@ -146,8 +156,10 @@ export function TradingPanel({
 
   const stakeLVal = parseFloat(localStakeL);
   const stakeMVal = parseFloat(localStakeM);
+  const stakeOVal = parseFloat(localStakeO);
   const isStakeLValid = !isNaN(stakeLVal) && stakeLVal >= 0.35;
   const isStakeMValid = !isNaN(stakeMVal) && stakeMVal >= 0.35;
+  const isStakeOValid = !isNaN(stakeOVal) && stakeOVal >= 0.35;
 
   const isTrialExpired = (() => {
     if (!profile || profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
@@ -158,6 +170,7 @@ export function TradingPanel({
 
   const canTrade = connected && hasToken && isStakeValid && isStepsValid &&
                    (config.strategy !== "strategy_n" || (isStakeLValid && isStakeMValid)) &&
+                   (config.strategy !== "strategy_o" || isStakeOValid) &&
                    !isTrialExpired;
   const formatCooldown = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -418,10 +431,11 @@ export function TradingPanel({
             <SelectItem value="strategy_l">Strategy L (Random Over 2 / Under 7 Loop)</SelectItem>
             <SelectItem value="strategy_m">Strategy M (Strategy K + Sticky Volatility Mix)</SelectItem>
             <SelectItem value="strategy_n">Strategy N (Strategy M + L Wrapper)</SelectItem>
+            <SelectItem value="strategy_o">Strategy O (Even/Odd + Over2/Under7 + Over1/Under8 progression)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters. Strategy O inherits L's sticky volatility and cooldown logic, but starts with Even/Odd, progresses to Over 2/Under 7 on first loss, and Over 1/Under 8 on second loss onwards, stopping after 7 consecutive losses, utilizing a dynamic staking curve.
         </p>
       </div>
 
@@ -1036,6 +1050,92 @@ export function TradingPanel({
                   if (!cat) return "None (Waiting...)";
                   if (cat === "over2") return "DIGITOVER 2 (Barrier 2)";
                   if (cat === "under7") return "DIGITUNDER 7 (Barrier 7)";
+                  return cat;
+                })()}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {config.strategy === "strategy_o" && (
+        <div className="bg-gradient-to-br from-indigo-500/15 via-card to-purple-500/15 border border-indigo-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center justify-between border-b border-indigo-500/10 pb-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                <Shuffle className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> Strategy O (Dynamic Staking & Progression)
+              </span>
+              <span className="text-[8px] text-muted-foreground">
+                Path: Even/Odd -> Over 2/Under 7 -> Over 1/Under 8 -> Stop at 7 Losses
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {sessionState.strategyLMode && (
+                <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
+                  sessionState.strategyLMode === 'loss_sticky' 
+                    ? 'border-amber-500/30 text-amber-400 bg-amber-500/5' 
+                    : sessionState.strategyLMode === 'win_sticky'
+                    ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
+                    : 'border-blue-500/30 text-blue-400 bg-blue-500/5'
+                }`}>
+                  {sessionState.strategyLMode === 'loss_sticky' 
+                    ? 'Loss Sticky' 
+                    : sessionState.strategyLMode === 'win_sticky'
+                    ? 'Win Sticky'
+                    : 'None Sticky'}
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-[9px] border-indigo-500/30 text-indigo-400 bg-indigo-500/5 px-1.5 py-0.5 animate-pulse">
+                ACTIVE LOOP
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[9px] text-muted-foreground uppercase tracking-wider block">Contract Candidates Pool (Current Step):</span>
+            <div className="grid grid-cols-3 gap-2 py-1">
+              {[
+                { code: "EV/OD", label: "Even/Odd (Step 0)", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40", active: sessionState.martingaleStep === 0 || sessionState.status === "WIN" || sessionState.status === "IDLE" },
+                { code: "O2/U7", label: "Over 2/Under 7 (Step 1)", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40", active: sessionState.martingaleStep === 1 && sessionState.status === "LOSS" },
+                { code: "O1/U8", label: "Over 1/Under 8 (Step 2+)", textClass: "text-purple-400", bgClass: "bg-purple-950/20", borderClass: "border-purple-950/40", active: sessionState.martingaleStep >= 2 && sessionState.status === "LOSS" }
+              ].map((item) => {
+                return (
+                  <div
+                    key={item.code}
+                    title={item.label}
+                    className={`flex flex-col items-center justify-center py-2 px-1 rounded border transition-all duration-300 relative cursor-default select-none ${item.bgClass} ${item.borderClass} ${item.active ? "scale-105 border-2 border-primary opacity-100 font-bold" : "opacity-40"}`}
+                  >
+                    <span className={`text-xs font-mono font-black ${item.textClass}`}>
+                      {item.code}
+                    </span>
+                    <span className="text-[7px] text-muted-foreground mt-0.5 text-center leading-tight">{item.label}</span>
+                    {item.active && (
+                      <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-500 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="flex items-center gap-1.5 justify-between text-[8px] bg-muted/40 px-2 py-1 rounded border border-border/40 mt-1">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <AlertCircle className="w-2.5 h-2.5 text-indigo-400 animate-pulse" /> Active trade target:
+              </span>
+              <span className="font-bold text-foreground">
+                {(() => {
+                  const cat = sessionState.currentCategory;
+                  if (!cat) return "None (Waiting...)";
+                  if (cat === "even") return "DIGITEVEN (Even)";
+                  if (cat === "odd") return "DIGITODD (Odd)";
+                  if (cat === "over2") return "DIGITOVER 2 (Barrier 2)";
+                  if (cat === "under7") return "DIGITUNDER 7 (Barrier 7)";
+                  if (cat === "over1") return "DIGITOVER 1 (Barrier 1)";
+                  if (cat === "under8") return "DIGITUNDER 8 (Barrier 8)";
                   return cat;
                 })()}
               </span>
