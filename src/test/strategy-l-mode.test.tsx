@@ -79,6 +79,7 @@ describe("useAutoTrader Strategy L Mode Transitions", () => {
       cooldownIntervalMinutes: 30,
       strategy: "strategy_l"
     }));
+    localStorage.setItem("shufflingSeed", "12345");
 
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 10.0 };
 

@@ -37,14 +37,14 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 
 // Mock toast notifications
-const toastMock = {
+const mockToast = vi.hoisted(() => ({
   success: vi.fn(),
   warning: vi.fn(),
   info: vi.fn(),
   error: vi.fn(),
-};
+}));
 vi.mock("sonner", () => ({
-  toast: toastMock,
+  toast: mockToast,
 }));
 
 describe("useAutoTrader Strategy O Mode Logic", () => {
@@ -82,11 +82,11 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     });
 
     // Check that type chosen is either DIGITEVEN or DIGITODD
-    const contract = localStorage.getItem("currentContract");
+    const contract = result.current.sessionState.currentContract;
     expect(["DIGITEVEN", "DIGITODD"]).toContain(contract);
 
     // Stake should be 1.40
-    expect(localStorage.getItem("currentStake")).toBe("1.4");
+    expect(result.current.sessionState.currentStake).toBe(1.40);
   });
 
   it("should progression and staking correctly on successive losses", async () => {
@@ -113,9 +113,9 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
       await renderResult.result.current.execute_trade();
     });
 
-    expect(["DIGITOVER", "DIGITUNDER"]).toContain(localStorage.getItem("currentContract"));
-    expect(localStorage.getItem("currentStake")).toBe("1.73");
-    expect(localStorage.getItem("martingaleStep")).toBe("1");
+    expect(["DIGITOVER", "DIGITUNDER"]).toContain(renderResult.result.current.sessionState.currentContract);
+    expect(renderResult.result.current.sessionState.currentStake).toBe(1.73);
+    expect(renderResult.result.current.sessionState.martingaleStep).toBe(1);
 
     // 2nd Loss: next step is 2, contract should be Over 1 / Under 8, stake should be 2.56
     localStorage.setItem("sessionStatus", "LOSS");
@@ -130,12 +130,12 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
       await renderResult.result.current.execute_trade();
     });
 
-    expect(["DIGITOVER", "DIGITUNDER"]).toContain(localStorage.getItem("currentContract"));
+    expect(["DIGITOVER", "DIGITUNDER"]).toContain(renderResult.result.current.sessionState.currentContract);
     // Over 1 (barrier 1) or Under 8 (barrier 8)
-    const barrier = localStorage.getItem("currentBarrier");
-    expect(["1", "8"]).toContain(barrier);
-    expect(localStorage.getItem("currentStake")).toBe("2.56");
-    expect(localStorage.getItem("martingaleStep")).toBe("2");
+    const barrier = renderResult.result.current.sessionState.currentBarrier;
+    expect([1, 8]).toContain(barrier);
+    expect(renderResult.result.current.sessionState.currentStake).toBe(2.56);
+    expect(renderResult.result.current.sessionState.martingaleStep).toBe(2);
   });
 
   it("should scale stakes proportionally for different base stakes", async () => {
@@ -164,7 +164,7 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    expect(localStorage.getItem("currentStake")).toBe("0.43");
+    expect(result.current.sessionState.currentStake).toBe(0.43);
   });
 
   it("should halve the stake and stay on Even/Odd when winning at base stake", async () => {
@@ -190,8 +190,8 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    expect(["DIGITEVEN", "DIGITODD"]).toContain(localStorage.getItem("currentContract"));
-    expect(localStorage.getItem("currentStake")).toBe("0.7");
+    expect(["DIGITEVEN", "DIGITODD"]).toContain(result.current.sessionState.currentContract);
+    expect(result.current.sessionState.currentStake).toBe(0.7);
   });
 
   it("should stop automation when hitting the 7th consecutive loss safety cutoff", async () => {
@@ -220,6 +220,6 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     // Check that config is disabled and toast error is fired
     const finalConfig = JSON.parse(localStorage.getItem("autoTraderConfig") || "{}");
     expect(finalConfig.enabled).toBe(false);
-    expect(toastMock.error).toHaveBeenCalledWith(expect.stringContaining("Strategy O: 7 consecutive losses reached"));
+    expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining("Strategy O: 7 consecutive losses reached"));
   });
 });

@@ -69,6 +69,9 @@ describe("useAutoTrader Strategy K Blacklist win-recovery integration", () => {
     localStorage.setItem("currentLossSequence", JSON.stringify(["U5", "U4", "EV", "RISE"]));
     localStorage.setItem("martingaleStep", "4");
     localStorage.setItem("sequenceStep", "4");
+    localStorage.setItem("currentArrangement", JSON.stringify(["U5", "U4", "EV", "RISE", "U4", "FALL", "O4", "OD"]));
+    localStorage.setItem("currentArrangementIndex", "1");
+    localStorage.setItem("shufflingSeed", "12345");
 
     const { result } = renderHook(() => 
       useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState)

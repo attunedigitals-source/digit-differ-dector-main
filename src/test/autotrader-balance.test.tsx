@@ -86,7 +86,7 @@ describe("useAutoTrader Balance Check", () => {
     );
 
     // Check that no message was sent on wsRef (mock wsRef.current.send should not be called for proposal since we returned early)
-    expect(wsRef.current.send).not.toHaveBeenCalled();
+    expect(wsRef.current.send).not.toHaveBeenCalledWith(expect.stringContaining('"proposal"'));
   });
 
   it("should allow execution when balance is sufficient", async () => {

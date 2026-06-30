@@ -312,12 +312,18 @@ export function TradingPanel({
               type="number"
               min={0.35}
               step={0.1}
-              value={localStake}
-              onChange={(e) => setLocalStake(e.target.value)}
-              onBlur={handleStakeBlur}
-              className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeValid && localStake !== "" ? "border-destructive text-destructive" : ""}`}
+              value={config.strategy === "strategy_o" ? localStakeO : localStake}
+              onChange={(e) => config.strategy === "strategy_o" ? setLocalStakeO(e.target.value) : setLocalStake(e.target.value)}
+              onBlur={config.strategy === "strategy_o" ? handleStakeOBlur : handleStakeBlur}
+              className={`bg-muted border-border font-mono text-sm h-8 ${
+                !(config.strategy === "strategy_o" ? isStakeOValid : isStakeValid) && 
+                (config.strategy === "strategy_o" ? localStakeO : localStake) !== "" 
+                  ? "border-destructive text-destructive" 
+                  : ""
+              }`}
             />
-            {!isStakeValid && localStake !== "" && (
+            {!(config.strategy === "strategy_o" ? isStakeOValid : isStakeValid) && 
+             (config.strategy === "strategy_o" ? localStakeO : localStake) !== "" && (
               <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
             )}
           </div>
