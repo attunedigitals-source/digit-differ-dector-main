@@ -194,7 +194,7 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     expect(result.current.sessionState.currentStake).toBe(0.7);
   });
 
-  it("should stop automation when hitting the 7th consecutive loss safety cutoff", async () => {
+  it("should reset to Step 0 and base stake when Step 2 trade is lost", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
       baseStake: 1.40,
@@ -204,8 +204,8 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     }));
     localStorage.setItem("currentSymbol", "R_10");
     localStorage.setItem("sessionStatus", "LOSS");
-    localStorage.setItem("martingaleStep", "6"); // 7th trade was Step 6. Next step calculation will yield 7.
-    localStorage.setItem("currentStake", "23913.53");
+    localStorage.setItem("martingaleStep", "2"); // We are on Step 2
+    localStorage.setItem("currentStake", "24.54");
 
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
 
@@ -217,9 +217,9 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    // Check that config is disabled and toast error is fired
-    const finalConfig = JSON.parse(localStorage.getItem("autoTraderConfig") || "{}");
-    expect(finalConfig.enabled).toBe(false);
-    expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining("Strategy O: 7 consecutive losses reached"));
+    // Check that it goes back to Even/Odd and base stake
+    expect(["DIGITEVEN", "DIGITODD"]).toContain(result.current.sessionState.currentContract);
+    expect(result.current.sessionState.currentStake).toBe(1.40);
+    expect(result.current.sessionState.martingaleStep).toBe(0);
   });
 });

@@ -441,7 +441,7 @@ export function TradingPanel({
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters. Strategy O inherits L's sticky volatility and cooldown logic, but starts with Even/Odd, progresses to Over 2/Under 7 on first loss, and Over 1/Under 8 on second loss onwards, stopping after 7 consecutive losses, utilizing a dynamic staking curve.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters. Strategy O inherits L's sticky volatility and cooldown logic, but starts with Even/Odd, progresses to Over 2/Under 7 on first loss, and Over 1/Under 8 on second loss, resetting back to base stake after losing step 2, utilizing a dynamic staking curve.
         </p>
       </div>
 
@@ -1074,7 +1074,7 @@ export function TradingPanel({
                 <Shuffle className="w-3.5 h-3.5 text-indigo-400 animate-pulse" /> Strategy O (Dynamic Staking & Progression)
               </span>
               <span className="text-[8px] text-muted-foreground">
-                {"Path: Even/Odd -> Over 2/Under 7 -> Over 1/Under 8 -> Stop at 7 Losses"}
+                {"Path: Even/Odd -> Over 2/Under 7 -> Over 1/Under 8 -> Reset to Step 0"}
               </span>
             </div>
             <div className="flex items-center gap-1.5">

@@ -1133,7 +1133,7 @@ export function useAutoTrader(
           const currentStatus = state.status;
           const currentMartingaleStep = state.martingaleStep;
 
-          if (currentStatus === "WIN" || currentStatus === "IDLE") {
+          if (currentStatus === "WIN" || currentStatus === "IDLE" || (currentStatus === "LOSS" && currentMartingaleStep === 2)) {
             pool = ["even", "odd"];
           } else {
             if (currentMartingaleStep === 0) {
@@ -1147,9 +1147,9 @@ export function useAutoTrader(
           trade = tradeDir;
           chosenGroup = getCategoryGroup(trade);
 
-          console.log(`[Strategy O Execution] Step: ${currentStatus === "LOSS" ? currentMartingaleStep + 1 : 0}, Selected direction: ${tradeDir}`);
+          console.log(`[Strategy O Execution] Step: ${currentStatus === "LOSS" && currentMartingaleStep !== 2 ? currentMartingaleStep + 1 : 0}, Selected direction: ${tradeDir}`);
 
-          if (currentStatus === "WIN" || currentStatus === "IDLE") {
+          if (currentStatus === "WIN" || currentStatus === "IDLE" || (currentStatus === "LOSS" && currentMartingaleStep === 2)) {
             nextStep = 0;
           } else if (currentStatus === "LOSS") {
             nextStep = currentMartingaleStep + 1;
@@ -1583,7 +1583,9 @@ export function useAutoTrader(
       : (state.currentArrangement && state.currentArrangement.length > 0 && state.currentArrangement[state.sequenceStep]
           ? state.currentArrangement[state.sequenceStep]
           : "O5");
-    const nextLossSeq = isWin ? [] : [...(state.currentLossSequence || []), failedDirection];
+    const nextLossSeq = isWin || (activeStrategy === "strategy_o" && state.martingaleStep === 2)
+      ? []
+      : [...(state.currentLossSequence || []), failedDirection];
     
     // Update per-symbol tracker
     symbolTrackerRef.current.set(symbol, {
