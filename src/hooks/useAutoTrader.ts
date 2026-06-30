@@ -1361,7 +1361,7 @@ export function useAutoTrader(
             }
           }
         } else if (state.status === "LOSS") {
-          const stakesO = [1.40, 1.73, 2.56, 5.17, 10.08, 19.99, 40.17];
+          const stakesO = [1.40, 3.90, 24.54, 137.11, 766.06, 4280.09, 23913.53];
           const stepIndex = nextStep;
           if (stepIndex >= 0 && stepIndex < stakesO.length) {
             const calculatedStake = (baseStakeToUse / 1.40) * stakesO[stepIndex];

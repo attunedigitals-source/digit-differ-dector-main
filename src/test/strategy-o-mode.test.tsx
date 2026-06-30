@@ -114,13 +114,13 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     });
 
     expect(["DIGITOVER", "DIGITUNDER"]).toContain(renderResult.result.current.sessionState.currentContract);
-    expect(renderResult.result.current.sessionState.currentStake).toBe(1.73);
+    expect(renderResult.result.current.sessionState.currentStake).toBe(3.90);
     expect(renderResult.result.current.sessionState.martingaleStep).toBe(1);
 
-    // 2nd Loss: next step is 2, contract should be Over 1 / Under 8, stake should be 2.56
+    // 2nd Loss: next step is 2, contract should be Over 1 / Under 8, stake should be 24.54
     localStorage.setItem("sessionStatus", "LOSS");
     localStorage.setItem("martingaleStep", "1");
-    localStorage.setItem("currentStake", "1.73");
+    localStorage.setItem("currentStake", "3.90");
 
     renderResult = renderHook(() => 
       useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
@@ -134,7 +134,7 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     // Over 1 (barrier 1) or Under 8 (barrier 8)
     const barrier = renderResult.result.current.sessionState.currentBarrier;
     expect([1, 8]).toContain(barrier);
-    expect(renderResult.result.current.sessionState.currentStake).toBe(2.56);
+    expect(renderResult.result.current.sessionState.currentStake).toBe(24.54);
     expect(renderResult.result.current.sessionState.martingaleStep).toBe(2);
   });
 
@@ -164,7 +164,7 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    expect(result.current.sessionState.currentStake).toBe(0.43);
+    expect(result.current.sessionState.currentStake).toBe(0.97);
   });
 
   it("should halve the stake and stay on Even/Odd when winning at base stake", async () => {
@@ -205,7 +205,7 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     localStorage.setItem("currentSymbol", "R_10");
     localStorage.setItem("sessionStatus", "LOSS");
     localStorage.setItem("martingaleStep", "6"); // 7th trade was Step 6. Next step calculation will yield 7.
-    localStorage.setItem("currentStake", "40.17");
+    localStorage.setItem("currentStake", "23913.53");
 
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
 
