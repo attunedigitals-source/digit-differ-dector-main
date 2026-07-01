@@ -250,4 +250,35 @@ describe("useAutoTrader Strategy O Mode Logic", () => {
     expect(result.current.sessionState.currentStake).toBe(1.95);
     expect(result.current.sessionState.martingaleStep).toBe(1);
   });
+
+  it("should continue recovery and clamp stake to 24.54 if step 2 trade lost at 12.27", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_o"
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "LOSS");
+    localStorage.setItem("martingaleStep", "2"); // We are on Step 2
+    localStorage.setItem("currentStake", "12.27"); // Step 2 was 12.27
+    localStorage.setItem("strategyOSequenceBaseStake", "0.70"); // sequence base stake was 0.70
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    // Step 3: Next calculated stake is (0.70 / 1.40) * 137.11 = 68.56.
+    // Capped to maxAllowedStake = 24.54.
+    expect(["DIGITOVER", "DIGITUNDER"]).toContain(result.current.sessionState.currentContract);
+    expect(result.current.sessionState.currentStake).toBe(24.54);
+    expect(result.current.sessionState.martingaleStep).toBe(3);
+  });
 });

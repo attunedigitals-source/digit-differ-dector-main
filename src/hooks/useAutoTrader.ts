@@ -870,10 +870,15 @@ export function useAutoTrader(
             ? (config.strategyOBaseStake ?? config.baseStake)
             : config.baseStake));
 
+      const maxAllowedStake = (baseStakeToUse / 1.40) * 24.54;
+      const lastTradeExceededMax = activeStrategy === "strategy_o" && 
+                                   state.status === "LOSS" && 
+                                   state.currentStake >= maxAllowedStake - 0.01;
+
       let nextOSeqBase = state.strategyOSequenceBaseStake;
       if (activeStrategy === "strategy_o") {
-        if (state.status === "LOSS" && state.martingaleStep !== 2) {
-          if (state.martingaleStep === 0) {
+        if (state.status === "LOSS" && !lastTradeExceededMax) {
+          if (state.martingaleStep === 0 || nextOSeqBase === undefined) {
             nextOSeqBase = state.currentStake;
           }
         } else {
@@ -1146,7 +1151,7 @@ export function useAutoTrader(
           const currentStatus = state.status;
           const currentMartingaleStep = state.martingaleStep;
 
-          if (currentStatus === "WIN" || currentStatus === "IDLE" || (currentStatus === "LOSS" && currentMartingaleStep === 2)) {
+          if (currentStatus === "WIN" || currentStatus === "IDLE" || lastTradeExceededMax) {
             pool = ["even", "odd"];
           } else {
             if (currentMartingaleStep === 0) {
@@ -1160,9 +1165,9 @@ export function useAutoTrader(
           trade = tradeDir;
           chosenGroup = getCategoryGroup(trade);
 
-          console.log(`[Strategy O Execution] Step: ${currentStatus === "LOSS" && currentMartingaleStep !== 2 ? currentMartingaleStep + 1 : 0}, Selected direction: ${tradeDir}`);
+          console.log(`[Strategy O Execution] Step: ${currentStatus === "LOSS" && !lastTradeExceededMax ? currentMartingaleStep + 1 : 0}, Selected direction: ${tradeDir}`);
 
-          if (currentStatus === "WIN" || currentStatus === "IDLE" || (currentStatus === "LOSS" && currentMartingaleStep === 2)) {
+          if (currentStatus === "WIN" || currentStatus === "IDLE" || lastTradeExceededMax) {
             nextStep = 0;
           } else if (currentStatus === "LOSS") {
             nextStep = currentMartingaleStep + 1;
@@ -1378,7 +1383,10 @@ export function useAutoTrader(
           const stepIndex = nextStep;
           if (stepIndex >= 0 && stepIndex < stakesO.length) {
             const seqBase = nextOSeqBase ?? baseStakeToUse;
-            const calculatedStake = (seqBase / 1.40) * stakesO[stepIndex];
+            let calculatedStake = (seqBase / 1.40) * stakesO[stepIndex];
+            if (calculatedStake > maxAllowedStake) {
+              calculatedStake = maxAllowedStake;
+            }
             nextStake = Number(calculatedStake.toFixed(2));
             if (nextStake < 0.35) nextStake = 0.35;
           } else {
@@ -1593,12 +1601,17 @@ export function useAutoTrader(
           ? (config.strategyOBaseStake ?? config.baseStake)
           : config.baseStake));
 
+    const maxAllowedStake = (baseStakeToUse / 1.40) * 24.54;
+    const lastTradeExceededMax = activeStrategy === "strategy_o" && 
+                                 !isWin && 
+                                 state.currentStake >= maxAllowedStake - 0.01;
+
     const failedDirection = state.currentCategory
       ? categoryToCode(state.currentCategory)
       : (state.currentArrangement && state.currentArrangement.length > 0 && state.currentArrangement[state.sequenceStep]
           ? state.currentArrangement[state.sequenceStep]
           : "O5");
-    const nextLossSeq = isWin || (activeStrategy === "strategy_o" && state.martingaleStep === 2)
+    const nextLossSeq = isWin || (activeStrategy === "strategy_o" && lastTradeExceededMax)
       ? []
       : [...(state.currentLossSequence || []), failedDirection];
     
@@ -2208,7 +2221,7 @@ export function useAutoTrader(
       currentLossSequence: nextLossSeq,
       strategyNActiveSub: nextNActiveSub,
       strategyNNextSwitchTime: nextNNextSwitchTime,
-      strategyOSequenceBaseStake: isWin || (activeStrategy === "strategy_o" && state.martingaleStep === 2) ? undefined : state.strategyOSequenceBaseStake,
+      strategyOSequenceBaseStake: isWin || (activeStrategy === "strategy_o" && lastTradeExceededMax) ? undefined : state.strategyOSequenceBaseStake,
     };
 
     if (isStrategyNSwitching) {
