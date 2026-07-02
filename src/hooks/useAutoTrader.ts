@@ -36,9 +36,11 @@ export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_k: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
   strategy_l: ["over2", "under7"],
   strategy_m: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
-  strategy_o: ["even", "odd", "over2", "under7", "over1", "under8"],
+  strategy_o: ["over2", "under7", "over1", "under8"],
   alternating: ["under4", "over4", "under5", "over5"]
 };
+
+const STRATEGY_O_STAKES = [1.40, 6.65, 37.15, 207.57, 1159.72, 6479.77, 36203.71];
 
 export const categoryToCode = (cat: TradeCategory): string => {
   if (cat === "under4") return "U4";
@@ -870,7 +872,7 @@ export function useAutoTrader(
             ? (config.strategyOBaseStake ?? config.baseStake)
             : config.baseStake));
 
-      const maxAllowedStake = (baseStakeToUse / 1.40) * 24.54;
+      const maxAllowedStake = (baseStakeToUse / 1.40) * STRATEGY_O_STAKES[2];
       const lastTradeExceededMax = activeStrategy === "strategy_o" && 
                                    state.status === "LOSS" && 
                                    state.currentStake >= maxAllowedStake - 0.01;
@@ -1152,13 +1154,9 @@ export function useAutoTrader(
           const currentMartingaleStep = state.martingaleStep;
 
           if (currentStatus === "WIN" || currentStatus === "IDLE" || lastTradeExceededMax) {
-            pool = ["even", "odd"];
+            pool = ["over2", "under7"];
           } else {
-            if (currentMartingaleStep === 0) {
-              pool = ["over2", "under7"];
-            } else {
-              pool = ["over1", "under8"];
-            }
+            pool = ["over1", "under8"];
           }
 
           const tradeDir = pool[Math.floor(Math.random() * pool.length)];
@@ -1379,11 +1377,10 @@ export function useAutoTrader(
             }
           }
         } else if (state.status === "LOSS") {
-          const stakesO = [1.40, 3.90, 24.54, 137.11, 766.06, 4280.09, 23913.53];
           const stepIndex = nextStep;
-          if (stepIndex >= 0 && stepIndex < stakesO.length) {
+          if (stepIndex >= 0 && stepIndex < STRATEGY_O_STAKES.length) {
             const seqBase = nextOSeqBase ?? baseStakeToUse;
-            let calculatedStake = (seqBase / 1.40) * stakesO[stepIndex];
+            let calculatedStake = (seqBase / 1.40) * STRATEGY_O_STAKES[stepIndex];
             if (calculatedStake > maxAllowedStake) {
               calculatedStake = maxAllowedStake;
             }
@@ -1601,7 +1598,7 @@ export function useAutoTrader(
           ? (config.strategyOBaseStake ?? config.baseStake)
           : config.baseStake));
 
-    const maxAllowedStake = (baseStakeToUse / 1.40) * 24.54;
+    const maxAllowedStake = (baseStakeToUse / 1.40) * STRATEGY_O_STAKES[2];
     const lastTradeExceededMax = activeStrategy === "strategy_o" && 
                                  !isWin && 
                                  state.currentStake >= maxAllowedStake - 0.01;
