@@ -89,6 +89,10 @@ export function resolveNextDirection(
   strategyPool: TradeCategory[],
   blacklistedPrefixes?: Record<string, string[]>
 ): { trade: TradeCategory; currentArrangement?: string[] } {
+  if (strategy === "strategy_o" || strategy === "strategy_p") {
+    return { trade };
+  }
+
   if (strategy === "strategy_k" || strategy === "strategy_m") {
     if (nextStep < 5 || !currentLossSequence || currentLossSequence.length < 5) {
       return { trade };

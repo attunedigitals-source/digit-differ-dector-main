@@ -204,4 +204,37 @@ describe("useAutoTrader Strategy P Mode Logic", () => {
     expect([1, 8]).toContain(result.current.sessionState.currentBarrier);
     expect(result.current.sessionState.currentStake).toBe(0.70);
   });
+
+  it("should stay in Over 5 or Under 4 even after 5 consecutive losses (prevent resolveNextDirection override)", async () => {
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
+
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_p"
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "LOSS");
+    localStorage.setItem("martingaleStep", "4"); // Step 4 lost
+    localStorage.setItem("currentStake", "2.86");
+    localStorage.setItem("strategyPSequenceBaseStake", "0.60");
+    localStorage.setItem("strategyPAccumulatedLoss", "3.82");
+    localStorage.setItem("currentLossSequence", JSON.stringify(["U8", "O5", "O5", "O5", "U4"])); // 5 consecutive losses
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    // Should stay in Over 5 or Under 4 (barrier 5 or 4), not swap to Over 1/Under 8
+    expect(["DIGITOVER", "DIGITUNDER"]).toContain(result.current.sessionState.currentContract);
+    expect([5, 4]).toContain(result.current.sessionState.currentBarrier);
+    expect(result.current.sessionState.currentStake).toBe(4.93);
+    expect(result.current.sessionState.martingaleStep).toBe(5);
+  });
 });
