@@ -60,6 +60,9 @@ interface TradingPanelProps {
     strategyLMode?: "loss_sticky" | "win_sticky" | "none_sticky";
     strategyNActiveSub?: "strategy_l" | "strategy_m";
     strategyNNextSwitchTime?: number;
+    strategyQActiveSub?: "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d";
+    strategyQRemainingRuns?: number;
+    strategyQLastSub?: "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d";
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -97,6 +100,12 @@ export function TradingPanel({
   const [localStakeP, setLocalStakeP] = useState((config.strategyPBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
   const [currentTime, setCurrentTime] = useState(Date.now());
+
+  const effectiveStrategy = config.strategy === "strategy_q" 
+    ? (sessionState.strategyQActiveSub || "strategy_a")
+    : (config.strategy === "strategy_n"
+      ? (sessionState.strategyNActiveSub || "strategy_l")
+      : config.strategy);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -452,6 +461,7 @@ export function TradingPanel({
             <SelectItem value="strategy_n">Strategy N (Strategy M + L Wrapper)</SelectItem>
             <SelectItem value="strategy_o">Strategy O (Over2/Under7 + Over1/Under8 progression)</SelectItem>
             <SelectItem value="strategy_p">Strategy P (Over1/Under8 + Over5/Under4 progression)</SelectItem>
+            <SelectItem value="strategy_q">Strategy Q (A to D Intermittent Wrapper)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
@@ -460,7 +470,7 @@ export function TradingPanel({
       </div>
 
       {/* Strategy A/B/C/D Visualizer Panel */}
-      {(config.strategy === "strategy_a" || config.strategy === "strategy_b" || config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) && (
+      {(effectiveStrategy === "strategy_a" || effectiveStrategy === "strategy_b" || effectiveStrategy === "strategy_c" || effectiveStrategy === "strategy_d" || effectiveStrategy === "strategy_e" || effectiveStrategy === "strategy_f" || effectiveStrategy === "strategy_g" || effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -471,15 +481,15 @@ export function TradingPanel({
               </span>
               <span className="text-[8px] text-muted-foreground">
                 Seed: {sessionState.shufflingSeed ?? 0} | Progress: {sessionState.arrangementProgressIndex ?? 0} / {
-                  config.strategy === "strategy_c" ? "7,484,400" :
-                  config.strategy === "strategy_d" ? "29,937,600" :
-                  (config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) ? "40,320" :
+                  effectiveStrategy === "strategy_c" ? "7,484,400" :
+                  effectiveStrategy === "strategy_d" ? "29,937,600" :
+                  (effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") ? "40,320" :
                   "369,600"
                 }
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              {(config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) && sessionState.strategyLMode && (
+              {effectiveStrategy === "strategy_m" && sessionState.strategyLMode && (
                 <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
                   sessionState.strategyLMode === 'loss_sticky' 
                     ? 'border-amber-500/30 text-amber-400 bg-amber-500/5' 
@@ -495,7 +505,7 @@ export function TradingPanel({
                 </Badge>
               )}
               <Badge variant="outline" className="text-[9px] border-primary/30 text-primary bg-primary/5 px-1.5 py-0.5">
-                Step {(sessionState.sequenceStep ?? 0) + 1}/{(config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) ? 8 : 12}
+                Step {(sessionState.sequenceStep ?? 0) + 1}/{(effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") ? 8 : 12}
               </Badge>
             </div>
           </div>
@@ -588,7 +598,7 @@ export function TradingPanel({
             </span>
           </div>
 
-          {(config.strategy === "strategy_g" || config.strategy === "strategy_k" || config.strategy === "strategy_m" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_m")) && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
+          {(effectiveStrategy === "strategy_g" || effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") && sessionState.blacklistedPrefixes?.["global"] && sessionState.blacklistedPrefixes["global"].length > 0 && (
             <div className="mt-2 space-y-1 bg-destructive/5 p-2 rounded border border-destructive/15">
               <div className="flex items-center justify-between pb-1">
                 <span className="text-[8px] uppercase tracking-wider text-destructive font-bold flex items-center gap-1">
@@ -996,7 +1006,7 @@ export function TradingPanel({
         </div>
       )}
 
-      {(config.strategy === "strategy_l" || (config.strategy === "strategy_n" && sessionState.strategyNActiveSub === "strategy_l")) && (
+      {effectiveStrategy === "strategy_l" && (
         <div className="bg-gradient-to-br from-teal-500/15 via-card to-emerald-500/15 border border-teal-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -1504,6 +1514,16 @@ export function TradingPanel({
                   const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
                   return formatCooldown(totalSeconds);
                 })()}
+              </span>
+            </div>
+          )}
+          {config.strategy === "strategy_q" && sessionState.strategyQActiveSub !== undefined && (
+            <div className="flex items-center justify-between text-[11px] border-b border-border/20 pb-1.5 mb-1.5">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3 text-emerald-400" /> Active Sub:
+              </span>
+              <span className="font-mono font-bold text-emerald-400">
+                {sessionState.strategyQActiveSub.replace("strategy_", "").toUpperCase()} ({sessionState.strategyQRemainingRuns} runs left)
               </span>
             </div>
           )}

@@ -38,6 +38,7 @@ export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_m: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
   strategy_o: ["over2", "under7", "over1", "under8"],
   strategy_p: ["over1", "under8", "over5", "under4"],
+  strategy_q: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
   alternating: ["under4", "over4", "under5", "over5"]
 };
 
@@ -372,6 +373,16 @@ export function useAutoTrader(
     const savedOSeqBase = localStorage.getItem('strategyOSequenceBaseStake');
     const savedPSeqBase = localStorage.getItem('strategyPSequenceBaseStake');
     const savedPAccumLoss = localStorage.getItem('strategyPAccumulatedLoss');
+    const savedQActiveSub = localStorage.getItem('strategyQActiveSub') as "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | null;
+    const savedQRemainingRuns = localStorage.getItem('strategyQRemainingRuns');
+    let qRemainingRuns: number | undefined = undefined;
+    if (savedQRemainingRuns) {
+      const parsed = parseInt(savedQRemainingRuns, 10);
+      if (!isNaN(parsed)) {
+        qRemainingRuns = parsed;
+      }
+    }
+    const savedQLastSub = localStorage.getItem('strategyQLastSub') as "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | null;
     let lossSeq: string[] = [];
     if (savedLossSeq) {
       try {
@@ -533,6 +544,9 @@ export function useAutoTrader(
       strategyOSequenceBaseStake: savedOSeqBase ? parseFloat(savedOSeqBase) : undefined,
       strategyPSequenceBaseStake: savedPSeqBase ? parseFloat(savedPSeqBase) : undefined,
       strategyPAccumulatedLoss: savedPAccumLoss ? parseFloat(savedPAccumLoss) : undefined,
+      strategyQActiveSub: savedQActiveSub || undefined,
+      strategyQRemainingRuns: qRemainingRuns,
+      strategyQLastSub: savedQLastSub || undefined,
     };
   });
 
@@ -747,10 +761,17 @@ export function useAutoTrader(
       "R_10", "R_25", "R_50", "R_75", "R_100",
     ];
 
+    let activeStrategy = config.strategy;
+    if (config.strategy === "strategy_n") {
+      activeStrategy = sessionStateRef.current.strategyNActiveSub || "strategy_l";
+    } else if (config.strategy === "strategy_q") {
+      activeStrategy = sessionStateRef.current.strategyQActiveSub || "strategy_a";
+    }
+
     const candidates = symbols
       .map((symbol) => {
         // Skip suspended symbols under Strategy C, D, E and F
-        if (config.strategy === "strategy_c" || config.strategy === "strategy_d" || config.strategy === "strategy_e" || config.strategy === "strategy_f" || config.strategy === "strategy_j") {
+        if (activeStrategy === "strategy_c" || activeStrategy === "strategy_d" || activeStrategy === "strategy_e" || activeStrategy === "strategy_f" || activeStrategy === "strategy_j") {
           const tracking = volatilityTracking[symbol];
           if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
             return null;
@@ -758,7 +779,7 @@ export function useAutoTrader(
         }
 
         // Skip symbol if its personal blacklist contains the current arrangement prefix under Strategy F
-        if (config.strategy === "strategy_f") {
+        if (activeStrategy === "strategy_f") {
           const currentPrefix = (sessionStateRef.current.currentArrangement || []).slice(0, 5).join(",");
           const symbolBlacklist = sessionStateRef.current.blacklistedPrefixes?.[symbol] || [];
           if (symbolBlacklist.includes(currentPrefix)) {
@@ -865,6 +886,31 @@ export function useAutoTrader(
       let activeStrategy = config.strategy;
       let nextNActiveSub = state.strategyNActiveSub;
       let nextNNextSwitchTime = state.strategyNNextSwitchTime;
+
+      let nextQActiveSub = state.strategyQActiveSub;
+      let nextQRemainingRuns = state.strategyQRemainingRuns;
+      let nextQLastSub = state.strategyQLastSub;
+
+      if (config.strategy === "strategy_q") {
+        if (!nextQActiveSub || nextQRemainingRuns === undefined || nextQRemainingRuns <= 0) {
+          const pool = ["strategy_a", "strategy_b", "strategy_c", "strategy_d"].filter(
+            s => s !== nextQLastSub
+          );
+          nextQActiveSub = pool[Math.floor(Math.random() * pool.length)] as any;
+          nextQRemainingRuns = Math.floor(Math.random() * 21) + 20; // 20 to 40 runs
+          nextQLastSub = nextQActiveSub;
+          console.log(`[Strategy Q Wrapper] Init sub-strategy: ${nextQActiveSub}, runs: ${nextQRemainingRuns}`);
+          
+          updatedArrangement = [];
+          nextStep = 0;
+          seqStep = 0;
+          state.currentLossSequence = [];
+          state.currentArrangement = [];
+          state.currentSymbolLosses = 0;
+          state.forceSwapSymbol = false;
+        }
+        activeStrategy = nextQActiveSub;
+      }
 
       if (config.strategy === "strategy_n") {
         if (!nextNActiveSub) {
@@ -1539,6 +1585,9 @@ export function useAutoTrader(
         strategyOSequenceBaseStake: nextOSeqBase,
         strategyPSequenceBaseStake: nextPSeqBase,
         strategyPAccumulatedLoss: nextPAccumLoss,
+        strategyQActiveSub: nextQActiveSub,
+        strategyQRemainingRuns: nextQRemainingRuns,
+        strategyQLastSub: nextQLastSub,
       }));
 
       const reqId = Date.now() + Math.floor(Math.random() * 10000);
@@ -1655,6 +1704,8 @@ export function useAutoTrader(
     let activeStrategy = config.strategy;
     if (config.strategy === "strategy_n") {
       activeStrategy = state.strategyNActiveSub || "strategy_l";
+    } else if (config.strategy === "strategy_q") {
+      activeStrategy = state.strategyQActiveSub || "strategy_a";
     }
 
     const baseStakeToUse = activeStrategy === "strategy_l"
@@ -2263,6 +2314,31 @@ export function useAutoTrader(
       });
     }
 
+    let nextQActiveSub = state.strategyQActiveSub;
+    let nextQRemainingRuns = state.strategyQRemainingRuns !== undefined ? state.strategyQRemainingRuns - 1 : undefined;
+    let nextQLastSub = state.strategyQLastSub;
+    let isStrategyQSwitching = false;
+
+    if (config.strategy === "strategy_q") {
+      if (nextQRemainingRuns !== undefined) {
+        console.log(`[Strategy Q Result] Sub-strategy ${nextQActiveSub} runs remaining: ${nextQRemainingRuns}`);
+        if (nextQRemainingRuns <= 0) {
+          isStrategyQSwitching = true;
+          const pool = ["strategy_a", "strategy_b", "strategy_c", "strategy_d"].filter(
+            s => s !== nextQLastSub
+          );
+          nextQActiveSub = pool[Math.floor(Math.random() * pool.length)] as any;
+          nextQRemainingRuns = Math.floor(Math.random() * 21) + 20; // 20 to 40 runs
+          nextQLastSub = nextQActiveSub;
+          
+          console.log(`[Strategy Q Result] Switching sub-strategy to ${nextQActiveSub}. Allocated runs: ${nextQRemainingRuns}`);
+          toast.success(`Strategy Q: Switching to ${nextQActiveSub.replace("strategy_", "").toUpperCase()} for ${nextQRemainingRuns} runs!`, {
+            duration: 8000
+          });
+        }
+      }
+    }
+
     let nextSessionState = {
       ...state,
       status: newStatus,
@@ -2290,12 +2366,17 @@ export function useAutoTrader(
       strategyOSequenceBaseStake: isWin || (activeStrategy === "strategy_o" && lastTradeExceededMax) ? undefined : state.strategyOSequenceBaseStake,
       strategyPSequenceBaseStake: isWin ? undefined : state.strategyPSequenceBaseStake,
       strategyPAccumulatedLoss: isWin ? undefined : state.strategyPAccumulatedLoss,
+      strategyQActiveSub: nextQActiveSub,
+      strategyQRemainingRuns: nextQRemainingRuns,
+      strategyQLastSub: nextQLastSub,
     };
 
-    if (isStrategyNSwitching) {
-      const nextBaseStake = nextNActiveSub === "strategy_l"
-        ? (config.strategyLBaseStake ?? config.baseStake)
-        : (config.strategyMBaseStake ?? config.baseStake);
+    if (isStrategyNSwitching || isStrategyQSwitching) {
+      const nextBaseStake = isStrategyQSwitching
+        ? config.baseStake
+        : (nextNActiveSub === "strategy_l"
+          ? (config.strategyLBaseStake ?? config.baseStake)
+          : (config.strategyMBaseStake ?? config.baseStake));
 
       nextSessionState = {
         ...nextSessionState,
@@ -2635,6 +2716,21 @@ export function useAutoTrader(
     } else {
       localStorage.removeItem('strategyPAccumulatedLoss');
     }
+    if (sessionState.strategyQActiveSub) {
+      localStorage.setItem('strategyQActiveSub', sessionState.strategyQActiveSub);
+    } else {
+      localStorage.removeItem('strategyQActiveSub');
+    }
+    if (sessionState.strategyQRemainingRuns !== undefined) {
+      localStorage.setItem('strategyQRemainingRuns', String(sessionState.strategyQRemainingRuns));
+    } else {
+      localStorage.removeItem('strategyQRemainingRuns');
+    }
+    if (sessionState.strategyQLastSub) {
+      localStorage.setItem('strategyQLastSub', sessionState.strategyQLastSub);
+    } else {
+      localStorage.removeItem('strategyQLastSub');
+    }
   }, [sessionState]);
 
   useEffect(() => {
@@ -2874,6 +2970,9 @@ export function useAutoTrader(
       strategyLNoneStickyCount: undefined,
       strategyNActiveSub: undefined,
       strategyNNextSwitchTime: undefined,
+      strategyQActiveSub: undefined,
+      strategyQRemainingRuns: undefined,
+      strategyQLastSub: undefined,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
@@ -3015,6 +3114,7 @@ export function useAutoTrader(
     ticksToWait,
     handleTradeMessage,
     execute_trade,
+    handle_result,
     windDownMode,
     activateWindDown,
     volatilityTracking,
