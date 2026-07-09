@@ -63,6 +63,8 @@ interface TradingPanelProps {
     strategyQActiveSub?: "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d";
     strategyQRemainingRuns?: number;
     strategyQLastSub?: "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d";
+    strategyRSequenceBaseStake?: number;
+    strategyRAccumulatedLoss?: number;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -98,6 +100,7 @@ export function TradingPanel({
   const [localStakeM, setLocalStakeM] = useState((config.strategyMBaseStake ?? config.baseStake).toString());
   const [localStakeO, setLocalStakeO] = useState((config.strategyOBaseStake ?? config.baseStake).toString());
   const [localStakeP, setLocalStakeP] = useState((config.strategyPBaseStake ?? config.baseStake).toString());
+  const [localStakeR, setLocalStakeR] = useState((config.strategyRBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -136,6 +139,10 @@ export function TradingPanel({
   }, [config.strategyPBaseStake, config.baseStake]);
 
   useEffect(() => {
+    setLocalStakeR((config.strategyRBaseStake ?? config.baseStake).toString());
+  }, [config.strategyRBaseStake, config.baseStake]);
+
+  useEffect(() => {
     setLocalSteps(config.maxMartingaleSteps.toString());
   }, [config.maxMartingaleSteps]);
 
@@ -164,6 +171,11 @@ export function TradingPanel({
     onConfigChange({ ...config, strategyPBaseStake: isNaN(val) ? 0.35 : val });
   };
 
+  const handleStakeRBlur = () => {
+    const val = parseFloat(localStakeR);
+    onConfigChange({ ...config, strategyRBaseStake: isNaN(val) ? 0.35 : val });
+  };
+
   const handleStepsBlur = () => {
     const val = parseInt(localSteps);
     onConfigChange({ ...config, maxMartingaleSteps: isNaN(val) ? 12 : val });
@@ -177,10 +189,12 @@ export function TradingPanel({
   const stakeMVal = parseFloat(localStakeM);
   const stakeOVal = parseFloat(localStakeO);
   const stakePVal = parseFloat(localStakeP);
+  const stakeRVal = parseFloat(localStakeR);
   const isStakeLValid = !isNaN(stakeLVal) && stakeLVal >= 0.35;
   const isStakeMValid = !isNaN(stakeMVal) && stakeMVal >= 0.35;
   const isStakeOValid = !isNaN(stakeOVal) && stakeOVal >= 0.35;
   const isStakePValid = !isNaN(stakePVal) && stakePVal >= 0.35;
+  const isStakeRValid = !isNaN(stakeRVal) && stakeRVal >= 0.35;
 
   const isTrialExpired = (() => {
     if (!profile || profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
@@ -193,6 +207,7 @@ export function TradingPanel({
                    (config.strategy !== "strategy_n" || (isStakeLValid && isStakeMValid)) &&
                    (config.strategy !== "strategy_o" || isStakeOValid) &&
                    (config.strategy !== "strategy_p" || isStakePValid) &&
+                   (config.strategy !== "strategy_r" || isStakeRValid) &&
                    !isTrialExpired;
   const formatCooldown = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -334,18 +349,18 @@ export function TradingPanel({
               type="number"
               min={0.35}
               step={0.1}
-              value={config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : localStake)}
-              onChange={(e) => config.strategy === "strategy_o" ? setLocalStakeO(e.target.value) : (config.strategy === "strategy_p" ? setLocalStakeP(e.target.value) : setLocalStake(e.target.value))}
-              onBlur={config.strategy === "strategy_o" ? handleStakeOBlur : (config.strategy === "strategy_p" ? handleStakePBlur : handleStakeBlur)}
+              value={config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))}
+              onChange={(e) => config.strategy === "strategy_o" ? setLocalStakeO(e.target.value) : (config.strategy === "strategy_p" ? setLocalStakeP(e.target.value) : (config.strategy === "strategy_r" ? setLocalStakeR(e.target.value) : setLocalStake(e.target.value)))}
+              onBlur={config.strategy === "strategy_o" ? handleStakeOBlur : (config.strategy === "strategy_p" ? handleStakePBlur : (config.strategy === "strategy_r" ? handleStakeRBlur : handleStakeBlur))}
               className={`bg-muted border-border font-mono text-sm h-8 ${
-                !(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : isStakeValid)) && 
-                (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : localStake)) !== "" 
+                !(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
+                (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" 
                   ? "border-destructive text-destructive" 
                   : ""
               }`}
             />
-            {!(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : isStakeValid)) && 
-             (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : localStake)) !== "" && (
+            {!(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
+             (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" && (
               <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
             )}
           </div>
@@ -462,10 +477,11 @@ export function TradingPanel({
             <SelectItem value="strategy_o">Strategy O (Over2/Under7 + Over1/Under8 progression)</SelectItem>
             <SelectItem value="strategy_p">Strategy P (Over1/Under8 + Over5/Under4 progression)</SelectItem>
             <SelectItem value="strategy_q">Strategy Q (A to D Intermittent Wrapper)</SelectItem>
+            <SelectItem value="strategy_r">Strategy R (P-Variant with Special Markup & Exclusions)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters. Strategy O inherits L's sticky volatility and cooldown logic, but starts with Over 2 / Under 7 and progresses to Over 1 / Under 8 on loss, resetting back to base stake if recovery exceeds the 3rd consecutive loss stake limit, utilizing a dynamic staking curve. Strategy P is derived from O, starting with Over 1 / Under 8 and transitioning to Over 5 / Under 4 on loss with dynamic stakes calculated to cover all losses + 22% profit, featuring unlimited recovery.
+          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters. Strategy O inherits L's sticky volatility and cooldown logic, but starts with Over 2 / Under 7 and progresses to Over 1 / Under 8 on loss, resetting back to base stake if recovery exceeds the 3rd consecutive loss stake limit, utilizing a dynamic staking curve. Strategy P is derived from O, starting with Over 1 / Under 8 and transitioning to Over 5 / Under 4 on loss with dynamic stakes calculated to cover all losses + 22% profit, featuring unlimited recovery. Strategy R is a variant of P that adds Under 5 / Over 4 (special markup) to its loss step pool, selecting randomly without back-to-back duplicate directions.
         </p>
       </div>
 

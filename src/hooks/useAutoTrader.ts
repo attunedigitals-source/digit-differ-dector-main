@@ -39,6 +39,7 @@ export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_o: ["over2", "under7", "over1", "under8"],
   strategy_p: ["over1", "under8", "over5", "under4"],
   strategy_q: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
+  strategy_r: ["over1", "under8", "over5", "under4", "under5", "over4"],
   alternating: ["under4", "over4", "under5", "over5"]
 };
 
@@ -90,7 +91,7 @@ export function resolveNextDirection(
   strategyPool: TradeCategory[],
   blacklistedPrefixes?: Record<string, string[]>
 ): { trade: TradeCategory; currentArrangement?: string[] } {
-  if (strategy === "strategy_o" || strategy === "strategy_p") {
+  if (strategy === "strategy_o" || strategy === "strategy_p" || strategy === "strategy_r") {
     return { trade };
   }
 
@@ -373,6 +374,8 @@ export function useAutoTrader(
     const savedOSeqBase = localStorage.getItem('strategyOSequenceBaseStake');
     const savedPSeqBase = localStorage.getItem('strategyPSequenceBaseStake');
     const savedPAccumLoss = localStorage.getItem('strategyPAccumulatedLoss');
+    const savedRSeqBase = localStorage.getItem('strategyRSequenceBaseStake');
+    const savedRAccumLoss = localStorage.getItem('strategyRAccumulatedLoss');
     const savedQActiveSub = localStorage.getItem('strategyQActiveSub') as "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | null;
     const savedQRemainingRuns = localStorage.getItem('strategyQRemainingRuns');
     let qRemainingRuns: number | undefined = undefined;
@@ -544,6 +547,8 @@ export function useAutoTrader(
       strategyOSequenceBaseStake: savedOSeqBase ? parseFloat(savedOSeqBase) : undefined,
       strategyPSequenceBaseStake: savedPSeqBase ? parseFloat(savedPSeqBase) : undefined,
       strategyPAccumulatedLoss: savedPAccumLoss ? parseFloat(savedPAccumLoss) : undefined,
+      strategyRSequenceBaseStake: savedRSeqBase ? parseFloat(savedRSeqBase) : undefined,
+      strategyRAccumulatedLoss: savedRAccumLoss ? parseFloat(savedRAccumLoss) : undefined,
       strategyQActiveSub: savedQActiveSub || undefined,
       strategyQRemainingRuns: qRemainingRuns,
       strategyQLastSub: savedQLastSub || undefined,
@@ -809,7 +814,7 @@ export function useAutoTrader(
       return null;
     }
 
-    if (config.strategy === "strategy_g" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_l" || config.strategy === "strategy_o" || config.strategy === "strategy_p") {
+    if (config.strategy === "strategy_g" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_l" || config.strategy === "strategy_o" || config.strategy === "strategy_p" || config.strategy === "strategy_r") {
       const currentSymbol = sessionStateRef.current.currentSymbol;
       const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
       const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
@@ -929,7 +934,9 @@ export function useAutoTrader(
             ? (config.strategyOBaseStake ?? config.baseStake)
             : (activeStrategy === "strategy_p"
               ? (config.strategyPBaseStake ?? config.baseStake)
-              : config.baseStake)));
+              : (activeStrategy === "strategy_r"
+                ? (config.strategyRBaseStake ?? config.baseStake)
+                : config.baseStake))));
 
       const maxAllowedStake = (baseStakeToUse / 1.40) * STRATEGY_O_STAKES[2];
       const lastTradeExceededMax = activeStrategy === "strategy_o" && 
@@ -960,6 +967,22 @@ export function useAutoTrader(
         } else {
           nextPSeqBase = undefined;
           nextPAccumLoss = undefined;
+        }
+      }
+
+      let nextRSeqBase = state.strategyRSequenceBaseStake;
+      let nextRAccumLoss = state.strategyRAccumulatedLoss;
+      if (activeStrategy === "strategy_r") {
+        if (state.status === "LOSS") {
+          if (state.martingaleStep === 0 || nextRSeqBase === undefined) {
+            nextRSeqBase = state.currentStake;
+            nextRAccumLoss = state.currentStake;
+          } else {
+            nextRAccumLoss = (state.strategyRAccumulatedLoss ?? 0) + state.currentStake;
+          }
+        } else {
+          nextRSeqBase = undefined;
+          nextRAccumLoss = undefined;
         }
       }
 
@@ -1124,7 +1147,7 @@ export function useAutoTrader(
         under8: "Under 8"
       };
 
-      if (activeStrategy === "strategy_a" || activeStrategy === "strategy_b" || activeStrategy === "strategy_c" || activeStrategy === "strategy_d" || activeStrategy === "strategy_e" || activeStrategy === "strategy_f" || activeStrategy === "strategy_g" || activeStrategy === "strategy_h" || activeStrategy === "strategy_i" || activeStrategy === "strategy_j" || activeStrategy === "strategy_k" || activeStrategy === "strategy_l" || activeStrategy === "strategy_m" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p") {
+      if (activeStrategy === "strategy_a" || activeStrategy === "strategy_b" || activeStrategy === "strategy_c" || activeStrategy === "strategy_d" || activeStrategy === "strategy_e" || activeStrategy === "strategy_f" || activeStrategy === "strategy_g" || activeStrategy === "strategy_h" || activeStrategy === "strategy_i" || activeStrategy === "strategy_j" || activeStrategy === "strategy_k" || activeStrategy === "strategy_l" || activeStrategy === "strategy_m" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p" || activeStrategy === "strategy_r") {
         if (activeStrategy === "strategy_h") {
           let k = state.fibonacciIndex ?? -1;
           let tradeDir: TradeCategory;
@@ -1262,6 +1285,32 @@ export function useAutoTrader(
           chosenGroup = getCategoryGroup(trade);
 
           console.log(`[Strategy P Execution] Step: ${currentStatus === "LOSS" ? currentMartingaleStep + 1 : 0}, Selected direction: ${tradeDir}`);
+
+          if (currentStatus === "WIN" || currentStatus === "IDLE") {
+            nextStep = 0;
+          } else if (currentStatus === "LOSS") {
+            nextStep = currentMartingaleStep + 1;
+            stepIndexRef.current += 1;
+          }
+        } else if (activeStrategy === "strategy_r") {
+          let pool: TradeCategory[];
+          const currentStatus = state.status;
+          const currentMartingaleStep = state.martingaleStep;
+
+          if (currentStatus === "WIN" || currentStatus === "IDLE") {
+            pool = ["over1", "under8"];
+          } else {
+            pool = ["over5", "under4", "under5", "over4"];
+            if (state.currentCategory) {
+              pool = pool.filter(c => c !== state.currentCategory);
+            }
+          }
+
+          const tradeDir = pool[Math.floor(Math.random() * pool.length)];
+          trade = tradeDir;
+          chosenGroup = getCategoryGroup(trade);
+
+          console.log(`[Strategy R Execution] Step: ${currentStatus === "LOSS" ? currentMartingaleStep + 1 : 0}, Selected direction: ${tradeDir}`);
 
           if (currentStatus === "WIN" || currentStatus === "IDLE") {
             nextStep = 0;
@@ -1460,7 +1509,7 @@ export function useAutoTrader(
         } else {
           nextStake = baseStakeToUse;
         }
-      } else if (activeStrategy === "strategy_o" || activeStrategy === "strategy_p") {
+      } else if (activeStrategy === "strategy_o" || activeStrategy === "strategy_p" || activeStrategy === "strategy_r") {
         if (isFirstTrade) {
           nextStake = baseStakeToUse;
         } else if (isWin) {
@@ -1488,7 +1537,7 @@ export function useAutoTrader(
             } else {
               nextStake = baseStakeToUse;
             }
-          } else {
+          } else if (activeStrategy === "strategy_p") {
             // Strategy P Staking Logic
             if (nextStep === 1) {
               nextStake = nextPSeqBase ?? baseStakeToUse;
@@ -1498,6 +1547,22 @@ export function useAutoTrader(
               const calculatedStake = (accum + 0.22 * seqBase) / 1.381;
               nextStake = Number(calculatedStake.toFixed(2));
               if (nextStake < 0.35) nextStake = 0.35;
+            }
+          } else {
+            // Strategy R Staking Logic
+            if (nextStep === 1) {
+              nextStake = nextRSeqBase ?? baseStakeToUse;
+            } else {
+              const seqBase = nextRSeqBase ?? baseStakeToUse;
+              const accum = nextRAccumLoss ?? seqBase;
+              const calculatedStake = (accum + 0.22 * seqBase) / 1.381;
+              nextStake = Number(calculatedStake.toFixed(2));
+              if (nextStake < 0.35) nextStake = 0.35;
+            }
+            if (trade === "under5" || trade === "over4") {
+              nextStake = Number((nextStake * 1.26).toFixed(2));
+              if (nextStake < 0.35) nextStake = 0.35;
+              console.log(`[Strategy R Staking] Special category [${trade}] selected. Applying 1.26x markup multiplier: ${nextStake}`);
             }
           }
         } else {
@@ -1585,6 +1650,8 @@ export function useAutoTrader(
         strategyOSequenceBaseStake: nextOSeqBase,
         strategyPSequenceBaseStake: nextPSeqBase,
         strategyPAccumulatedLoss: nextPAccumLoss,
+        strategyRSequenceBaseStake: nextRSeqBase,
+        strategyRAccumulatedLoss: nextRAccumLoss,
         strategyQActiveSub: nextQActiveSub,
         strategyQRemainingRuns: nextQRemainingRuns,
         strategyQLastSub: nextQLastSub,
@@ -1864,7 +1931,7 @@ export function useAutoTrader(
     });
 
     const newStatus = isWin ? "WIN" : "LOSS";
-    let ticksToWaitNext = (activeStrategy === "strategy_l" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p")
+    let ticksToWaitNext = (activeStrategy === "strategy_l" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p" || activeStrategy === "strategy_r")
       ? Math.floor(Math.random() * 4) + 5
       : randomTradeCooldownTicks(isWin);
     let nextAction = isWin
@@ -2343,7 +2410,7 @@ export function useAutoTrader(
       ...state,
       status: newStatus,
       nextAction,
-      currentStake: (activeStrategy === "strategy_l" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p")
+      currentStake: (activeStrategy === "strategy_l" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p" || activeStrategy === "strategy_r")
         ? state.currentStake 
         : (isWin ? baseStakeToUse : state.currentStake),
       martingaleStep: isWin ? 0 : state.martingaleStep,
@@ -2366,6 +2433,8 @@ export function useAutoTrader(
       strategyOSequenceBaseStake: isWin || (activeStrategy === "strategy_o" && lastTradeExceededMax) ? undefined : state.strategyOSequenceBaseStake,
       strategyPSequenceBaseStake: isWin ? undefined : state.strategyPSequenceBaseStake,
       strategyPAccumulatedLoss: isWin ? undefined : state.strategyPAccumulatedLoss,
+      strategyRSequenceBaseStake: isWin ? undefined : state.strategyRSequenceBaseStake,
+      strategyRAccumulatedLoss: isWin ? undefined : state.strategyRAccumulatedLoss,
       strategyQActiveSub: nextQActiveSub,
       strategyQRemainingRuns: nextQRemainingRuns,
       strategyQLastSub: nextQLastSub,
@@ -2716,6 +2785,16 @@ export function useAutoTrader(
     } else {
       localStorage.removeItem('strategyPAccumulatedLoss');
     }
+    if (sessionState.strategyRSequenceBaseStake !== undefined) {
+      localStorage.setItem('strategyRSequenceBaseStake', String(sessionState.strategyRSequenceBaseStake));
+    } else {
+      localStorage.removeItem('strategyRSequenceBaseStake');
+    }
+    if (sessionState.strategyRAccumulatedLoss !== undefined) {
+      localStorage.setItem('strategyRAccumulatedLoss', String(sessionState.strategyRAccumulatedLoss));
+    } else {
+      localStorage.removeItem('strategyRAccumulatedLoss');
+    }
     if (sessionState.strategyQActiveSub) {
       localStorage.setItem('strategyQActiveSub', sessionState.strategyQActiveSub);
     } else {
@@ -2973,6 +3052,8 @@ export function useAutoTrader(
       strategyQActiveSub: undefined,
       strategyQRemainingRuns: undefined,
       strategyQLastSub: undefined,
+      strategyRSequenceBaseStake: undefined,
+      strategyRAccumulatedLoss: undefined,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
@@ -3026,6 +3107,10 @@ export function useAutoTrader(
     if (cfg.strategyPBaseStake !== undefined && cfg.strategyPBaseStake < 0.35) {
       corrected.strategyPBaseStake = 0.35;
       toast.warning("Minimum Base Stake P is $0.35", { id: 'min-stake-p-toast' });
+    }
+    if (cfg.strategyRBaseStake !== undefined && cfg.strategyRBaseStake < 0.35) {
+      corrected.strategyRBaseStake = 0.35;
+      toast.warning("Minimum Base Stake R is $0.35", { id: 'min-stake-r-toast' });
     }
     
     return corrected;
