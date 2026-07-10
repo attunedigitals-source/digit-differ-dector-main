@@ -110,13 +110,13 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    // The chosen direction must be in the loss step pool ["over5", "under4", "under5", "over4"]
+    // The chosen direction must be in the loss step pool ["over5", "under4", "under5", "over4", "even", "odd"]
     const chosenTrade = result.current.sessionState.currentCategory;
-    expect(["over5", "under4", "under5", "over4"]).toContain(chosenTrade);
+    expect(["over5", "under4", "under5", "over4", "even", "odd"]).toContain(chosenTrade);
     expect(chosenTrade).not.toBe("under8");
     
     // Check markup stake scaling if a special trade was chosen
-    if (chosenTrade === "under5" || chosenTrade === "over4") {
+    if (chosenTrade === "under5" || chosenTrade === "over4" || chosenTrade === "even" || chosenTrade === "odd") {
       expect(result.current.sessionState.currentStake).toBe(Number((1.40 * 1.26).toFixed(2))); // 1.76
     } else {
       expect(result.current.sessionState.currentStake).toBe(1.40);
@@ -155,7 +155,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     const chosenTrade = result.current.sessionState.currentCategory;
     expect(chosenTrade).not.toBe("under4"); // guarantee no back-to-back repetition of under4
     
-    if (chosenTrade === "under5" || chosenTrade === "over4") {
+    if (chosenTrade === "under5" || chosenTrade === "over4" || chosenTrade === "even" || chosenTrade === "odd") {
       expect(result.current.sessionState.currentStake).toBe(Number((2.25 * 1.26).toFixed(2))); // 2.84
     } else {
       expect(result.current.sessionState.currentStake).toBe(2.25);

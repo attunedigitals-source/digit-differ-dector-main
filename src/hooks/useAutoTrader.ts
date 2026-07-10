@@ -39,7 +39,7 @@ export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_o: ["over2", "under7", "over1", "under8"],
   strategy_p: ["over1", "under8", "over5", "under4"],
   strategy_q: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
-  strategy_r: ["over1", "under8", "over5", "under4", "under5", "over4"],
+  strategy_r: ["over1", "under8", "over5", "under4", "under5", "over4", "even", "odd"],
   alternating: ["under4", "over4", "under5", "over5"]
 };
 
@@ -351,6 +351,7 @@ export function useAutoTrader(
     const savedStake = localStorage.getItem('currentStake');
     const savedStatus = localStorage.getItem('sessionStatus');
     const savedSymbol = localStorage.getItem('currentSymbol');
+    const savedCategory = localStorage.getItem('currentCategory') as TradeCategory | null;
     const savedSymbolLosses = localStorage.getItem('currentSymbolLosses');
     const savedForceSwap = localStorage.getItem('forceSwapSymbol');
     const savedBlacklist = localStorage.getItem('blacklistedPrefixes');
@@ -525,7 +526,7 @@ export function useAutoTrader(
       currentBarrier: 5,
       status: (savedStatus as any) || "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
       nextAction: "IDLE_RDY",
-      currentCategory: null as TradeCategory | null,
+      currentCategory: savedCategory,
       
       currentArrangementIndex: arrIndex,
       currentArrangement: arr,
@@ -1300,7 +1301,7 @@ export function useAutoTrader(
           if (currentStatus === "WIN" || currentStatus === "IDLE") {
             pool = ["over1", "under8"];
           } else {
-            pool = ["over5", "under4", "under5", "over4"];
+            pool = ["over5", "under4", "under5", "over4", "even", "odd"];
             if (state.currentCategory) {
               pool = pool.filter(c => c !== state.currentCategory);
             }
@@ -1559,7 +1560,7 @@ export function useAutoTrader(
               nextStake = Number(calculatedStake.toFixed(2));
               if (nextStake < 0.35) nextStake = 0.35;
             }
-            if (trade === "under5" || trade === "over4") {
+            if (trade === "under5" || trade === "over4" || trade === "even" || trade === "odd") {
               nextStake = Number((nextStake * 1.26).toFixed(2));
               if (nextStake < 0.35) nextStake = 0.35;
               console.log(`[Strategy R Staking] Special category [${trade}] selected. Applying 1.26x markup multiplier: ${nextStake}`);
@@ -2741,6 +2742,11 @@ export function useAutoTrader(
     localStorage.setItem('currentStake', String(sessionState.currentStake));
     localStorage.setItem('sessionStatus', sessionState.status);
     localStorage.setItem('currentSymbol', sessionState.currentSymbol);
+    if (sessionState.currentCategory) {
+      localStorage.setItem('currentCategory', sessionState.currentCategory);
+    } else {
+      localStorage.removeItem('currentCategory');
+    }
     localStorage.setItem('currentSymbolLosses', String(sessionState.currentSymbolLosses));
     localStorage.setItem('forceSwapSymbol', String(sessionState.forceSwapSymbol));
     localStorage.setItem('blacklistedPrefixes', JSON.stringify(sessionState.blacklistedPrefixes || []));
