@@ -151,12 +151,14 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    // Dynamic recovery base stake = (1.40 + 1.40 + 0.22 * 1.40) / 1.381 = 3.108 / 1.381 = 2.25
+    // Dynamic recovery stake:
+    // If special contract: (1.40 + 1.40 + 0.22 * 1.40) / 0.90 = 3.108 / 0.90 = 3.45
+    // If normal contract: (1.40 + 1.40 + 0.22 * 1.40) / 1.381 = 3.108 / 1.381 = 2.25
     const chosenTrade = result.current.sessionState.currentCategory;
     expect(chosenTrade).not.toBe("under4"); // guarantee no back-to-back repetition of under4
     
     if (chosenTrade === "under5" || chosenTrade === "over4" || chosenTrade === "even" || chosenTrade === "odd") {
-      expect(result.current.sessionState.currentStake).toBe(Number((2.25 * 1.26).toFixed(2))); // 2.84
+      expect(result.current.sessionState.currentStake).toBe(3.45);
     } else {
       expect(result.current.sessionState.currentStake).toBe(2.25);
     }
