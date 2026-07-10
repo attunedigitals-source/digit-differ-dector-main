@@ -2913,7 +2913,12 @@ export function useAutoTrader(
     if (!config.enabled) return;
     const balance = accountInfo?.balance;
     if (balance !== undefined && balance !== null) {
-      const requiredStake = sessionState.status === "PENDING" ? sessionState.currentStake : (sessionState.currentStake || config.baseStake);
+      if (sessionState.status === "PENDING") return;
+
+      const requiredStake = (sessionState.status === "WIN" || sessionState.status === "IDLE")
+        ? config.baseStake
+        : (sessionState.currentStake || config.baseStake);
+
       if (balance < requiredStake) {
         console.warn(`[AutoTrader] Insufficient balance: Available: $${balance.toFixed(2)}, Required: $${requiredStake.toFixed(2)}. Disabling bot.`);
         toast.error(`Insufficient balance. Available: $${balance.toFixed(2)}, Required stake: $${requiredStake.toFixed(2)}. AI-automation stopped.`);
