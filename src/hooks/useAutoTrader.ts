@@ -39,7 +39,7 @@ export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_o: ["over2", "under7", "over1", "under8"],
   strategy_p: ["over1", "under8", "over5", "under4"],
   strategy_q: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
-  strategy_r: ["over1", "under8", "over5", "under4", "under5", "over4", "even", "odd"],
+  strategy_r: ["over1", "under8", "over5", "under4", "under5", "over4", "even", "odd", "rise", "fall"],
   alternating: ["under4", "over4", "under5", "over5"]
 };
 
@@ -1301,7 +1301,7 @@ export function useAutoTrader(
           if (currentStatus === "WIN" || currentStatus === "IDLE") {
             pool = ["over1", "under8"];
           } else {
-            pool = ["over5", "under4", "under5", "over4", "even", "odd"];
+            pool = ["over5", "under4", "under5", "over4", "even", "odd", "rise", "fall"];
             if (state.currentCategory) {
               pool = pool.filter(c => c !== state.currentCategory);
             }
@@ -1553,7 +1553,7 @@ export function useAutoTrader(
             // Strategy R Staking Logic
             if (nextStep === 1) {
               nextStake = nextRSeqBase ?? baseStakeToUse;
-              if (trade === "under5" || trade === "over4" || trade === "even" || trade === "odd") {
+              if (trade === "under5" || trade === "over4" || trade === "even" || trade === "odd" || trade === "rise" || trade === "fall") {
                 nextStake = Number((nextStake * 1.26).toFixed(2));
                 if (nextStake < 0.35) nextStake = 0.35;
                 console.log(`[Strategy R Staking] Special category [${trade}] selected. Applying 1.26x markup multiplier: ${nextStake}`);
@@ -1561,7 +1561,7 @@ export function useAutoTrader(
             } else {
               const seqBase = nextRSeqBase ?? baseStakeToUse;
               const accum = nextRAccumLoss ?? seqBase;
-              const isSpecial = trade === "under5" || trade === "over4" || trade === "even" || trade === "odd";
+              const isSpecial = trade === "under5" || trade === "over4" || trade === "even" || trade === "odd" || trade === "rise" || trade === "fall";
               const divisor = isSpecial ? 0.90 : 1.381;
               const calculatedStake = (accum + 0.22 * seqBase) / divisor;
               nextStake = Number(calculatedStake.toFixed(2));
