@@ -107,6 +107,9 @@ export function TradingPanel({
   const [localStakeP, setLocalStakeP] = useState((config.strategyPBaseStake ?? config.baseStake).toString());
   const [localStakeR, setLocalStakeR] = useState((config.strategyRBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
+  const [localInitialBalance, setLocalInitialBalance] = useState(config.initialBalance?.toString() || "");
+  const [localAllowableLoss, setLocalAllowableLoss] = useState(config.allowableLoss?.toString() || "");
+  const [localTargetProfit, setLocalTargetProfit] = useState(config.targetProfit?.toString() || "");
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   const effectiveStrategy = config.strategy === "strategy_q" 
@@ -150,6 +153,40 @@ export function TradingPanel({
   useEffect(() => {
     setLocalSteps(config.maxMartingaleSteps.toString());
   }, [config.maxMartingaleSteps]);
+
+  useEffect(() => {
+    setLocalInitialBalance(config.initialBalance?.toString() || "");
+  }, [config.initialBalance]);
+
+  useEffect(() => {
+    setLocalAllowableLoss(config.allowableLoss?.toString() || "");
+  }, [config.allowableLoss]);
+
+  useEffect(() => {
+    setLocalTargetProfit(config.targetProfit?.toString() || "");
+  }, [config.targetProfit]);
+
+  useEffect(() => {
+    if (balance !== undefined && !config.initialBalance && localInitialBalance === "") {
+      setLocalInitialBalance(balance.toString());
+      onConfigChange({ ...config, initialBalance: balance });
+    }
+  }, [balance, config.initialBalance]);
+
+  const handleInitialBalanceBlur = () => {
+    const val = parseFloat(localInitialBalance);
+    onConfigChange({ ...config, initialBalance: isNaN(val) ? undefined : val });
+  };
+
+  const handleAllowableLossBlur = () => {
+    const val = parseFloat(localAllowableLoss);
+    onConfigChange({ ...config, allowableLoss: isNaN(val) ? undefined : val });
+  };
+
+  const handleTargetProfitBlur = () => {
+    const val = parseFloat(localTargetProfit);
+    onConfigChange({ ...config, targetProfit: isNaN(val) ? undefined : val });
+  };
 
   const handleStakeBlur = () => {
     const val = parseFloat(localStake);
@@ -386,6 +423,58 @@ export function TradingPanel({
           {!isStepsValid && localSteps !== "" && (
             <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min 1 Step</p>
           )}
+        </div>
+      </div>
+
+      {/* Risk Management Limits */}
+      <div className="grid grid-cols-3 gap-3 border-t border-border/20 pt-3">
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <DollarSign className="w-3 h-3 text-emerald-400" /> Init Balance
+          </label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            disabled={config.enabled}
+            value={localInitialBalance}
+            onChange={(e) => setLocalInitialBalance(e.target.value)}
+            onBlur={handleInitialBalanceBlur}
+            className="bg-muted border-border font-mono text-sm h-8"
+            placeholder="e.g. 500"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <DollarSign className="w-3 h-3 text-rose-400" /> Allow Loss
+          </label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            disabled={config.enabled}
+            value={localAllowableLoss}
+            onChange={(e) => setLocalAllowableLoss(e.target.value)}
+            onBlur={handleAllowableLossBlur}
+            className="bg-muted border-border font-mono text-sm h-8"
+            placeholder="e.g. 200"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Target className="w-3 h-3 text-sky-400" /> Target Profit
+          </label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            disabled={config.enabled}
+            value={localTargetProfit}
+            onChange={(e) => setLocalTargetProfit(e.target.value)}
+            onBlur={handleTargetProfitBlur}
+            className="bg-muted border-border font-mono text-sm h-8"
+            placeholder="e.g. 100"
+          />
         </div>
       </div>
 

@@ -284,6 +284,9 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
   const strategyPBaseStake = incoming?.strategyPBaseStake !== undefined ? Math.max(0.35, Number(incoming.strategyPBaseStake)) : undefined;
   const strategyRBaseStake = incoming?.strategyRBaseStake !== undefined ? Math.max(0.35, Number(incoming.strategyRBaseStake)) : undefined;
   const strategyRStickyEnabled = incoming?.strategyRStickyEnabled !== undefined ? Boolean(incoming.strategyRStickyEnabled) : undefined;
+  const initialBalance = incoming?.initialBalance !== undefined ? Math.max(0, Number(incoming.initialBalance)) : undefined;
+  const allowableLoss = incoming?.allowableLoss !== undefined ? Math.max(0, Number(incoming.allowableLoss)) : undefined;
+  const targetProfit = incoming?.targetProfit !== undefined ? Math.max(0, Number(incoming.targetProfit)) : undefined;
 
   return {
     enabled: Boolean(incoming?.enabled),
@@ -297,6 +300,9 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
     strategyPBaseStake,
     strategyRBaseStake,
     strategyRStickyEnabled,
+    initialBalance,
+    allowableLoss,
+    targetProfit,
   };
 };
 
@@ -621,6 +627,11 @@ export function useAutoTrader(
     enabledRef.current = config.enabled;
   }, [config.enabled]);
 
+  const sessionPLRef = useRef(sessionPL);
+  useEffect(() => {
+    sessionPLRef.current = sessionPL;
+  }, [sessionPL]);
+
 
   const requestContractStatus = useCallback((contractId: string) => {
     const ws = wsRef.current;
@@ -891,6 +902,25 @@ export function useAutoTrader(
     if (!enabledRef.current) {
       console.log("%c[AutoTrader] execute_trade aborted: bot is disabled (Ref Check)", "color: orange; font-weight: bold;");
       return;
+    }
+
+    // Check target profit limit
+    if (config.targetProfit !== undefined && config.targetProfit > 0 && sessionPLRef.current >= config.targetProfit) {
+      console.log(`[AutoTrader] Target Profit reached. Session P/L: $${sessionPLRef.current.toFixed(2)}, Target: $${config.targetProfit.toFixed(2)}. Disabling bot.`);
+      toast.success(`Target Profit of $${config.targetProfit.toFixed(2)} reached! Disabling bot.`);
+      stableSetConfig(prev => ({ ...prev, enabled: false }));
+      return;
+    }
+
+    // Check allowable loss limit
+    if (config.initialBalance !== undefined && config.initialBalance > 0 && config.allowableLoss !== undefined && config.allowableLoss > 0 && accountInfo?.balance !== undefined) {
+      const stopBalance = config.initialBalance - config.allowableLoss;
+      if (accountInfo.balance <= stopBalance) {
+        console.log(`[AutoTrader] Allowable Loss limit reached. Balance: $${accountInfo.balance.toFixed(2)}, Stop Balance: $${stopBalance.toFixed(2)} (Initial: $${config.initialBalance.toFixed(2)}, Allowable Loss: $${config.allowableLoss.toFixed(2)}). Disabling bot.`);
+        toast.error(`Allowable Loss limit reached! Current Balance: $${accountInfo.balance.toFixed(2)} is at/below the limit of $${stopBalance.toFixed(2)}. Disabling bot.`);
+        stableSetConfig(prev => ({ ...prev, enabled: false }));
+        return;
+      }
     }
 
     const ws = wsRef.current;
@@ -3306,6 +3336,27 @@ export function useAutoTrader(
     localStorage.setItem('blacklistedPrefixes', JSON.stringify(emptyBlacklist));
     toast.success("Session blacklist successfully cleared.");
   }, []);
+
+  useEffect(() => {
+    if (!config.enabled) return;
+
+    // Check target profit limit
+    if (config.targetProfit !== undefined && config.targetProfit > 0 && sessionPL >= config.targetProfit) {
+      console.log(`[AutoTrader] Target Profit reached. Session P/L: $${sessionPL.toFixed(2)}, Target: $${config.targetProfit.toFixed(2)}. Disabling bot.`);
+      toast.success(`Target Profit of $${config.targetProfit.toFixed(2)} reached! Disabling bot.`);
+      stableSetConfig(prev => ({ ...prev, enabled: false }));
+    }
+
+    // Check allowable loss limit
+    if (config.initialBalance !== undefined && config.initialBalance > 0 && config.allowableLoss !== undefined && config.allowableLoss > 0 && accountInfo?.balance !== undefined) {
+      const stopBalance = config.initialBalance - config.allowableLoss;
+      if (accountInfo.balance <= stopBalance) {
+        console.log(`[AutoTrader] Allowable Loss limit reached. Balance: $${accountInfo.balance.toFixed(2)}, Stop Balance: $${stopBalance.toFixed(2)} (Initial: $${config.initialBalance.toFixed(2)}, Allowable Loss: $${config.allowableLoss.toFixed(2)}). Disabling bot.`);
+        toast.error(`Allowable Loss limit reached! Current Balance: $${accountInfo.balance.toFixed(2)} is at/below the limit of $${stopBalance.toFixed(2)}. Disabling bot.`);
+        stableSetConfig(prev => ({ ...prev, enabled: false }));
+      }
+    }
+  }, [config.enabled, config.targetProfit, config.initialBalance, config.allowableLoss, sessionPL, accountInfo?.balance, stableSetConfig]);
 
   return {
     config,

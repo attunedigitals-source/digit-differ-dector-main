@@ -26,5 +26,8 @@ export interface AutoTraderConfig {
   strategyPBaseStake?: number;
   strategyRBaseStake?: number;
   strategyRStickyEnabled?: boolean;
+  initialBalance?: number;
+  allowableLoss?: number;
+  targetProfit?: number;
 }
 

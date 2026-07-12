@@ -120,4 +120,50 @@ describe("useAutoTrader Balance Check", () => {
     // Check that proposal request was sent on WebSocket
     expect(wsRef.current.send).toHaveBeenCalled();
   });
+
+  it("should stop execution and disable automation when target profit is reached", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.0,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "alternating",
+      targetProfit: 100.0,
+    }));
+    localStorage.setItem("sessionPL", "105.0");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 500.0 };
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    expect(result.current.config.enabled).toBe(false);
+    expect(toast.success).toHaveBeenCalledWith(
+      expect.stringContaining("Target Profit of $100.00 reached! Disabling bot.")
+    );
+  });
+
+  it("should stop execution and disable automation when balance drops to allowable loss threshold", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.0,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "alternating",
+      initialBalance: 500.0,
+      allowableLoss: 200.0,
+    }));
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 299.0 };
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    expect(result.current.config.enabled).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining("Allowable Loss limit reached! Current Balance: $299.00 is at/below the limit of $300.00. Disabling bot.")
+    );
+  });
 });
