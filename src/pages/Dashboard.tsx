@@ -90,7 +90,7 @@ export default function Dashboard() {
 
   const { 
     config, setConfig, tradeLog, setTradeLog, 
-    dailyPL, dailyStats, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown,
+    dailyPL, sessionPL, resetSessionPL, dailyStats, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown,
     volatilityTracking, clearBlacklist
   } = useAutoTrader(wsRef, activeAccount, connected, getSymbolState);
 
@@ -172,7 +172,8 @@ export default function Dashboard() {
               connected={connected}
               hasToken={!!activeOAuthAccount}
               balance={activeAccount?.balance}
-              dailyPL={dailyPL}
+              sessionPL={sessionPL}
+              onResetSessionPL={resetSessionPL}
               windDownMode={windDownMode}
               onActivateWindDown={activateWindDown}
               profile={profile}

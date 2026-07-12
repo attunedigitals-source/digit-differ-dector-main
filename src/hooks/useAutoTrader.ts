@@ -325,6 +325,18 @@ export function useAutoTrader(
     return [];
   });
   const [dailyPL, setDailyPL] = useState<number>(0);
+  const [sessionPL, setSessionPL] = useState<number>(() => {
+    const saved = localStorage.getItem('sessionPL');
+    return saved ? parseFloat(saved) : 0;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sessionPL', String(sessionPL));
+  }, [sessionPL]);
+
+  const resetSessionPL = useCallback(() => {
+    setSessionPL(0);
+  }, []);
   const [dailyStats, setDailyStats] = useState({ total_trades: 0, wins: 0 });
   const [ticksToWait, setTicksToWait] = useState(0);
   const [config, setConfig] = useState<AutoTraderConfig>(() => {
@@ -2050,6 +2062,10 @@ export function useAutoTrader(
       return prev + profit;
     });
 
+    setSessionPL(prev => {
+      return prev + profit;
+    });
+
     const now = Date.now();
     const effectiveStartAt = continuousTradeStartAtRef.current ?? now;
     const cooldownDurationMs = config.cooldownIntervalMinutes * 60 * 1000;
@@ -3297,6 +3313,8 @@ export function useAutoTrader(
     tradeLog,
     setTradeLog,
     dailyPL,
+    sessionPL,
+    resetSessionPL,
     dailyStats,
     resetTradeLog,
     sessionState,

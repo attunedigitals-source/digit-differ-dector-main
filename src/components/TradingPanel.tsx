@@ -74,7 +74,8 @@ interface TradingPanelProps {
   connected: boolean;
   hasToken: boolean;
   balance?: number;
-  dailyPL: number;
+  sessionPL: number;
+  onResetSessionPL: () => void;
   windDownMode: boolean;
   onActivateWindDown: () => void;
   profile?: UserProfile | null;
@@ -91,7 +92,8 @@ export function TradingPanel({
   connected,
   hasToken,
   balance,
-  dailyPL,
+  sessionPL,
+  onResetSessionPL,
   windDownMode,
   onActivateWindDown,
   profile,
@@ -1549,10 +1551,19 @@ export function TradingPanel({
 
       {/* Stats & Current Session */}
       <div className="grid grid-cols-3 gap-2 bg-muted/30 p-3 rounded-md border border-border/50">
-        <div className="text-center">
-          <div className="text-[9px] text-muted-foreground uppercase">Daily P/L</div>
-          <div className={`text-sm font-bold ${dailyPL >= 0 ? "text-green-500" : "text-destructive"}`}>
-            ${dailyPL.toFixed(2)}
+        <div className="text-center flex flex-col justify-between items-center">
+          <div className="text-[9px] text-muted-foreground uppercase flex items-center gap-1">
+            Session P/L
+            <button
+              onClick={onResetSessionPL}
+              title="Reset Session P/L"
+              className="text-muted-foreground hover:text-primary transition-colors text-[8px] border border-muted-foreground/30 px-1 rounded hover:border-primary/50"
+            >
+              Reset
+            </button>
+          </div>
+          <div className={`text-sm font-bold ${sessionPL >= 0 ? "text-green-500" : "text-destructive"}`}>
+            ${sessionPL.toFixed(2)}
           </div>
         </div>
         <div className="text-center border-x border-border/50">
