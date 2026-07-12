@@ -58,6 +58,9 @@ interface TradingPanelProps {
     currentCategory?: string | null;
     currentLossSequence?: string[];
     strategyLMode?: "loss_sticky" | "win_sticky" | "none_sticky";
+    strategyLNoneStickyCount?: number;
+    strategyRMode?: "win_sticky" | "none_sticky";
+    strategyRModeCount?: number;
     strategyNActiveSub?: "strategy_l" | "strategy_m";
     strategyNNextSwitchTime?: number;
     strategyQActiveSub?: "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d";
@@ -484,6 +487,30 @@ export function TradingPanel({
           Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters. Strategy O inherits L's sticky volatility and cooldown logic, but starts with Over 2 / Under 7 and progresses to Over 1 / Under 8 on loss, resetting back to base stake if recovery exceeds the 3rd consecutive loss stake limit, utilizing a dynamic staking curve. Strategy P is derived from O, starting with Over 1 / Under 8 and transitioning to Over 5 / Under 4 on loss with dynamic stakes calculated to cover all losses + 22% profit, featuring unlimited recovery. Strategy R is a variant of P that adds Under 5 / Over 4, Even, Odd, Rise, and Fall (special markup) to its loss step pool, selecting randomly without back-to-back duplicate directions.
         </p>
       </div>
+
+      {/* Strategy R Stickiness Toggle */}
+      {config.strategy === "strategy_r" && (
+        <div className="flex items-center justify-between p-3 rounded-md bg-muted/20 border border-border/50">
+          <div className="space-y-0.5">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1">
+              Strategy R Stickiness
+            </label>
+            <p className="text-[9px] text-muted-foreground">
+              Enable win_sticky & none_sticky random cycles (3-5 runs each) during execution.
+            </p>
+          </div>
+          <Switch
+            id="strategy-r-sticky"
+            checked={config.strategyRStickyEnabled ?? false}
+            onCheckedChange={(checked) =>
+              onConfigChange({
+                ...config,
+                strategyRStickyEnabled: checked,
+              })
+            }
+          />
+        </div>
+      )}
 
       {/* Strategy A/B/C/D Visualizer Panel */}
       {(effectiveStrategy === "strategy_a" || effectiveStrategy === "strategy_b" || effectiveStrategy === "strategy_c" || effectiveStrategy === "strategy_d" || effectiveStrategy === "strategy_e" || effectiveStrategy === "strategy_f" || effectiveStrategy === "strategy_g" || effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") && (
@@ -1281,6 +1308,107 @@ export function TradingPanel({
                   if (cat === "under8") return "DIGITUNDER 8 (Barrier 8)";
                   if (cat === "over5") return "DIGITOVER 5 (Barrier 5)";
                   if (cat === "under4") return "DIGITUNDER 4 (Barrier 4)";
+                  return cat;
+                })()}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {config.strategy === "strategy_r" && (
+        <div className="bg-gradient-to-br from-violet-500/15 via-card to-fuchsia-500/15 border border-violet-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center justify-between border-b border-violet-500/10 pb-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider flex items-center gap-1">
+                <Shuffle className="w-3.5 h-3.5 text-violet-400 animate-pulse" /> Strategy R (Special Markup Recovery)
+              </span>
+              <span className="text-[8px] text-muted-foreground">
+                Path: Over 1/Under 8 → Over 5/Under 4/Special Contracts
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {config.strategyRStickyEnabled && sessionState.strategyRMode && (
+                <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
+                  sessionState.strategyRMode === 'win_sticky'
+                    ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
+                    : 'border-blue-500/30 text-blue-400 bg-blue-500/5'
+                }`}>
+                  {sessionState.strategyRMode === 'win_sticky'
+                    ? `Win Sticky (R: ${sessionState.strategyRModeCount ?? 0})`
+                    : `None Sticky (R: ${sessionState.strategyRModeCount ?? 0})`}
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-[9px] border-violet-500/30 text-violet-400 bg-violet-500/5 px-1.5 py-0.5 animate-pulse">
+                ACTIVE LOOP
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-[9px] text-muted-foreground uppercase tracking-wider block">Contract Candidates Pool (Current Step):</span>
+            <div className="grid grid-cols-3 gap-2 py-1">
+              {[
+                { code: "O1/U8", label: "Over 1/Under 8 (Step 0)", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40", active: sessionState.martingaleStep === 0 || sessionState.status === "WIN" || sessionState.status === "IDLE" },
+                { code: "O5/U4/SP", label: "Special Markup (Step 1)", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40", active: sessionState.martingaleStep === 1 && sessionState.status === "LOSS" },
+                { code: "O5/U4/SP", label: "Special Markup (Step 2+)", textClass: "text-purple-400", bgClass: "bg-purple-950/20", borderClass: "border-purple-950/40", active: sessionState.martingaleStep >= 2 && sessionState.status === "LOSS" }
+              ].map((item) => {
+                return (
+                  <div
+                    key={item.label}
+                    title={item.label}
+                    className={`flex flex-col items-center justify-center py-2 px-1 rounded border transition-all duration-300 relative cursor-default select-none ${item.bgClass} ${item.borderClass} ${item.active ? "scale-105 border-2 border-primary opacity-100 font-bold" : "opacity-40"}`}
+                  >
+                    <span className={`text-xs font-mono font-black ${item.textClass}`}>
+                      {item.code}
+                    </span>
+                    <span className="text-[7px] text-muted-foreground mt-0.5 text-center leading-tight">{item.label}</span>
+                    {item.active && (
+                      <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-500 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-[10px] mt-1">
+              <div className="bg-muted/50 rounded p-1.5 border border-border/50">
+                <span className="text-muted-foreground block text-[8px] uppercase">Sequence Base Stake</span>
+                <span className="font-mono font-bold text-violet-400">
+                  ${sessionState.strategyRSequenceBaseStake !== undefined ? sessionState.strategyRSequenceBaseStake.toFixed(2) : (config.strategyRBaseStake ?? config.baseStake).toFixed(2)}
+                </span>
+              </div>
+              <div className="bg-muted/50 rounded p-1.5 border border-border/50">
+                <span className="text-muted-foreground block text-[8px] uppercase">Active Recovery Loss</span>
+                <span className="font-mono font-bold text-rose-400">
+                  ${sessionState.strategyRAccumulatedLoss !== undefined ? sessionState.strategyRAccumulatedLoss.toFixed(2) : "0.00"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 justify-between text-[8px] bg-muted/40 px-2 py-1 rounded border border-border/40 mt-1">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <AlertCircle className="w-2.5 h-2.5 text-violet-400 animate-pulse" /> Active trade target:
+              </span>
+              <span className="font-bold text-foreground">
+                {(() => {
+                  const cat = sessionState.currentCategory;
+                  if (!cat) return "None (Waiting...)";
+                  if (cat === "over1") return "DIGITOVER 1 (Barrier 1)";
+                  if (cat === "under8") return "DIGITUNDER 8 (Barrier 8)";
+                  if (cat === "over5") return "DIGITOVER 5 (Barrier 5)";
+                  if (cat === "under4") return "DIGITUNDER 4 (Barrier 4)";
+                  if (cat === "under5") return "DIGITUNDER 5 (Barrier 5)";
+                  if (cat === "over4") return "DIGITOVER 4 (Barrier 4)";
+                  if (cat === "even") return "DIGITEVEN (Even)";
+                  if (cat === "odd") return "DIGITODD (Odd)";
+                  if (cat === "rise") return "RISE (Allow Equals)";
+                  if (cat === "fall") return "FALL (Allow Equals)";
                   return cat;
                 })()}
               </span>

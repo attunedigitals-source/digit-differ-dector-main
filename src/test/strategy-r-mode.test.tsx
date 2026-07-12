@@ -193,4 +193,102 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(result.current.sessionState.strategyRSequenceBaseStake).toBeUndefined();
     expect(result.current.sessionState.strategyRAccumulatedLoss).toBeUndefined();
   });
+
+  it("should initialize sticky mode and count when strategyRStickyEnabled is true", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+    localStorage.setItem("shufflingSeed", "12345");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+
+    // Mock Math.random to return:
+    // 1st: 0.1 for getRandomRMode() -> Math.floor(0.1 * 2) = 0 ("win_sticky")
+    // 2nd: 0.5 for getRandomRCount() -> Math.floor(0.5 * 3) + 3 = 1 + 3 = 4
+    // 3rd: 0.2 for select_random_active_symbol()
+    let randCallCount = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      randCallCount++;
+      if (randCallCount === 1) return 0.1; // win_sticky
+      if (randCallCount === 2) return 0.5; // count = 4
+      return 0.2; // symbol select
+    });
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(4);
+    expect(result.current.sessionState.currentSymbol).toBeDefined();
+  });
+
+  it("should decrement count and stay on symbol on win under win_sticky", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("strategyRMode", "win_sticky");
+    localStorage.setItem("strategyRModeCount", "4");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    // It should stay on R_10 and decrement count to 3
+    expect(result.current.sessionState.currentSymbol).toBe("R_10");
+    expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+  });
+
+  it("should decrement count and swap symbol on loss under win_sticky", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "LOSS");
+    localStorage.setItem("strategyRMode", "win_sticky");
+    localStorage.setItem("strategyRModeCount", "4");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    // Under win_sticky + LOSS, shouldSwitchSymbol is true, so it swaps symbol and decrements count to 3
+    expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
+    expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+  });
 });

@@ -25,5 +25,6 @@ export interface AutoTraderConfig {
   strategyOBaseStake?: number;
   strategyPBaseStake?: number;
   strategyRBaseStake?: number;
+  strategyRStickyEnabled?: boolean;
 }
 

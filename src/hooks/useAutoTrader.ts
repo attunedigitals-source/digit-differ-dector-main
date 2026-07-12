@@ -282,6 +282,8 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
   const strategyMBaseStake = incoming?.strategyMBaseStake !== undefined ? Math.max(0.35, Number(incoming.strategyMBaseStake)) : undefined;
   const strategyOBaseStake = incoming?.strategyOBaseStake !== undefined ? Math.max(0.35, Number(incoming.strategyOBaseStake)) : undefined;
   const strategyPBaseStake = incoming?.strategyPBaseStake !== undefined ? Math.max(0.35, Number(incoming.strategyPBaseStake)) : undefined;
+  const strategyRBaseStake = incoming?.strategyRBaseStake !== undefined ? Math.max(0.35, Number(incoming.strategyRBaseStake)) : undefined;
+  const strategyRStickyEnabled = incoming?.strategyRStickyEnabled !== undefined ? Boolean(incoming.strategyRStickyEnabled) : undefined;
 
   return {
     enabled: Boolean(incoming?.enabled),
@@ -293,6 +295,8 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
     strategyMBaseStake,
     strategyOBaseStake,
     strategyPBaseStake,
+    strategyRBaseStake,
+    strategyRStickyEnabled,
   };
 };
 
@@ -377,6 +381,15 @@ export function useAutoTrader(
     const savedPAccumLoss = localStorage.getItem('strategyPAccumulatedLoss');
     const savedRSeqBase = localStorage.getItem('strategyRSequenceBaseStake');
     const savedRAccumLoss = localStorage.getItem('strategyRAccumulatedLoss');
+    const savedRMode = localStorage.getItem('strategyRMode') as "win_sticky" | "none_sticky" | null;
+    const savedRModeCount = localStorage.getItem('strategyRModeCount');
+    let rModeCount: number | undefined = undefined;
+    if (savedRModeCount) {
+      const parsed = parseInt(savedRModeCount, 10);
+      if (!isNaN(parsed)) {
+        rModeCount = parsed;
+      }
+    }
     const savedQActiveSub = localStorage.getItem('strategyQActiveSub') as "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | null;
     const savedQRemainingRuns = localStorage.getItem('strategyQRemainingRuns');
     let qRemainingRuns: number | undefined = undefined;
@@ -550,6 +563,8 @@ export function useAutoTrader(
       strategyPAccumulatedLoss: savedPAccumLoss ? parseFloat(savedPAccumLoss) : undefined,
       strategyRSequenceBaseStake: savedRSeqBase ? parseFloat(savedRSeqBase) : undefined,
       strategyRAccumulatedLoss: savedRAccumLoss ? parseFloat(savedRAccumLoss) : undefined,
+      strategyRMode: savedRMode || undefined,
+      strategyRModeCount: rModeCount,
       strategyQActiveSub: savedQActiveSub || undefined,
       strategyQRemainingRuns: qRemainingRuns,
       strategyQLastSub: savedQLastSub || undefined,
@@ -815,7 +830,7 @@ export function useAutoTrader(
       return null;
     }
 
-    if (config.strategy === "strategy_g" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_l" || config.strategy === "strategy_o" || config.strategy === "strategy_p" || config.strategy === "strategy_r") {
+    if (config.strategy === "strategy_g" || config.strategy === "strategy_i" || config.strategy === "strategy_j" || config.strategy === "strategy_l" || config.strategy === "strategy_o" || config.strategy === "strategy_p" || (config.strategy === "strategy_r" && !config.strategyRStickyEnabled)) {
       const currentSymbol = sessionStateRef.current.currentSymbol;
       const filteredCandidates = candidates.filter(c => c.symbol !== currentSymbol);
       const activeCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
@@ -1003,6 +1018,8 @@ export function useAutoTrader(
 
       let nextLMode: "loss_sticky" | "win_sticky" | "none_sticky" | undefined = state.strategyLMode;
       let nextNoneStickyCount: number | undefined = state.strategyLNoneStickyCount;
+      let nextRMode: "win_sticky" | "none_sticky" | undefined = state.strategyRMode;
+      let nextRModeCount: number | undefined = state.strategyRModeCount;
 
       if (activeStrategy === "strategy_h") {
         let k = state.fibonacciIndex ?? -1;
@@ -1106,6 +1123,61 @@ export function useAutoTrader(
         } else {
           symbol = state.currentSymbol;
           console.log(`[Strategy ${stratLabel} Volatility] Sticky symbol ${symbol}. Mode: ${nextLMode}`);
+        }
+      } else if (activeStrategy === "strategy_r" && config.strategyRStickyEnabled) {
+        const isFirstTrade = state.status === "IDLE";
+        let shouldSwitchSymbol = false;
+        const rModes: Array<"win_sticky" | "none_sticky"> = ["win_sticky", "none_sticky"];
+        const getRandomRMode = () => rModes[Math.floor(Math.random() * rModes.length)];
+        const getRandomRCount = () => Math.floor(Math.random() * 3) + 3; // 3, 4, or 5
+
+        if (isFirstTrade || !state.currentSymbol || !state.strategyRMode || state.strategyRModeCount === undefined || state.strategyRModeCount <= 0) {
+          shouldSwitchSymbol = true;
+          nextRMode = getRandomRMode();
+          nextRModeCount = getRandomRCount();
+          console.log(`[Strategy R Volatility] Sticky initialized: Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+        } else {
+          const currentCount = state.strategyRModeCount;
+          if (currentCount > 1) {
+            nextRModeCount = currentCount - 1;
+            if (nextRMode === "none_sticky") {
+              shouldSwitchSymbol = true;
+              console.log(`[Strategy R Volatility] Continuing None Sticky. Trades remaining: ${nextRModeCount}`);
+            } else {
+              // win_sticky
+              if (state.status === "LOSS") {
+                shouldSwitchSymbol = true;
+                console.log(`[Strategy R Volatility] Win Sticky (Loss detected). Switching symbol. Trades remaining: ${nextRModeCount}`);
+              } else {
+                shouldSwitchSymbol = false;
+                console.log(`[Strategy R Volatility] Win Sticky (Win/Idle detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
+              }
+            }
+          } else {
+            shouldSwitchSymbol = true;
+            nextRMode = getRandomRMode();
+            nextRModeCount = getRandomRCount();
+            console.log(`[Strategy R Volatility] Sticky transition: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+          }
+        }
+
+        if (shouldSwitchSymbol) {
+          const selectedSymbol = select_random_active_symbol();
+          if (!selectedSymbol) {
+            console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
+            setSessionState(prev => ({
+              ...prev,
+              nextAction: "SKP_STALE",
+            }));
+            setTicksToWait(3);
+            isExecutingRef.current = false;
+            return;
+          }
+          symbol = selectedSymbol.symbol;
+          console.log(`[Strategy R Volatility] Switched symbol to ${symbol}. Chosen mode: ${nextRMode}`);
+        } else {
+          symbol = state.currentSymbol;
+          console.log(`[Strategy R Volatility] Sticky symbol ${symbol}. Mode: ${nextRMode}`);
         }
       } else if (shouldKeep) {
         symbol = state.currentSymbol;
@@ -1658,6 +1730,8 @@ export function useAutoTrader(
         strategyPAccumulatedLoss: nextPAccumLoss,
         strategyRSequenceBaseStake: nextRSeqBase,
         strategyRAccumulatedLoss: nextRAccumLoss,
+        strategyRMode: nextRMode,
+        strategyRModeCount: nextRModeCount,
         strategyQActiveSub: nextQActiveSub,
         strategyQRemainingRuns: nextQRemainingRuns,
         strategyQLastSub: nextQLastSub,
@@ -2806,6 +2880,16 @@ export function useAutoTrader(
     } else {
       localStorage.removeItem('strategyRAccumulatedLoss');
     }
+    if (sessionState.strategyRMode) {
+      localStorage.setItem('strategyRMode', sessionState.strategyRMode);
+    } else {
+      localStorage.removeItem('strategyRMode');
+    }
+    if (sessionState.strategyRModeCount !== undefined) {
+      localStorage.setItem('strategyRModeCount', String(sessionState.strategyRModeCount));
+    } else {
+      localStorage.removeItem('strategyRModeCount');
+    }
     if (sessionState.strategyQActiveSub) {
       localStorage.setItem('strategyQActiveSub', sessionState.strategyQActiveSub);
     } else {
@@ -3070,6 +3154,8 @@ export function useAutoTrader(
       strategyQLastSub: undefined,
       strategyRSequenceBaseStake: undefined,
       strategyRAccumulatedLoss: undefined,
+      strategyRMode: undefined,
+      strategyRModeCount: undefined,
     });
     setTicksToWait(0);
     setMartingaleCycles(0);
