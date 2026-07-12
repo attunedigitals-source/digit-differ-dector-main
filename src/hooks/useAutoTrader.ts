@@ -1137,27 +1137,29 @@ export function useAutoTrader(
           nextRModeCount = getRandomRCount();
           console.log(`[Strategy R Volatility] Sticky initialized: Mode = ${nextRMode}, Count = ${nextRModeCount}`);
         } else {
-          const currentCount = state.strategyRModeCount;
-          if (currentCount > 1) {
-            nextRModeCount = currentCount - 1;
-            if (nextRMode === "none_sticky") {
-              shouldSwitchSymbol = true;
-              console.log(`[Strategy R Volatility] Continuing None Sticky. Trades remaining: ${nextRModeCount}`);
-            } else {
-              // win_sticky
-              if (state.status === "LOSS") {
-                shouldSwitchSymbol = true;
-                console.log(`[Strategy R Volatility] Win Sticky (Loss detected). Switching symbol. Trades remaining: ${nextRModeCount}`);
-              } else {
-                shouldSwitchSymbol = false;
-                console.log(`[Strategy R Volatility] Win Sticky (Win/Idle detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
-              }
-            }
-          } else {
+          if (state.strategyRMode === "win_sticky" && state.status === "LOSS") {
             shouldSwitchSymbol = true;
             nextRMode = getRandomRMode();
             nextRModeCount = getRandomRCount();
-            console.log(`[Strategy R Volatility] Sticky transition: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+            console.log(`[Strategy R Volatility] Win Sticky (Loss detected). Re-selecting sticky mode: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+          } else {
+            const currentCount = state.strategyRModeCount;
+            if (currentCount > 1) {
+              nextRModeCount = currentCount - 1;
+              if (nextRMode === "none_sticky") {
+                shouldSwitchSymbol = true;
+                console.log(`[Strategy R Volatility] Continuing None Sticky. Trades remaining: ${nextRModeCount}`);
+              } else {
+                // win_sticky
+                shouldSwitchSymbol = false;
+                console.log(`[Strategy R Volatility] Win Sticky (Win/Idle detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
+              }
+            } else {
+              shouldSwitchSymbol = true;
+              nextRMode = getRandomRMode();
+              nextRModeCount = getRandomRCount();
+              console.log(`[Strategy R Volatility] Sticky transition (Count expired): New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+            }
           }
         }
 

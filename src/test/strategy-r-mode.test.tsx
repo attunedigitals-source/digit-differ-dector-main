@@ -262,7 +262,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(result.current.sessionState.strategyRModeCount).toBe(3);
   });
 
-  it("should decrement count and swap symbol on loss under win_sticky", async () => {
+  it("should immediately re-select mode and count and swap symbol on loss under win_sticky", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
       baseStake: 1.40,
@@ -275,8 +275,19 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     localStorage.setItem("sessionStatus", "LOSS");
     localStorage.setItem("strategyRMode", "win_sticky");
     localStorage.setItem("strategyRModeCount", "4");
+    localStorage.setItem("shufflingSeed", "12345");
 
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+
+    // Mock Math.random for re-selection:
+    // 1st: 0.6 -> none_sticky
+    // 2nd: 0.9 -> count = 5
+    // 3rd: 0.1 -> symbol selection
+    let randCallCount = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      randCallCount++;
+      return randCallCount === 1 ? 0.6 : (randCallCount === 2 ? 0.9 : 0.1);
+    });
 
     const { result } = renderHook(() => 
       useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
@@ -286,9 +297,8 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    // Under win_sticky + LOSS, shouldSwitchSymbol is true, so it swaps symbol and decrements count to 3
     expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
-    expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+    expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(5);
   });
 });
