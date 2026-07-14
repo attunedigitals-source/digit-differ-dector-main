@@ -399,7 +399,7 @@ export function useAutoTrader(
     const savedPAccumLoss = localStorage.getItem('strategyPAccumulatedLoss');
     const savedRSeqBase = localStorage.getItem('strategyRSequenceBaseStake');
     const savedRAccumLoss = localStorage.getItem('strategyRAccumulatedLoss');
-    const savedRMode = localStorage.getItem('strategyRMode') as "win_sticky" | "none_sticky" | null;
+    const savedRMode = localStorage.getItem('strategyRMode') as "win_sticky" | "none_sticky" | "loss_sticky" | null;
     const savedRModeCount = localStorage.getItem('strategyRModeCount');
     let rModeCount: number | undefined = undefined;
     if (savedRModeCount) {
@@ -1060,7 +1060,7 @@ export function useAutoTrader(
 
       let nextLMode: "loss_sticky" | "win_sticky" | "none_sticky" | undefined = state.strategyLMode;
       let nextNoneStickyCount: number | undefined = state.strategyLNoneStickyCount;
-      let nextRMode: "win_sticky" | "none_sticky" | undefined = state.strategyRMode;
+      let nextRMode: "win_sticky" | "none_sticky" | "loss_sticky" | undefined = state.strategyRMode;
       let nextRModeCount: number | undefined = state.strategyRModeCount;
 
       if (activeStrategy === "strategy_h") {
@@ -1169,7 +1169,7 @@ export function useAutoTrader(
       } else if (activeStrategy === "strategy_r" && config.strategyRStickyEnabled) {
         const isFirstTrade = state.status === "IDLE";
         let shouldSwitchSymbol = false;
-        const rModes: Array<"win_sticky" | "none_sticky"> = ["win_sticky", "none_sticky"];
+        const rModes: Array<"win_sticky" | "none_sticky" | "loss_sticky"> = ["win_sticky", "none_sticky", "loss_sticky"];
         const getRandomRMode = () => rModes[Math.floor(Math.random() * rModes.length)];
         const getRandomRCount = () => Math.floor(Math.random() * 3) + 3; // 3, 4, or 5
 
@@ -1179,11 +1179,14 @@ export function useAutoTrader(
           nextRModeCount = getRandomRCount();
           console.log(`[Strategy R Volatility] Sticky initialized: Mode = ${nextRMode}, Count = ${nextRModeCount}`);
         } else {
-          if (state.strategyRMode === "win_sticky" && state.status === "LOSS") {
+          if (
+            (state.strategyRMode === "win_sticky" && state.status === "LOSS") ||
+            (state.strategyRMode === "loss_sticky" && (state.status === "WIN" || state.status === "IDLE"))
+          ) {
             shouldSwitchSymbol = true;
             nextRMode = getRandomRMode();
             nextRModeCount = getRandomRCount();
-            console.log(`[Strategy R Volatility] Win Sticky (Loss detected). Re-selecting sticky mode: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+            console.log(`[Strategy R Volatility] ${state.strategyRMode === "win_sticky" ? "Win" : "Loss"} Sticky early transition. Re-selecting sticky mode: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
           } else {
             const currentCount = state.strategyRModeCount;
             if (currentCount > 1) {
@@ -1191,10 +1194,13 @@ export function useAutoTrader(
               if (nextRMode === "none_sticky") {
                 shouldSwitchSymbol = true;
                 console.log(`[Strategy R Volatility] Continuing None Sticky. Trades remaining: ${nextRModeCount}`);
-              } else {
-                // win_sticky
+              } else if (nextRMode === "win_sticky") {
                 shouldSwitchSymbol = false;
                 console.log(`[Strategy R Volatility] Win Sticky (Win/Idle detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
+              } else {
+                // loss_sticky
+                shouldSwitchSymbol = false;
+                console.log(`[Strategy R Volatility] Loss Sticky (Loss detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
               }
             } else {
               shouldSwitchSymbol = true;

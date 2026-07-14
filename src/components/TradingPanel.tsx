@@ -59,7 +59,7 @@ interface TradingPanelProps {
     currentLossSequence?: string[];
     strategyLMode?: "loss_sticky" | "win_sticky" | "none_sticky";
     strategyLNoneStickyCount?: number;
-    strategyRMode?: "win_sticky" | "none_sticky";
+    strategyRMode?: "win_sticky" | "none_sticky" | "loss_sticky";
     strategyRModeCount?: number;
     strategyNActiveSub?: "strategy_l" | "strategy_m";
     strategyNNextSwitchTime?: number;
@@ -1423,11 +1423,15 @@ export function TradingPanel({
             <div className="flex items-center gap-1.5">
               {config.strategyRStickyEnabled && sessionState.strategyRMode && (
                 <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
-                  sessionState.strategyRMode === 'win_sticky'
+                  sessionState.strategyRMode === 'loss_sticky'
+                    ? 'border-amber-500/30 text-amber-400 bg-amber-500/5'
+                    : sessionState.strategyRMode === 'win_sticky'
                     ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
                     : 'border-blue-500/30 text-blue-400 bg-blue-500/5'
                 }`}>
-                  {sessionState.strategyRMode === 'win_sticky'
+                  {sessionState.strategyRMode === 'loss_sticky'
+                    ? `Loss Sticky (R: ${sessionState.strategyRModeCount ?? 0})`
+                    : sessionState.strategyRMode === 'win_sticky'
                     ? `Win Sticky (R: ${sessionState.strategyRModeCount ?? 0})`
                     : `None Sticky (R: ${sessionState.strategyRModeCount ?? 0})`}
                 </Badge>

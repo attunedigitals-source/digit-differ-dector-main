@@ -301,4 +301,74 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
     expect(result.current.sessionState.strategyRModeCount).toBe(5);
   });
+
+  it("should decrement count and stay on symbol on loss under loss_sticky", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "LOSS");
+    localStorage.setItem("strategyRMode", "loss_sticky");
+    localStorage.setItem("strategyRModeCount", "4");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    // It should stay on R_10 and decrement count to 3
+    expect(result.current.sessionState.currentSymbol).toBe("R_10");
+    expect(result.current.sessionState.strategyRMode).toBe("loss_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+  });
+
+  it("should immediately re-select mode and count and swap symbol on win under loss_sticky", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("strategyRMode", "loss_sticky");
+    localStorage.setItem("strategyRModeCount", "4");
+    localStorage.setItem("shufflingSeed", "12345");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+
+    // Mock Math.random for re-selection:
+    // 1st: 0.5 -> Math.floor(0.5 * 3) = 1 ("none_sticky")
+    // 2nd: 0.9 -> count = 5
+    // 3rd: 0.1 -> symbol selection
+    let randCallCount = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      randCallCount++;
+      return randCallCount === 1 ? 0.5 : (randCallCount === 2 ? 0.9 : 0.1);
+    });
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
+    expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(5);
+  });
 });
