@@ -280,13 +280,13 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
 
     // Mock Math.random for re-selection:
-    // 1st: 0.6 -> none_sticky
+    // 1st: 0.1 -> since win_sticky is excluded, filtered is ["none_sticky", "loss_sticky"]. Index 0 is none_sticky.
     // 2nd: 0.9 -> count = 5
     // 3rd: 0.1 -> symbol selection
     let randCallCount = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => {
       randCallCount++;
-      return randCallCount === 1 ? 0.6 : (randCallCount === 2 ? 0.9 : 0.1);
+      return randCallCount === 1 ? 0.1 : (randCallCount === 2 ? 0.9 : 0.1);
     });
 
     const { result } = renderHook(() => 
@@ -350,7 +350,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
 
     // Mock Math.random for re-selection:
-    // 1st: 0.5 -> Math.floor(0.5 * 3) = 1 ("none_sticky")
+    // 1st: 0.5 -> since loss_sticky is excluded, filtered is ["win_sticky", "none_sticky"]. Math.floor(0.5 * 2) = 1 (none_sticky)
     // 2nd: 0.9 -> count = 5
     // 3rd: 0.1 -> symbol selection
     let randCallCount = 0;
@@ -370,5 +370,45 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
     expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
     expect(result.current.sessionState.strategyRModeCount).toBe(5);
+  });
+
+  it("should never select the same sticky mode back-to-back", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "LOSS");
+    localStorage.setItem("strategyRMode", "win_sticky");
+    localStorage.setItem("strategyRModeCount", "4");
+    localStorage.setItem("shufflingSeed", "12345");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+
+    // Mock Math.random for re-selection:
+    // We start in win_sticky and transition. The pool is filtered to exclude win_sticky, leaving ["none_sticky", "loss_sticky"].
+    // 1st: 0.9 -> Math.floor(0.9 * 2) = 1 ("loss_sticky")
+    // 2nd: 0.9 -> count = 5
+    // 3rd: 0.1 -> symbol selection
+    let randCallCount = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      randCallCount++;
+      return randCallCount === 1 ? 0.9 : (randCallCount === 2 ? 0.9 : 0.1);
+    });
+
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.strategyRMode).not.toBe("win_sticky");
+    expect(result.current.sessionState.strategyRMode).toBe("loss_sticky");
   });
 });
