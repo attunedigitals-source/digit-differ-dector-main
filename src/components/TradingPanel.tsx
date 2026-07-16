@@ -545,14 +545,14 @@ export function TradingPanel({
           onValueChange={() => {}}
         >
           <SelectTrigger className="bg-muted border-border font-semibold text-xs h-8">
-            <SelectValue placeholder="Strategy R (P-Variant with Special Markup & Exclusions)" />
+            <SelectValue placeholder="Strategy R (Special Markup & Exclusions)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="strategy_r">Strategy R (P-Variant with Special Markup & Exclusions)</SelectItem>
+            <SelectItem value="strategy_r">Strategy R (Special Markup & Exclusions)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy R is a variant of Strategy P that adds Under 5 / Over 4, Even, Odd, Rise, and Fall (special markup) to its loss step pool, selecting randomly without back-to-back duplicate directions. It features loss stickiness to remain unchanged when a loss is experienced (3–5 runs per cycle).
+          Strategy R trades Over 1 / Under 8 contracts on wins and step 0. Upon a loss, it transitions to a recovery pool of Over 5 / Under 4, Under 5 / Over 4, Even, Odd, Rise, and Fall (special markup) contracts, selecting randomly without back-to-back duplicate directions. It features loss stickiness to remain unchanged when a loss is experienced (3–5 runs per cycle).
         </p>
       </div>
 
