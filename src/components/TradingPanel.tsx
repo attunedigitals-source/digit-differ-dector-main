@@ -526,17 +526,6 @@ export function TradingPanel({
                 <Download className="w-2.5 h-2.5" /> Export Blacklist
               </Button>
             )}
-            {onClearBlacklist && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-5 px-2 text-[8px] text-destructive hover:bg-destructive/10 hover:text-destructive font-bold uppercase tracking-wider border border-destructive/10"
-                onClick={onClearBlacklist}
-              >
-                Clear Blacklist
-              </Button>
-            )}
           </div>
         </div>
         <Select
