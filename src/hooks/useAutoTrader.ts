@@ -2676,7 +2676,7 @@ export function useAutoTrader(
       return;
     }
 
-    if (!config.enabled) return;
+    if (!config.enabled && !["proposal_open_contract", "buy"].includes(data.msg_type) && !data.error) return;
 
     const state = sessionStateRef.current;
     
