@@ -551,9 +551,6 @@ export function TradingPanel({
             <SelectItem value="strategy_r">Strategy R (Special Markup & Exclusions)</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-[9px] text-muted-foreground">
-          Strategy R trades Over 1 / Under 8 contracts on wins and step 0. Upon a loss, it transitions to a recovery pool of Over 5 / Under 4, Under 5 / Over 4, Even, Odd, Rise, and Fall (special markup) contracts, selecting randomly without back-to-back duplicate directions. It features loss stickiness to remain unchanged when a loss is experienced (3–5 runs per cycle).
-        </p>
       </div>
 
       {/* Strategy R Stickiness Toggle */}
