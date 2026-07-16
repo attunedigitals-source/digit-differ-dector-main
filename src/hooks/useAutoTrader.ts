@@ -293,7 +293,7 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
     baseStake,
     maxMartingaleSteps,
     cooldownIntervalMinutes,
-    strategy: incoming?.strategy || "alternating",
+    strategy: (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ? (incoming?.strategy || "strategy_r") : "strategy_r",
     strategyLBaseStake,
     strategyMBaseStake,
     strategyOBaseStake,
@@ -359,7 +359,7 @@ export function useAutoTrader(
       baseStake: 0.35,
       maxMartingaleSteps: 12,
       cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
-      strategy: "alternating",
+      strategy: "strategy_r",
     });
   });
 

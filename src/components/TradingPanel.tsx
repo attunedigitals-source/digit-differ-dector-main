@@ -541,41 +541,18 @@ export function TradingPanel({
         </div>
         <Select
           value={config.strategy}
-          disabled={config.enabled}
-          onValueChange={(value) =>
-            onConfigChange({
-              ...config,
-              strategy: value as AutoTraderConfig["strategy"],
-            })
-          }
+          disabled={true}
+          onValueChange={() => {}}
         >
           <SelectTrigger className="bg-muted border-border font-semibold text-xs h-8">
-            <SelectValue placeholder="Select strategy" />
+            <SelectValue placeholder="Strategy R (P-Variant with Special Markup & Exclusions)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="alternating">Alternating Volatility</SelectItem>
-            <SelectItem value="strategy_a">Strategy A (Pre-Planned Cycles)</SelectItem>
-            <SelectItem value="strategy_b">Strategy B (Sticky Loss Cycles)</SelectItem>
-            <SelectItem value="strategy_c">Strategy C (Sticky Loss + Suspension)</SelectItem>
-            <SelectItem value="strategy_d">Strategy D (Immediate Suspension)</SelectItem>
-            <SelectItem value="strategy_e">Strategy E (God Mode - Multi-Strategy Arbitrage)</SelectItem>
-            <SelectItem value="strategy_f">Strategy F (Sticky + Deferred Suspension + Prefix Elimination)</SelectItem>
-            <SelectItem value="strategy_g">Strategy G (Pre-Planned + Session Prefix Elimination)</SelectItem>
-            <SelectItem value="strategy_h">Strategy H (Fibonacci Trade Engine)</SelectItem>
-            <SelectItem value="strategy_i">Strategy I (Random Loop Engine)</SelectItem>
-            <SelectItem value="strategy_j">Strategy J (Generalized Fibonacci Loop Engine)</SelectItem>
-            <SelectItem value="strategy_k">Strategy K (Pre-Planned + Session Prefix Elimination + Expanded Deck)</SelectItem>
-            <SelectItem value="strategy_l">Strategy L (Random Over 2 / Under 7 Loop)</SelectItem>
-            <SelectItem value="strategy_m">Strategy M (Strategy K + Sticky Volatility Mix)</SelectItem>
-            <SelectItem value="strategy_n">Strategy N (Strategy M + L Wrapper)</SelectItem>
-            <SelectItem value="strategy_o">Strategy O (Over2/Under7 + Over1/Under8 progression)</SelectItem>
-            <SelectItem value="strategy_p">Strategy P (Over1/Under8 + Over5/Under4 progression)</SelectItem>
-            <SelectItem value="strategy_q">Strategy Q (A to D Intermittent Wrapper)</SelectItem>
             <SelectItem value="strategy_r">Strategy R (P-Variant with Special Markup & Exclusions)</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">
-          Strategy A–G run 12-trade cycles. E is God Mode. F is Strategy C with prefix blacklists. G is Strategy A but blacklists underperforming 5-loss prefixes globally. H is a Fibonacci trade sequence modulo 6 with random non-back-to-back volatility. I is a fully randomized volatility and direction pool loop with Strategy H martingale logic. J is a generalized Fibonacci trade sequence modulo 8 with random volatility selection. K is Strategy A but incorporates Even, Odd, Rise, Fall, special contract staking, and global session prefix blacklists. L is a randomized volatility strategy trading random Over 2 or Under 7 contracts, utilizing a 5–8 second delay on all outcomes, halving stake on wins (resets if below 0.35), scaling stake by a 3x Martingale multiplier on losses, and alternating between Win Sticky and None Sticky (random volatility at every trade) modes. Strategy M is Strategy K but with Strategy L sticky volatility selection rules. Strategy N combines Strategy M and Strategy L, switching between them after random intervals between 5 and 8 minutes directly after a winning trade, allowing independent staking parameters. Strategy O inherits L's sticky volatility and cooldown logic, but starts with Over 2 / Under 7 and progresses to Over 1 / Under 8 on loss, resetting back to base stake if recovery exceeds the 3rd consecutive loss stake limit, utilizing a dynamic staking curve. Strategy P is derived from O, starting with Over 1 / Under 8 and transitioning to Over 5 / Under 4 on loss with dynamic stakes calculated to cover all losses + 22% profit, featuring unlimited recovery. Strategy R is a variant of P that adds Under 5 / Over 4, Even, Odd, Rise, and Fall (special markup) to its loss step pool, selecting randomly without back-to-back duplicate directions.
+          Strategy R is a variant of Strategy P that adds Under 5 / Over 4, Even, Odd, Rise, and Fall (special markup) to its loss step pool, selecting randomly without back-to-back duplicate directions. It features loss stickiness to remain unchanged when a loss is experienced (3–5 runs per cycle).
         </p>
       </div>
 
