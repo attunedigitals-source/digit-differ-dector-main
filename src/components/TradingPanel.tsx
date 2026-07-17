@@ -344,7 +344,7 @@ export function TradingPanel({
         </p>
       )}
 
-      <div className={`grid ${config.strategy === "strategy_n" ? "grid-cols-3" : "grid-cols-2"} gap-4`}>
+      <div className={`grid ${config.strategy === "strategy_n" ? "grid-cols-2" : "grid-cols-1"} gap-4`}>
         {config.strategy === "strategy_n" ? (
           <>
             <div className="space-y-2">
@@ -407,23 +407,6 @@ export function TradingPanel({
             )}
           </div>
         )}
-        <div className="space-y-2">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <Target className="w-3 h-3" /> Max Step
-          </label>
-          <Input
-            type="number"
-            min={1}
-            step={1}
-            value={localSteps}
-            onChange={(e) => setLocalSteps(e.target.value)}
-            onBlur={handleStepsBlur}
-            className={`bg-muted border-border font-mono text-sm h-8 ${!isStepsValid && localSteps !== "" ? "border-destructive text-destructive" : ""}`}
-          />
-          {!isStepsValid && localSteps !== "" && (
-            <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min 1 Step</p>
-          )}
-        </div>
       </div>
 
       {/* Risk Management Limits */}
