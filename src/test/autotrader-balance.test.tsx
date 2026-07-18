@@ -166,4 +166,41 @@ describe("useAutoTrader Balance Check", () => {
       expect.stringContaining("Allowable Loss limit reached! Current Balance: $299.00 is at/below the limit of $300.00. Disabling bot.")
     );
   });
+
+  it("should not stop execution when balance temporarily drops below allowable loss threshold while status is PENDING", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.0,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "alternating",
+      initialBalance: 500.0,
+      allowableLoss: 200.0,
+    }));
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 500.0 };
+
+    const { result, rerender } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    expect(result.current.config.enabled).toBe(true);
+
+    // Simulate placing a trade and status becoming PENDING
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.status).toBe("PENDING");
+
+    // Simulate a balance update where balance drops to 299.0 (below stop balance of 300.0) while pending
+    accountInfo.balance = 299.0;
+    
+    await act(async () => {
+      rerender();
+    });
+
+    // The bot should still be enabled because status is PENDING
+    expect(result.current.config.enabled).toBe(true);
+  });
 });

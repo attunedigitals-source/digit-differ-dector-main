@@ -3348,6 +3348,7 @@ export function useAutoTrader(
 
   useEffect(() => {
     if (!config.enabled) return;
+    if (sessionState.status === "PENDING") return;
 
     // Check target profit limit
     if (config.targetProfit !== undefined && config.targetProfit > 0 && sessionPL >= config.targetProfit) {
@@ -3365,7 +3366,7 @@ export function useAutoTrader(
         stableSetConfig(prev => ({ ...prev, enabled: false }));
       }
     }
-  }, [config.enabled, config.targetProfit, config.initialBalance, config.allowableLoss, sessionPL, accountInfo?.balance, stableSetConfig]);
+  }, [config.enabled, config.targetProfit, config.initialBalance, config.allowableLoss, sessionPL, accountInfo?.balance, sessionState.status, stableSetConfig]);
 
   return {
     config,
