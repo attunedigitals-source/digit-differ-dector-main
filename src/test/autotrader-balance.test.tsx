@@ -203,4 +203,61 @@ describe("useAutoTrader Balance Check", () => {
     // The bot should still be enabled because status is PENDING
     expect(result.current.config.enabled).toBe(true);
   });
+
+  it("should not stop execution when balance is below allowable loss threshold while status is WIN to prevent post-win deactivation race condition", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.0,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "alternating",
+      initialBalance: 500.0,
+      allowableLoss: 200.0,
+    }));
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 500.0 };
+
+    const { result, rerender } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    expect(result.current.config.enabled).toBe(true);
+
+    // Simulate placing a trade and status becoming PENDING
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.status).toBe("PENDING");
+
+    // Simulate a balance update where balance drops to 299.0 (below stop balance of 300.0) while pending
+    accountInfo.balance = 299.0;
+    await act(async () => {
+      rerender();
+    });
+    expect(result.current.config.enabled).toBe(true);
+
+    // Simulate trade resolution as WIN, but balance update is delayed (balance is still 299.0)
+    await act(async () => {
+      result.current.handle_result(true, "R_50", 1.25);
+    });
+
+    expect(result.current.sessionState.status).toBe("WIN");
+
+    // Re-render now that status is WIN but balance has not updated yet
+    await act(async () => {
+      rerender();
+    });
+
+    // The bot should still be enabled (ignores the low balance when status is WIN)
+    expect(result.current.config.enabled).toBe(true);
+
+    // Now simulate balance update message arriving and updating balance to 501.25
+    accountInfo.balance = 501.25;
+    await act(async () => {
+      rerender();
+    });
+
+    expect(result.current.config.enabled).toBe(true);
+  });
 });
