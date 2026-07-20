@@ -1174,12 +1174,20 @@ export function useAutoTrader(
           const filtered = excludeMode ? rModes.filter(m => m !== excludeMode) : rModes;
           return filtered[Math.floor(Math.random() * filtered.length)];
         };
-        const getRandomRCount = () => Math.floor(Math.random() * 3) + 3; // 3, 4, or 5
+        const getRandomRCount = (mode?: "win_sticky" | "none_sticky" | "loss_sticky") => {
+          if (mode === "win_sticky") {
+            return Math.floor(Math.random() * 4) + 10; // 10 - 13 runs
+          }
+          if (mode === "loss_sticky") {
+            return Math.floor(Math.random() * 3) + 2; // 2 - 4 runs
+          }
+          return Math.floor(Math.random() * 3) + 3; // 3 - 5 runs (none_sticky)
+        };
 
         if (isFirstTrade || !state.currentSymbol || !state.strategyRMode || state.strategyRModeCount === undefined || state.strategyRModeCount <= 0) {
           shouldSwitchSymbol = true;
           nextRMode = getRandomRMode(state.strategyRMode || undefined);
-          nextRModeCount = getRandomRCount();
+          nextRModeCount = getRandomRCount(nextRMode);
           console.log(`[Strategy R Volatility] Sticky initialized: Mode = ${nextRMode}, Count = ${nextRModeCount}`);
         } else {
           if (
@@ -1188,7 +1196,7 @@ export function useAutoTrader(
           ) {
             shouldSwitchSymbol = true;
             nextRMode = getRandomRMode(state.strategyRMode || undefined);
-            nextRModeCount = getRandomRCount();
+            nextRModeCount = getRandomRCount(nextRMode);
             console.log(`[Strategy R Volatility] ${state.strategyRMode === "win_sticky" ? "Win" : "Loss"} Sticky early transition. Re-selecting sticky mode: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
           } else {
             const currentCount = state.strategyRModeCount;
@@ -1208,7 +1216,7 @@ export function useAutoTrader(
             } else {
               shouldSwitchSymbol = true;
               nextRMode = getRandomRMode(state.strategyRMode || undefined);
-              nextRModeCount = getRandomRCount();
+              nextRModeCount = getRandomRCount(nextRMode);
               console.log(`[Strategy R Volatility] Sticky transition (Count expired): New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
             }
           }

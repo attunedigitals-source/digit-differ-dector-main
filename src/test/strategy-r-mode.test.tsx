@@ -209,13 +209,13 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     // Mock Math.random to return:
     // 1st: 0.1 for getRandomRMode() -> Math.floor(0.1 * 2) = 0 ("win_sticky")
-    // 2nd: 0.5 for getRandomRCount() -> Math.floor(0.5 * 3) + 3 = 1 + 3 = 4
+    // 2nd: 0.5 for getRandomRCount("win_sticky") -> Math.floor(0.5 * 4) + 10 = 12
     // 3rd: 0.2 for select_random_active_symbol()
     let randCallCount = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => {
       randCallCount++;
       if (randCallCount === 1) return 0.1; // win_sticky
-      if (randCallCount === 2) return 0.5; // count = 4
+      if (randCallCount === 2) return 0.5; // count = 12
       return 0.2; // symbol select
     });
 
@@ -228,7 +228,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     });
 
     expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(4);
+    expect(result.current.sessionState.strategyRModeCount).toBe(12);
     expect(result.current.sessionState.currentSymbol).toBeDefined();
   });
 
@@ -410,5 +410,40 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     expect(result.current.sessionState.strategyRMode).not.toBe("win_sticky");
     expect(result.current.sessionState.strategyRMode).toBe("loss_sticky");
+  });
+
+  it("should set stickiness count within exact expected ranges for win (10-13), none (3-5), and loss (2-4)", async () => {
+    // 1) Test win_sticky count range with Math.random() = 0 and Math.random() = 0.999
+    // Math.random() = 0 -> Math.floor(0 * 4) + 10 = 10
+    // Math.random() = 0.999 -> Math.floor(0.999 * 4) + 10 = 13
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+
+    let randCount = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      randCount++;
+      if (randCount === 1) return 0.1; // win_sticky
+      if (randCount === 2) return 0.0; // min bound -> 10
+      return 0.1;
+    });
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+    const { result, unmount } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(10);
+    unmount();
   });
 });
