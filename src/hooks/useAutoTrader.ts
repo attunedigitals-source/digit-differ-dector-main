@@ -1648,16 +1648,19 @@ export function useAutoTrader(
           nextStake = baseStakeToUse;
         } else if (isWin) {
           if (activeStrategy === "strategy_r") {
-            if (state.currentStake > baseStakeToUse) {
+            if (state.currentStake > baseStakeToUse + 0.001) {
+              // Win stake went above base stake due to recovery -> revert to base stake
               nextStake = baseStakeToUse;
             } else {
-              const minHalvedStake = Math.max(0.35, Number((baseStakeToUse / 4).toFixed(2)));
-              if (state.currentStake <= minHalvedStake + 0.001) {
-                // Max halving (baseStake / 4 or $0.35 floor) reached on previous trade -> reset to base stake and restart cycle
-                nextStake = baseStakeToUse;
+              // Win stake is equal to or below base stake
+              const floorLimit = Math.max(0.35, Number((baseStakeToUse / 4).toFixed(2)));
+              const reduced = Number((state.currentStake / 2).toFixed(2));
+              if (reduced >= floorLimit - 0.001) {
+                // Halving does not fall below floorLimit (1/4 baseStake or $0.35)
+                nextStake = reduced;
               } else {
-                const reduced = state.currentStake / 2;
-                nextStake = Math.max(minHalvedStake, Number(reduced.toFixed(2)));
+                // Halving would fall below floorLimit (or max 2 halvings done) -> revert to base stake to repeat process
+                nextStake = baseStakeToUse;
               }
             }
           } else {

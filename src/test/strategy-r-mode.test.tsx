@@ -301,6 +301,50 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(res3.current.sessionState.currentStake).toBe(10.00);
   });
 
+  it("should revert to base stake when winning above base stake and halve when winning at or below base stake after loss recovery", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r"
+    }));
+
+    // Recovery win with stake > baseStake (e.g. 3.45) -> reverts to baseStake 1.40
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("martingaleStep", "1");
+    localStorage.setItem("currentStake", "3.45");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
+    const { result, unmount } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.currentStake).toBe(1.40);
+    unmount();
+
+    // Recovery win with stake == baseStake (e.g. 1.40) -> halves to 0.70
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("martingaleStep", "1");
+    localStorage.setItem("currentStake", "1.40");
+
+    const { result: res2 } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await res2.current.execute_trade();
+    });
+
+    expect(res2.current.sessionState.currentStake).toBe(0.70);
+  });
+
   it("should initialize sticky mode and count when strategyRStickyEnabled is true", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
