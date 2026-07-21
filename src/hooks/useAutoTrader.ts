@@ -1652,11 +1652,12 @@ export function useAutoTrader(
               nextStake = baseStakeToUse;
             } else {
               const minHalvedStake = Math.max(0.35, Number((baseStakeToUse / 4).toFixed(2)));
-              if (state.currentStake > minHalvedStake + 0.001) {
+              if (state.currentStake <= minHalvedStake + 0.001) {
+                // Max halving reached on previous trade -> reset to base stake and restart cycle
+                nextStake = baseStakeToUse;
+              } else {
                 const reduced = state.currentStake / 2;
                 nextStake = Math.max(0.35, Number(reduced.toFixed(2)));
-              } else {
-                nextStake = Math.max(0.35, state.currentStake);
               }
             }
           } else {

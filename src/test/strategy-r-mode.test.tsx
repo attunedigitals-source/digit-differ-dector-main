@@ -194,7 +194,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(result.current.sessionState.strategyRAccumulatedLoss).toBeUndefined();
   });
 
-  it("should halve stake at most twice from base stake on consecutive wins and stay at floor 0.35", async () => {
+  it("should halve stake twice on consecutive wins then reset to base stake on next win to repeat cycle", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
       baseStake: 1.40,
@@ -218,11 +218,11 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    // 2nd halving: 0.70 / 2 = 0.35
+    // 2nd halving: 0.70 / 2 = 0.35 (max halving reached)
     expect(result.current.sessionState.currentStake).toBe(0.35);
     unmount();
 
-    // Now simulate 3rd consecutive win when currentStake is already 0.35 (2 halvings done)
+    // Now simulate 3rd consecutive win when currentStake was 0.35 (max halving reached)
     localStorage.setItem("currentSymbol", "R_10");
     localStorage.setItem("sessionStatus", "WIN");
     localStorage.setItem("martingaleStep", "0");
@@ -236,8 +236,8 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
       await res3.current.execute_trade();
     });
 
-    // Should stay at 0.35 (no further halving, no reset to 1.40)
-    expect(res3.current.sessionState.currentStake).toBe(0.35);
+    // After max halving is reached on a win, next stake resets to baseStake 1.40 to repeat the halving process!
+    expect(res3.current.sessionState.currentStake).toBe(1.40);
   });
 
   it("should initialize sticky mode and count when strategyRStickyEnabled is true", async () => {
