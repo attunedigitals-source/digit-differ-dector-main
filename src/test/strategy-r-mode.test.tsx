@@ -281,7 +281,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     // Mock Math.random for re-selection:
     // 1st: 0.1 -> since win_sticky is excluded, filtered is ["none_sticky", "loss_sticky"]. Index 0 is none_sticky.
-    // 2nd: 0.9 -> count = 3
+    // 2nd: 0.9 -> count = 5 (Math.floor(0.9 * 3) + 3 = 5)
     // 3rd: 0.1 -> symbol selection
     let randCallCount = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -299,7 +299,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
     expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+    expect(result.current.sessionState.strategyRModeCount).toBe(5);
   });
 
   it("should decrement count and stay on symbol on loss under loss_sticky", async () => {
@@ -351,7 +351,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     // Mock Math.random for re-selection:
     // 1st: 0.5 -> since loss_sticky is excluded, filtered is ["win_sticky", "none_sticky"]. Math.floor(0.5 * 2) = 1 (none_sticky)
-    // 2nd: 0.9 -> count = 3
+    // 2nd: 0.9 -> count = 5 (Math.floor(0.9 * 3) + 3 = 5)
     // 3rd: 0.1 -> symbol selection
     let randCallCount = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -369,7 +369,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
     expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+    expect(result.current.sessionState.strategyRModeCount).toBe(5);
   });
 
   it("should never select the same sticky mode back-to-back", async () => {
