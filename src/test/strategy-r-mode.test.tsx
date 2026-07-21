@@ -240,6 +240,67 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(res3.current.sessionState.currentStake).toBe(1.40);
   });
 
+  it("should enforce baseStake / 4 floor for larger base stakes (e.g. 10.00 -> 5.00 -> 2.50 -> 10.00)", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 10.00,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r"
+    }));
+
+    // 1st win at 10.00 -> 5.00
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("martingaleStep", "0");
+    localStorage.setItem("currentStake", "10.00");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
+    const { result, unmount } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.currentStake).toBe(5.00);
+    unmount();
+
+    // 2nd win at 5.00 -> 2.50 (baseStake / 4)
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("martingaleStep", "0");
+    localStorage.setItem("currentStake", "5.00");
+
+    const { result: res2, unmount: unmount2 } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await res2.current.execute_trade();
+    });
+
+    expect(res2.current.sessionState.currentStake).toBe(2.50);
+    unmount2();
+
+    // 3rd win at 2.50 (1/4 baseStake floor reached) -> resets to 10.00
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("martingaleStep", "0");
+    localStorage.setItem("currentStake", "2.50");
+
+    const { result: res3 } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await res3.current.execute_trade();
+    });
+
+    expect(res3.current.sessionState.currentStake).toBe(10.00);
+  });
+
   it("should initialize sticky mode and count when strategyRStickyEnabled is true", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
