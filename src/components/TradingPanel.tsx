@@ -533,7 +533,7 @@ export function TradingPanel({
               Strategy R Stickiness
             </label>
             <p className="text-[9px] text-muted-foreground">
-              Enable random sticky cycles: win (10-13 runs), none (3-5 runs), loss (2-4 runs) during execution.
+              Enable random sticky cycles: win (10-13 runs), none (1-3 runs), loss (1-3 runs) during execution.
             </p>
           </div>
           <Switch

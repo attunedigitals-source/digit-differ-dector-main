@@ -281,7 +281,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     // Mock Math.random for re-selection:
     // 1st: 0.1 -> since win_sticky is excluded, filtered is ["none_sticky", "loss_sticky"]. Index 0 is none_sticky.
-    // 2nd: 0.9 -> count = 5
+    // 2nd: 0.9 -> count = 3
     // 3rd: 0.1 -> symbol selection
     let randCallCount = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -299,7 +299,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
     expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(5);
+    expect(result.current.sessionState.strategyRModeCount).toBe(3);
   });
 
   it("should decrement count and stay on symbol on loss under loss_sticky", async () => {
@@ -351,7 +351,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     // Mock Math.random for re-selection:
     // 1st: 0.5 -> since loss_sticky is excluded, filtered is ["win_sticky", "none_sticky"]. Math.floor(0.5 * 2) = 1 (none_sticky)
-    // 2nd: 0.9 -> count = 5
+    // 2nd: 0.9 -> count = 3
     // 3rd: 0.1 -> symbol selection
     let randCallCount = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -369,7 +369,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     expect(result.current.sessionState.currentSymbol).not.toBe("R_10");
     expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(5);
+    expect(result.current.sessionState.strategyRModeCount).toBe(3);
   });
 
   it("should never select the same sticky mode back-to-back", async () => {
@@ -412,10 +412,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(result.current.sessionState.strategyRMode).toBe("loss_sticky");
   });
 
-  it("should set stickiness count within exact expected ranges for win (10-13), none (3-5), and loss (2-4)", async () => {
-    // 1) Test win_sticky count range with Math.random() = 0 and Math.random() = 0.999
-    // Math.random() = 0 -> Math.floor(0 * 4) + 10 = 10
-    // Math.random() = 0.999 -> Math.floor(0.999 * 4) + 10 = 13
+  it("should set win_sticky count within range (10-13)", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
       baseStake: 1.40,
@@ -434,7 +431,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     });
 
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
-    const { result, unmount } = renderHook(() => 
+    const { result } = renderHook(() => 
       useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
     );
 
@@ -444,6 +441,65 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
     expect(result.current.sessionState.strategyRModeCount).toBe(10);
-    unmount();
+  });
+
+  it("should set loss_sticky count within range (1-3)", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+
+    // Math.random() = 0.999 -> Math.floor(0.999 * 3) = 2 ("loss_sticky")
+    // Math.random() = 0.999 -> Math.floor(0.999 * 3) + 1 = 3 (count = 3)
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.strategyRMode).toBe("loss_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+  });
+
+  it("should set none_sticky count within range (1-3)", async () => {
+    localStorage.clear();
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r",
+      strategyRStickyEnabled: true
+    }));
+    // Explicitly set previous mode as win_sticky so filtered pool is ["none_sticky", "loss_sticky"]
+    localStorage.setItem("strategyRMode", "win_sticky");
+
+    let randCount = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => {
+      randCount++;
+      if (randCount === 1) return 0.1; // index 0 in ["none_sticky", "loss_sticky"] -> none_sticky
+      return 0.0; // min bound -> Math.floor(0 * 3) + 1 = 1
+    });
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
+    const { result } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
+    expect(result.current.sessionState.strategyRModeCount).toBe(1);
   });
 });
