@@ -209,13 +209,13 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
 
     // Mock Math.random to return:
     // 1st: 0.1 for getRandomRMode() -> Math.floor(0.1 * 2) = 0 ("win_sticky")
-    // 2nd: 0.5 for getRandomRCount("win_sticky") -> Math.floor(0.5 * 4) + 10 = 12
+    // 2nd: 0.5 for getRandomRCount("win_sticky") -> Math.floor(0.5 * 4) + 5 = 7
     // 3rd: 0.2 for select_random_active_symbol()
     let randCallCount = 0;
     vi.spyOn(Math, 'random').mockImplementation(() => {
       randCallCount++;
       if (randCallCount === 1) return 0.1; // win_sticky
-      if (randCallCount === 2) return 0.5; // count = 12
+      if (randCallCount === 2) return 0.5; // count = 7
       return 0.2; // symbol select
     });
 
@@ -228,7 +228,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     });
 
     expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(12);
+    expect(result.current.sessionState.strategyRModeCount).toBe(7);
     expect(result.current.sessionState.currentSymbol).toBeDefined();
   });
 
@@ -412,7 +412,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     expect(result.current.sessionState.strategyRMode).toBe("loss_sticky");
   });
 
-  it("should set win_sticky count within range (10-13)", async () => {
+  it("should set win_sticky count within range (5-8)", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
       baseStake: 1.40,
@@ -426,7 +426,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     vi.spyOn(Math, 'random').mockImplementation(() => {
       randCount++;
       if (randCount === 1) return 0.1; // win_sticky
-      if (randCount === 2) return 0.0; // min bound -> 10
+      if (randCount === 2) return 0.0; // min bound -> Math.floor(0 * 4) + 5 = 5
       return 0.1;
     });
 
@@ -440,10 +440,10 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     });
 
     expect(result.current.sessionState.strategyRMode).toBe("win_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(10);
+    expect(result.current.sessionState.strategyRModeCount).toBe(5);
   });
 
-  it("should set loss_sticky count within range (1-3)", async () => {
+  it("should set loss_sticky count within range (2-4)", async () => {
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
       baseStake: 1.40,
@@ -454,7 +454,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     }));
 
     // Math.random() = 0.999 -> Math.floor(0.999 * 3) = 2 ("loss_sticky")
-    // Math.random() = 0.999 -> Math.floor(0.999 * 3) + 1 = 3 (count = 3)
+    // Math.random() = 0.999 -> Math.floor(0.999 * 3) + 2 = 4 (count = 4)
     vi.spyOn(Math, 'random').mockReturnValue(0.999);
 
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
@@ -467,10 +467,10 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     });
 
     expect(result.current.sessionState.strategyRMode).toBe("loss_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(3);
+    expect(result.current.sessionState.strategyRModeCount).toBe(4);
   });
 
-  it("should set none_sticky count within range (1-3)", async () => {
+  it("should set none_sticky count within range (3-5)", async () => {
     localStorage.clear();
     localStorage.setItem("autoTraderConfig", JSON.stringify({
       enabled: true,
@@ -487,7 +487,7 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     vi.spyOn(Math, 'random').mockImplementation(() => {
       randCount++;
       if (randCount === 1) return 0.1; // index 0 in ["none_sticky", "loss_sticky"] -> none_sticky
-      return 0.0; // min bound -> Math.floor(0 * 3) + 1 = 1
+      return 0.0; // min bound -> Math.floor(0 * 3) + 3 = 3
     });
 
     const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 100.0 };
@@ -500,6 +500,6 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
     });
 
     expect(result.current.sessionState.strategyRMode).toBe("none_sticky");
-    expect(result.current.sessionState.strategyRModeCount).toBe(1);
+    expect(result.current.sessionState.strategyRModeCount).toBe(3);
   });
 });

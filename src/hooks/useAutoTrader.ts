@@ -1176,12 +1176,12 @@ export function useAutoTrader(
         };
         const getRandomRCount = (mode?: "win_sticky" | "none_sticky" | "loss_sticky") => {
           if (mode === "win_sticky") {
-            return Math.floor(Math.random() * 4) + 10; // 10 - 13 runs
+            return Math.floor(Math.random() * 4) + 5; // 5 - 8 runs
           }
           if (mode === "loss_sticky") {
-            return Math.floor(Math.random() * 3) + 1; // 1 - 3 runs
+            return Math.floor(Math.random() * 3) + 2; // 2 - 4 runs
           }
-          return Math.floor(Math.random() * 3) + 1; // 1 - 3 runs (none_sticky)
+          return Math.floor(Math.random() * 3) + 3; // 3 - 5 runs (none_sticky)
         };
 
         if (isFirstTrade || !state.currentSymbol || !state.strategyRMode || state.strategyRModeCount === undefined || state.strategyRModeCount <= 0) {
