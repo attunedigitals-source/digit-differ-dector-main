@@ -187,11 +187,57 @@ describe("useAutoTrader Strategy R Mode Logic", () => {
       await result.current.execute_trade();
     });
 
-    // Halve base stake: 1.40 / 2 = 0.70
+    // 1st halving from base stake 1.40 -> 0.70
     expect(result.current.sessionState.currentStake).toBe(0.70);
     expect(result.current.sessionState.martingaleStep).toBe(0);
     expect(result.current.sessionState.strategyRSequenceBaseStake).toBeUndefined();
     expect(result.current.sessionState.strategyRAccumulatedLoss).toBeUndefined();
+  });
+
+  it("should halve stake at most twice from base stake on consecutive wins and stay at floor 0.35", async () => {
+    localStorage.setItem("autoTraderConfig", JSON.stringify({
+      enabled: true,
+      baseStake: 1.40,
+      maxMartingaleSteps: 12,
+      cooldownIntervalMinutes: 30,
+      strategy: "strategy_r"
+    }));
+    // Simulate 2nd consecutive win when currentStake is already halved to 0.70
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("martingaleStep", "0");
+    localStorage.setItem("currentStake", "0.70");
+
+    const accountInfo = { loginid: "CR12345", currency: "USD", token: "test-token", balance: 200.0 };
+
+    const { result, unmount } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await result.current.execute_trade();
+    });
+
+    // 2nd halving: 0.70 / 2 = 0.35
+    expect(result.current.sessionState.currentStake).toBe(0.35);
+    unmount();
+
+    // Now simulate 3rd consecutive win when currentStake is already 0.35 (2 halvings done)
+    localStorage.setItem("currentSymbol", "R_10");
+    localStorage.setItem("sessionStatus", "WIN");
+    localStorage.setItem("martingaleStep", "0");
+    localStorage.setItem("currentStake", "0.35");
+
+    const { result: res3 } = renderHook(() => 
+      useAutoTrader(wsRef as any, accountInfo as any, true, getSymbolState as any)
+    );
+
+    await act(async () => {
+      await res3.current.execute_trade();
+    });
+
+    // Should stay at 0.35 (no further halving, no reset to 1.40)
+    expect(res3.current.sessionState.currentStake).toBe(0.35);
   });
 
   it("should initialize sticky mode and count when strategyRStickyEnabled is true", async () => {

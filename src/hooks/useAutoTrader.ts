@@ -1647,14 +1647,28 @@ export function useAutoTrader(
         if (isFirstTrade) {
           nextStake = baseStakeToUse;
         } else if (isWin) {
-          if (state.currentStake > baseStakeToUse) {
-            nextStake = baseStakeToUse;
-          } else {
-            const reduced = state.currentStake / 2;
-            if (reduced < 0.35) {
+          if (activeStrategy === "strategy_r") {
+            if (state.currentStake > baseStakeToUse) {
               nextStake = baseStakeToUse;
             } else {
-              nextStake = Number(reduced.toFixed(2));
+              const minHalvedStake = Math.max(0.35, Number((baseStakeToUse / 4).toFixed(2)));
+              if (state.currentStake > minHalvedStake + 0.001) {
+                const reduced = state.currentStake / 2;
+                nextStake = Math.max(0.35, Number(reduced.toFixed(2)));
+              } else {
+                nextStake = Math.max(0.35, state.currentStake);
+              }
+            }
+          } else {
+            if (state.currentStake > baseStakeToUse) {
+              nextStake = baseStakeToUse;
+            } else {
+              const reduced = state.currentStake / 2;
+              if (reduced < 0.35) {
+                nextStake = baseStakeToUse;
+              } else {
+                nextStake = Number(reduced.toFixed(2));
+              }
             }
           }
         } else if (state.status === "LOSS") {
