@@ -9,7 +9,7 @@ export interface LeadData {
 }
 
 export const TIKTOK_PIXEL_ID = import.meta.env.VITE_TIKTOK_PIXEL_ID || "C1234567890";
-export const WHATSAPP_GROUP_URL = import.meta.env.VITE_WHATSAPP_GROUP_URL || "https://chat.whatsapp.com/";
+export const WHATSAPP_GROUP_URL = import.meta.env.VITE_WHATSAPP_GROUP_URL || "https://chat.whatsapp.com/B5QnMkxnHMeEXnW7HUfIPS";
 
 /**
  * Saves lead details to Supabase table `leads` if available, and back-up to localStorage.
