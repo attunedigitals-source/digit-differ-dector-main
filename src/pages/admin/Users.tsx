@@ -29,6 +29,7 @@ import {
   ArrowUpRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { getAllLeads, type LeadRecord } from "@/lib/leads";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -241,6 +242,13 @@ export default function UserManagement() {
     }
   });
 
+  // Fetch Captured Leads & Deriv Mappings
+  const { data: leads = [] } = useQuery({
+    queryKey: ["admin-leads"],
+    queryFn: () => getAllLeads(),
+    refetchInterval: 10000,
+  });
+
   const filteredUsers = users?.filter(u => u.email.toLowerCase().includes(search.toLowerCase())) || [];
 
   return (
@@ -250,6 +258,9 @@ export default function UserManagement() {
           <div className="flex items-center justify-between mb-2">
             <TabsList className="bg-card/50">
               <TabsTrigger value="all-users" className="text-xs">All Users ({users?.length || 0})</TabsTrigger>
+              <TabsTrigger value="captured-leads" className="text-xs">
+                Leads & Deriv Mapping ({leads.length})
+              </TabsTrigger>
               <TabsTrigger value="pending-payments" className="text-xs">
                 Pending Payments 
                 {payments && payments.length > 0 && (
@@ -487,6 +498,76 @@ export default function UserManagement() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </Card>
+          <TabsContent value="captured-leads">
+            <Card className="border-border bg-card/40">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-border">
+                    <TableHead className="text-xs">Lead Email & Name</TableHead>
+                    <TableHead className="text-xs">WhatsApp Phone</TableHead>
+                    <TableHead className="text-xs">Traffic Source</TableHead>
+                    <TableHead className="text-xs">Matched Deriv Account ID</TableHead>
+                    <TableHead className="text-xs">Date Registered</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leads.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">
+                        No captured leads found yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    leads
+                      .filter((l) =>
+                        !search ||
+                        l.email?.toLowerCase().includes(search.toLowerCase()) ||
+                        l.phone?.includes(search) ||
+                        l.deriv_loginid?.toLowerCase().includes(search.toLowerCase())
+                      )
+                      .map((l, index) => (
+                        <TableRow key={index} className="border-border/50 hover:bg-muted/20">
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-sm text-foreground">{l.email}</span>
+                              {l.name && <span className="text-xs text-muted-foreground">{l.name}</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs font-mono text-emerald-400 font-semibold">{l.phone}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={
+                                l.source === "tiktok_paid"
+                                  ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
+                                  : "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                              }
+                            >
+                              {l.source === "tiktok_paid" ? "TikTok Paid Ad" : "Organic Direct"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {l.deriv_loginid ? (
+                              <Badge className="bg-primary/20 text-primary border-primary/40 font-mono text-xs">
+                                {l.deriv_loginid}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground bg-muted/40 text-[10px]">
+                                Unmatched (Pending Login)
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(l.timestamp).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                  )}
                 </TableBody>
               </Table>
             </Card>

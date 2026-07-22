@@ -185,3 +185,96 @@ export async function fireTikTokPixelEvent(eventName: string = "CompleteRegistra
     console.warn("[TikTok Pixel] Could not fire pixel event:", e);
   }
 }
+
+export interface LeadRecord extends LeadData {
+  timestamp: string;
+  deriv_loginid?: string;
+  deriv_accounts?: any[];
+}
+
+/**
+ * Links an authenticated Deriv account ID to the user's lead email & phone.
+ */
+export async function linkLeadToDerivAccount(derivLoginId: string, derivAccounts?: any[]) {
+  try {
+    if (!derivLoginId) return;
+
+    let leadEmail = "";
+    const sessionLeadRaw = sessionStorage.getItem("digit_bot_latest_lead");
+    if (sessionLeadRaw) {
+      try {
+        const parsed = JSON.parse(sessionLeadRaw);
+        leadEmail = parsed.email || "";
+      } catch (e) {}
+    }
+
+    const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
+    const existingLeads: LeadRecord[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
+
+    if (!leadEmail && existingLeads.length > 0) {
+      const lastLead = existingLeads[existingLeads.length - 1];
+      leadEmail = lastLead.email;
+    }
+
+    // 1. Update localStorage leads
+    if (existingLeads.length > 0) {
+      const updatedLeads = existingLeads.map((record) => {
+        if (!leadEmail || record.email?.toLowerCase() === leadEmail.toLowerCase()) {
+          return {
+            ...record,
+            deriv_loginid: derivLoginId,
+            deriv_accounts: derivAccounts || record.deriv_accounts,
+          };
+        }
+        return record;
+      });
+      localStorage.setItem("digit_bot_captured_leads", JSON.stringify(updatedLeads));
+    }
+
+    // 2. Update Supabase leads table
+    if (leadEmail) {
+      const { error } = await supabase
+        .from("leads" as any)
+        .update({
+          deriv_loginid: derivLoginId,
+          deriv_accounts: derivAccounts ? JSON.stringify(derivAccounts) : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("email", leadEmail);
+
+      if (error) {
+        console.warn("[Leads] Supabase lead update notice:", error.message);
+      } else {
+        console.log(`[Leads] Matched Lead email '${leadEmail}' to Deriv Account ID '${derivLoginId}'`);
+      }
+    }
+  } catch (err) {
+    console.error("[Leads] Error linking lead to Deriv account:", err);
+  }
+}
+
+/**
+ * Retrieves all captured leads with matched Deriv Account IDs.
+ */
+export async function getAllLeads(): Promise<LeadRecord[]> {
+  try {
+    const { data, error } = await supabase.from("leads" as any).select("*").order("created_at", { ascending: false });
+    if (!error && data && data.length > 0) {
+      return data.map((d: any) => ({
+        email: d.email,
+        phone: d.phone,
+        name: d.name,
+        source: d.source || "organic_direct",
+        whatsappOptIn: d.whatsapp_opt_in,
+        timestamp: d.created_at,
+        deriv_loginid: d.deriv_loginid,
+        deriv_accounts: typeof d.deriv_accounts === "string" ? JSON.parse(d.deriv_accounts) : d.deriv_accounts,
+      }));
+    }
+  } catch (e) {
+    console.warn("[Leads] Supabase fetch fallback to local:", e);
+  }
+
+  const localRaw = localStorage.getItem("digit_bot_captured_leads");
+  return localRaw ? JSON.parse(localRaw) : [];
+}

@@ -8,6 +8,7 @@ import {
   type DerivAccount,
   type DerivSession,
 } from "@/lib/deriv-oauth";
+import { linkLeadToDerivAccount } from "@/lib/leads";
 
 // Function URL — using the same Supabase URL as the client
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -93,9 +94,11 @@ export default function AuthCallback() {
               }
             }
 
+            // Link lead registration email/phone with this Deriv loginid
+            await linkLeadToDerivAccount(activeLoginid, accounts);
+
             // Done — go to dashboard
-        // Done — go to dashboard
-        window.location.href = "/auth";
+            window.location.href = "/auth";
             return;
           }
         }
@@ -261,6 +264,9 @@ export default function AuthCallback() {
             return;
           }
         }
+
+        // Link lead registration email/phone with this Deriv loginid
+        await linkLeadToDerivAccount(activeAccount, accounts);
 
         // Done — go to dashboard
         navigate("/auth", { replace: true });
