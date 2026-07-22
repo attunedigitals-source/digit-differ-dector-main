@@ -3,6 +3,7 @@
 import { generatePKCE, storePKCEData } from "./pkce";
 
 export const DERIV_APP_ID = "33cLEpErKviQMzxGeRncH";
+export const DERIV_WS_APP_ID = "117322";
 
 // ---- Types ----
 
