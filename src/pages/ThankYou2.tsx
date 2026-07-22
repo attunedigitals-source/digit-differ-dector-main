@@ -9,8 +9,38 @@ export const ThankYou2: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fire TikTok Pixel Event specifically for Paid Ad conversion tracking
-    fireTikTokPixelEvent("CompleteRegistration", { source: "tiktok_paid_landing_2" });
+    // 1. Retrieve latest captured lead details for PII Advanced Matching (hashed client side)
+    let leadEmail: string | undefined;
+    let leadPhone: string | undefined;
+
+    try {
+      const stored = localStorage.getItem("digit_bot_captured_leads");
+      if (stored) {
+        const leads = JSON.parse(stored);
+        if (Array.isArray(leads) && leads.length > 0) {
+          const latest = leads[leads.length - 1];
+          leadEmail = latest.email;
+          leadPhone = latest.phone;
+        }
+      }
+    } catch (e) {
+      console.warn("[ThankYou2] Could not read stored lead for pixel identification:", e);
+    }
+
+    // 2. Fire TikTok Pixel Event specifically for Paid Ad conversion tracking with SHA-256 PII
+    fireTikTokPixelEvent(
+      "CompleteRegistration",
+      {
+        source: "tiktok_paid_landing_2",
+        content_name: "TikTok VIP Lead Registration",
+        value: 0,
+        currency: "USD",
+      },
+      {
+        email: leadEmail,
+        phone: leadPhone,
+      }
+    );
   }, []);
 
   return (

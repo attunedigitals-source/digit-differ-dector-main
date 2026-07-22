@@ -12,51 +12,6 @@ export const TIKTOK_PIXEL_ID = import.meta.env.VITE_TIKTOK_PIXEL_ID || "D9GASABC
 export const WHATSAPP_GROUP_URL = import.meta.env.VITE_WHATSAPP_GROUP_URL || "https://chat.whatsapp.com/B5QnMkxnHMeEXnW7HUfIPS";
 
 /**
- * Hashes a string using client-side SHA-256 for TikTok PII Advanced Matching
- */
-export async function sha256Hash(message: string): Promise<string> {
-  try {
-    if (!message) return "";
-    const cleanStr = message.trim().toLowerCase();
-    if (typeof crypto !== "undefined" && crypto.subtle) {
-      const msgUint8 = new TextEncoder().encode(cleanStr);
-      const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-    }
-    return "";
-  } catch (e) {
-    return "";
-  }
-}
-
-/**
- * Identifies user for TikTok Advanced Matching before event postback
- */
-export async function identifyTikTokUser(email?: string, phone?: string) {
-  try {
-    const windowObj = window as any;
-    if (windowObj.ttq && typeof windowObj.ttq.identify === "function") {
-      const pii: Record<string, string> = {};
-      if (email) {
-        const hashedEmail = await sha256Hash(email);
-        if (hashedEmail) pii.email = hashedEmail;
-      }
-      if (phone) {
-        const hashedPhone = await sha256Hash(phone);
-        if (hashedPhone) pii.phone_number = hashedPhone;
-      }
-      if (Object.keys(pii).length > 0) {
-        windowObj.ttq.identify(pii);
-        console.log("[TikTok Pixel] User identified with hashed PII for Advanced Matching");
-      }
-    }
-  } catch (e) {
-    console.warn("[TikTok Pixel] User identification notice:", e);
-  }
-}
-
-/**
  * Saves lead details to Supabase table `leads` if available, and back-up to localStorage.
  */
 export async function submitLead(data: LeadData): Promise<{ success: boolean; message: string }> {
@@ -70,12 +25,8 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     };
     existingLeads.push(leadRecord);
     localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
-    sessionStorage.setItem("digit_bot_latest_lead", JSON.stringify({ email: data.email, phone: data.phone }));
 
-    // 2. Perform TikTok Advanced Matching Identification
-    await identifyTikTokUser(data.email, data.phone);
-
-    // 3. Insert into Supabase table 'leads' if it exists
+    // 2. Insert into Supabase table 'leads' if it exists
     const { error } = await supabase.from("leads" as any).insert({
       email: data.email,
       phone: data.phone,
@@ -99,11 +50,36 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
 }
 
 /**
- * Initializes and triggers TikTok Pixel event tracking with Advanced Matching support.
+ * Computes SHA-256 hash of string using Web Crypto API for TikTok PII matching.
  */
-export async function fireTikTokPixelEvent(eventName: string = "CompleteRegistration", customData: Record<string, any> = {}) {
+export async function sha256Hash(str: string): Promise<string> {
+  if (!str) return "";
+  const normalized = str.trim().toLowerCase();
+  try {
+    if (typeof window !== "undefined" && window.crypto && window.crypto.subtle) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(normalized);
+      const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+  } catch (e) {
+    console.warn("[Leads] Could not hash string with SHA-256:", e);
+  }
+  return normalized;
+}
+
+/**
+ * Initializes, identifies user PII (hashed), and triggers TikTok Pixel event tracking.
+ */
+export async function fireTikTokPixelEvent(
+  eventName: string = "CompleteRegistration",
+  customData: Record<string, any> = {},
+  userInfo?: { email?: string; phone?: string; externalId?: string }
+) {
   try {
     const windowObj = window as any;
+
     if (typeof windowObj.ttq === "undefined") {
       // Inject TikTok Pixel Script dynamically if not present
       (function (w: any, d: any, t: string) {
@@ -111,8 +87,7 @@ export async function fireTikTokPixelEvent(eventName: string = "CompleteRegistra
         const ttq = (w[t] = w[t] || []);
         ttq.methods = [
           "page", "track", "identify", "instances", "debug", "on", "off",
-          "once", "ready", "alias", "group", "enableCookie", "disableCookie",
-          "holdConsent", "revokeConsent", "grantConsent"
+          "once", "ready", "alias", "group", "enableCookie", "disableCookie"
         ];
         ttq.setAndDefer = function (t: any, e: any) {
           t[e] = function () {
@@ -146,40 +121,53 @@ export async function fireTikTokPixelEvent(eventName: string = "CompleteRegistra
           s.parentNode.insertBefore(c, s);
         };
 
-        if (TIKTOK_PIXEL_ID) {
+        if (TIKTOK_PIXEL_ID && TIKTOK_PIXEL_ID !== "C1234567890") {
           ttq.load(TIKTOK_PIXEL_ID);
           ttq.page();
         }
       })(window, document, "ttq");
     }
 
-    // Try identifying user from latest lead session data
-    const savedLead = sessionStorage.getItem("digit_bot_latest_lead");
-    if (savedLead) {
-      try {
-        const { email, phone } = JSON.parse(savedLead);
-        await identifyTikTokUser(email, phone);
-      } catch (e) {
-        // ignore JSON parse error
+    if (windowObj.ttq) {
+      // 1. Identify user PII if provided (SHA-256 hashed on client side)
+      if (userInfo && (userInfo.email || userInfo.phone || userInfo.externalId)) {
+        const identifyPayload: Record<string, string> = {};
+        if (userInfo.email) {
+          identifyPayload.email = await sha256Hash(userInfo.email);
+        }
+        if (userInfo.phone) {
+          // Normalize phone number (strip whitespace and non-digits except +)
+          const cleanPhone = userInfo.phone.replace(/[^\d+]/g, "");
+          identifyPayload.phone_number = await sha256Hash(cleanPhone);
+        }
+        if (userInfo.externalId) {
+          identifyPayload.external_id = await sha256Hash(userInfo.externalId);
+        }
+
+        if (typeof windowObj.ttq.identify === "function") {
+          windowObj.ttq.identify(identifyPayload);
+          console.log("[TikTok Pixel] ttq.identify executed with SHA-256 hashed PII", identifyPayload);
+        }
       }
-    }
 
-    if (windowObj.ttq && typeof windowObj.ttq.track === "function") {
-      const defaultPayload = {
-        contents: [
-          {
-            content_id: "digit_bot_pro",
-            content_type: "product",
-            content_name: "Digit Bot Pro VIP Access",
-          },
-        ],
-        value: 0,
-        currency: "USD",
-        ...customData,
-      };
+      // 2. Track TikTok Pixel Event with formatted parameters
+      if (typeof windowObj.ttq.track === "function") {
+        const eventParams = {
+          contents: [
+            {
+              content_id: customData.content_id || "digit_bot_pro_sub",
+              content_type: customData.content_type || "product",
+              content_name: customData.content_name || "Digit Bot Pro Registration",
+            },
+          ],
+          value: customData.value || 0,
+          currency: customData.currency || "USD",
+          ...customData,
+        };
 
-      windowObj.ttq.track(eventName, defaultPayload);
-      console.log(`[TikTok Pixel] Event '${eventName}' tracked with Pixel ID '${TIKTOK_PIXEL_ID}'`, defaultPayload);
+        windowObj.ttq.track(eventName, eventParams);
+        console.log(`[TikTok Pixel] ttq.track('${eventName}') executed with params:`, eventParams);
+      }
     }
   } catch (e) {
     console.warn("[TikTok Pixel] Could not fire pixel event:", e);
