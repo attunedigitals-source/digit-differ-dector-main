@@ -23,9 +23,6 @@ export function isAuthLikeError(error: unknown): boolean {
   return (
     message.includes("invalidtoken") ||
     message.includes("invalid token") ||
-    message.includes("inputvalidationfailed") ||
-    message.includes("input validation failed") ||
-    message.includes("authorize") ||
     message.includes("authorization") ||
     message.includes("permission") ||
     message.includes("forbidden") ||
@@ -40,8 +37,7 @@ export function isAuthLikeError(error: unknown): boolean {
     message.includes("failed to fetch") ||
     message.includes("429") ||
     message.includes("too many requests") ||
-    message.includes("cors") ||
-    message.includes("http")
+    message.includes("cors")
   );
 }
 
@@ -167,18 +163,16 @@ export async function connectWithPatOtp({
 }) {
   if (!accountId?.trim()) {
     throw new Error(
-      "Deriv account ID is required for OTP authentication."
+      "PAT token detected. Please provide the Deriv account ID, for example CR1234567 or VRTC1234567."
     );
   }
-
-  const restAppId = appId && !appId.startsWith("117") ? appId : "33cLEpErKviQMzxGeRncH";
 
   const response = await fetch(
     `${DERIV_REST_BASE}/trading/v1/options/accounts/${encodeURIComponent(accountId.trim())}/otp`,
     {
       method: "POST",
       headers: {
-        "Deriv-App-ID": restAppId,
+        "Deriv-App-ID": appId,
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
@@ -192,16 +186,11 @@ export async function connectWithPatOtp({
 
   const json = await response.json();
 
-  let wsUrl =
+  const wsUrl =
     json?.url ||
     json?.data?.url ||
     json?.websocket_url ||
     json?.data?.websocket_url;
-
-  if (!wsUrl && json?.otp) {
-    const endpoint = accountId.trim().toLowerCase().startsWith("vr") ? "demo" : "real";
-    wsUrl = `wss://api.derivws.com/trading/v1/options/ws/${endpoint}?otp=${encodeURIComponent(json.otp)}`;
-  }
 
   if (!wsUrl) {
     throw new Error("PAT OTP response did not include an authenticated WebSocket URL.");
@@ -247,8 +236,7 @@ export async function connectDerivClient({
     throw new Error("Deriv API token is required.");
   }
 
-  const isLegacyToken = cleanToken.startsWith("a1-") || cleanToken.startsWith("v1-");
-  const detectedOrder: DerivAuthMethod[] = (isPatToken(cleanToken) || (!isLegacyToken && accountId))
+  const detectedOrder: DerivAuthMethod[] = isPatToken(cleanToken)
     ? ["pat_otp", "legacy_authorize"]
     : ["legacy_authorize", "pat_otp"];
 
