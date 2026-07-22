@@ -501,6 +501,8 @@ export default function UserManagement() {
                 </TableBody>
               </Table>
             </Card>
+          </TabsContent>
+
           <TabsContent value="captured-leads">
             <Card className="border-border bg-card/40">
               <Table>
