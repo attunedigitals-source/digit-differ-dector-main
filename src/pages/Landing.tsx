@@ -50,13 +50,15 @@ const Landing = () => {
             <a href="#security" className="hover:text-primary transition-colors">Security</a>
           </nav>
 
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={handleLogin} className="hidden md:flex hover:text-primary">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" onClick={handleLogin} className="hover:text-primary font-medium">
               Login
             </Button>
-            <Button onClick={handleLogin} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 shadow-lg shadow-primary/20">
-              Get Started
-            </Button>
+            <Link to="/register">
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 shadow-lg shadow-primary/20">
+                Register
+              </Button>
+            </Link>
             <Button variant="ghost" size="icon" className="md:hidden">
               <Menu className="w-6 h-6" />
             </Button>
@@ -86,14 +88,21 @@ const Landing = () => {
             <span className="text-primary">Predictive Intelligence</span>
           </h1>
           
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-10">
             Digit Bot Pro is an advanced automation tool that harnesses ensemble learning and adaptive volatility analysis to deliver data-driven precision in Deriv markets.
+          </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
-            <Button onClick={handleLogin} size="lg" className="h-14 px-10 text-lg font-bold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 group">
-              Launch Tool <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <Link to="/register">
+              <Button size="lg" className="h-14 px-8 text-lg font-bold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 group">
+                Register Account <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+            <Button onClick={handleLogin} size="lg" variant="outline" className="h-14 px-8 text-lg font-semibold border-border hover:bg-secondary">
+              Login to Launch Tool
             </Button>
             <Link to="/documentation">
-              <Button size="lg" variant="outline" className="h-14 px-10 text-lg font-semibold border-border hover:bg-secondary">
+              <Button size="lg" variant="ghost" className="h-14 px-6 text-base font-medium text-muted-foreground hover:text-foreground">
                 View Guide
               </Button>
             </Link>
