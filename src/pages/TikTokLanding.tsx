@@ -71,21 +71,21 @@ export const TikTokLanding: React.FC = () => {
             Join the Exclusive <span className="text-primary">VIP WhatsApp Group</span> & Launch Digit Bot Pro
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed">
-            Get instant access to real-time digit detection signals, automated trading strategies (Strategy R, Q, L & more), and direct support inside our active WhatsApp community.
+            Register to get access to automated Deriv trading tool with its real-time ensemble analytics, and our active WhatsApp community.
           </p>
 
           <div className="space-y-3 pt-2">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-              <span className="text-sm text-foreground/90 font-medium">Free Access to VIP WhatsApp Strategy & Signals Group</span>
+              <span className="text-sm text-foreground/90 font-medium">Instant Access to Digit Bot Pro Trading Tool Algorithms</span>
             </div>
             <div className="flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-              <span className="text-sm text-foreground/90 font-medium">Automated Volatility & Digit Differ Trading Algorithms</span>
+              <span className="text-sm text-foreground/90 font-medium">Seamless Deriv Account Integration</span>
             </div>
             <div className="flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-              <span className="text-sm text-foreground/90 font-medium">Direct Deriv Account Integration & App Launch Access</span>
+              <span className="text-sm text-foreground/90 font-medium">Free WhatsApp Group Support & Trade Updates</span>
             </div>
           </div>
 

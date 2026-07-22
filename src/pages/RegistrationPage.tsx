@@ -69,21 +69,21 @@ export const RegistrationPage: React.FC = () => {
             Create Your Account & Join Our <span className="text-primary">WhatsApp Community</span>
           </h1>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            Register to get access to automated Deriv trading strategies, real-time ensemble analytics, and our active WhatsApp community.
+            Register to get access to automated Deriv trading tool with its real-time ensemble analytics, and our active WhatsApp community.
           </p>
 
           <div className="space-y-3 pt-2">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-              <span className="text-sm font-medium text-foreground/90">Instant Access to Digit Bot Pro Algorithms</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-              <span className="text-sm font-medium text-foreground/90">Free WhatsApp Group Signals & Trade Updates</span>
+              <span className="text-sm font-medium text-foreground/90">Instant Access to Digit Bot Pro Trading Tool Algorithms</span>
             </div>
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
               <span className="text-sm font-medium text-foreground/90">Seamless Deriv Account Integration</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+              <span className="text-sm font-medium text-foreground/90">Free WhatsApp Group Support & Trade Updates</span>
             </div>
           </div>
         </div>
