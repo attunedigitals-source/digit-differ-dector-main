@@ -333,8 +333,27 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
 
     } catch (error: unknown) {
       console.error("[WebSocket] Connection failed:", error);
-      toast.error(`Deriv connection failed: ${error instanceof Error ? error.message : String(error)}. Retrying in 5s...`);
-      reconnectTimer.current = setTimeout(() => connectRef.current?.(), 5000);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const { isAuthLikeError } = await import("@/lib/deriv-auth");
+      const { clearDerivAuth } = await import("@/lib/deriv-oauth");
+
+      if (isAuthLikeError(error) || errMsg.includes("InputValidationFailed") || errMsg.includes("authorize")) {
+        console.warn("[WebSocket] Stale/invalid authentication detected — clearing session.");
+        clearDerivAuth();
+        setConnected(false);
+        toast.error("Deriv session expired or token invalid. Please reconnect your Deriv account.", {
+          action: {
+            label: "Reconnect Deriv",
+            onClick: async () => {
+              const { getOAuthUrl } = await import("@/lib/deriv-oauth");
+              window.location.href = await getOAuthUrl();
+            },
+          },
+        });
+      } else {
+        toast.error(`Deriv connection failed: ${errMsg}. Retrying in 5s...`);
+        reconnectTimer.current = setTimeout(() => connectRef.current?.(), 5000);
+      }
     }
   }, [accountId, subscribeTicksV4]);
 

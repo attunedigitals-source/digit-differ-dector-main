@@ -36,30 +36,12 @@ const LEGACY_ACTIVE_KEY = "deriv.activeLoginid";
  * Returns the authorization URL to redirect the user to.
  */
 export async function getOAuthUrl(action: "login" | "signup" = "login"): Promise<string> {
-  const redirectUri =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/auth/callback`
-      : "https://digitbotpro.com/auth/callback";
-
-  const { codeVerifier, codeChallenge, state } = await generatePKCE();
-  storePKCEData(codeVerifier, state);
-
   const params = new URLSearchParams({
-    response_type: "code",
-    client_id: DERIV_APP_ID,
-    redirect_uri: redirectUri,
-    scope: "trade account_manage",
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
-    app_id: "117322",
+    app_id: DERIV_WS_APP_ID || "117322",
+    l: "EN",
   });
 
-  if (action === "signup") {
-    params.append("prompt", "registration");
-  }
-
-  return `https://auth.deriv.com/oauth2/auth?${params.toString()}`;
+  return `https://oauth.deriv.com/oauth2/authorize?${params.toString()}`;
 }
 
 // ---- Session Storage (V2 PKCE Flow) ----
