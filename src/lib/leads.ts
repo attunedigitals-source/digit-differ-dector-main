@@ -6,6 +6,9 @@ export interface LeadData {
   source: "tiktok_paid" | "organic_direct";
   whatsappOptIn?: boolean;
   name?: string;
+  derivLoginId?: string;
+  derivAccounts?: string[];
+  createdAt?: string;
 }
 
 export const TIKTOK_PIXEL_ID = import.meta.env.VITE_TIKTOK_PIXEL_ID || "D9GASABC77UBS5FSL7C0";
@@ -32,34 +35,56 @@ export async function sha256Hash(str: string): Promise<string> {
 }
 
 /**
- * Saves lead details to Supabase table `leads` if available, and backup to localStorage.
+ * Saves lead details to Supabase table `leads` & `profiles` if available, and backup to localStorage.
  */
 export async function submitLead(data: LeadData): Promise<{ success: boolean; message: string }> {
   try {
+    const timestamp = new Date().toISOString();
+    const leadRecord: LeadData = {
+      ...data,
+      createdAt: timestamp,
+    };
+
     // 1. Backup to localStorage array
     const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
-    const existingLeads = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
-    const leadRecord = {
-      ...data,
-      timestamp: new Date().toISOString(),
-    };
+    let existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
+    if (!Array.isArray(existingLeads)) existingLeads = [];
+    
+    // Filter out previous duplicate by email if re-registering
+    existingLeads = existingLeads.filter((l) => l.email.toLowerCase() !== data.email.toLowerCase());
     existingLeads.push(leadRecord);
+    
     localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
+    localStorage.setItem("last_registered_lead_email", data.email.trim().toLowerCase());
 
     // 2. Insert into Supabase table 'leads' if it exists
-    const { error } = await supabase.from("leads" as any).insert({
+    const { error: leadsErr } = await supabase.from("leads" as any).insert({
       email: data.email,
       phone: data.phone,
       name: data.name || null,
       source: data.source,
       whatsapp_opt_in: data.whatsappOptIn ?? true,
-      created_at: new Date().toISOString(),
+      created_at: timestamp,
     });
 
-    if (error) {
-      console.warn("[Leads] Supabase table insert notice (saved locally):", error.message);
+    if (leadsErr) {
+      console.warn("[Leads] Supabase 'leads' insert notice:", leadsErr.message);
     } else {
-      console.log("[Leads] Lead saved to Supabase successfully:", data.email);
+      console.log("[Leads] Lead saved to Supabase 'leads' table:", data.email);
+    }
+
+    // 3. Upsert into Supabase table 'profiles' so it shows up in main profiles table
+    try {
+      await supabase.from("profiles" as any).upsert({
+        email: data.email,
+        phone: data.phone,
+        full_name: data.name || null,
+        lead_source: data.source,
+        whatsapp_opt_in: data.whatsappOptIn ?? true,
+        updated_at: timestamp,
+      }, { onConflict: "email" });
+    } catch (profErr: any) {
+      console.warn("[Leads] Supabase 'profiles' upsert notice:", profErr?.message);
     }
 
     return { success: true, message: "Lead submitted successfully." };
@@ -67,6 +92,145 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     console.error("[Leads] Error submitting lead:", err);
     return { success: true, message: "Lead captured." };
   }
+}
+
+/**
+ * Links an authenticated Deriv account ID to the registered lead email.
+ */
+export async function associateDerivAccount(derivLoginId: string, derivAccounts: string[] = []): Promise<void> {
+  try {
+    if (!derivLoginId) return;
+
+    const lastEmail = localStorage.getItem("last_registered_lead_email");
+    const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
+    let existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
+
+    if (!Array.isArray(existingLeads)) existingLeads = [];
+
+    // Find lead matching last email or latest lead without a Deriv account
+    let targetIndex = -1;
+    if (lastEmail) {
+      targetIndex = existingLeads.findIndex((l) => l.email.toLowerCase() === lastEmail.toLowerCase());
+    }
+    if (targetIndex === -1 && existingLeads.length > 0) {
+      targetIndex = existingLeads.length - 1;
+    }
+
+    let targetEmail: string | undefined;
+
+    if (targetIndex !== -1) {
+      existingLeads[targetIndex].derivLoginId = derivLoginId;
+      existingLeads[targetIndex].derivAccounts = derivAccounts;
+      targetEmail = existingLeads[targetIndex].email;
+      localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
+      console.log(`[Leads] Associated Deriv account ${derivLoginId} to local lead ${targetEmail}`);
+    }
+
+    const emailToUpdate = targetEmail || lastEmail;
+
+    // Update in Supabase leads & profiles if email available
+    if (emailToUpdate) {
+      await supabase
+        .from("leads" as any)
+        .update({ deriv_loginid: derivLoginId, deriv_accounts: derivAccounts })
+        .eq("email", emailToUpdate);
+
+      await supabase
+        .from("profiles" as any)
+        .update({ deriv_loginid: derivLoginId, deriv_accounts: derivAccounts })
+        .eq("email", emailToUpdate);
+
+      console.log(`[Leads] Updated Deriv account ${derivLoginId} in Supabase for ${emailToUpdate}`);
+    }
+  } catch (err) {
+    console.warn("[Leads] Failed to associate Deriv account to lead:", err);
+  }
+}
+
+/**
+ * Retrieves and merges all captured leads from local storage and Supabase tables.
+ */
+export async function getCapturedLeads(): Promise<LeadData[]> {
+  const leadMap = new Map<string, LeadData>();
+
+  // 1. Load from localStorage backup
+  try {
+    const rawLocal = localStorage.getItem("digit_bot_captured_leads");
+    if (rawLocal) {
+      const parsed: LeadData[] = JSON.parse(rawLocal);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => {
+          if (item.email) {
+            leadMap.set(item.email.toLowerCase(), item);
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("[Leads] Could not read local leads backup:", e);
+  }
+
+  // 2. Load from Supabase 'leads' table
+  try {
+    const { data: leadsData } = await supabase
+      .from("leads" as any)
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (Array.isArray(leadsData)) {
+      leadsData.forEach((row: any) => {
+        if (row.email) {
+          const key = row.email.toLowerCase();
+          const existing = leadMap.get(key);
+          leadMap.set(key, {
+            email: row.email,
+            phone: row.phone || existing?.phone || "",
+            name: row.name || existing?.name || "",
+            source: row.source || existing?.source || "tiktok_paid",
+            whatsappOptIn: row.whatsapp_opt_in ?? existing?.whatsappOptIn ?? true,
+            derivLoginId: row.deriv_loginid || existing?.derivLoginId,
+            derivAccounts: row.deriv_accounts || existing?.derivAccounts,
+            createdAt: row.created_at || existing?.createdAt || new Date().toISOString(),
+          });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("[Leads] Could not fetch Supabase 'leads' table:", e);
+  }
+
+  // 3. Load from Supabase 'profiles' table if phone or lead_source exists
+  try {
+    const { data: profilesData } = await supabase
+      .from("profiles" as any)
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (Array.isArray(profilesData)) {
+      profilesData.forEach((row: any) => {
+        if (row.email && (row.phone || row.lead_source || row.whatsapp_opt_in)) {
+          const key = row.email.toLowerCase();
+          const existing = leadMap.get(key);
+          leadMap.set(key, {
+            email: row.email,
+            phone: row.phone || existing?.phone || "",
+            name: row.full_name || row.name || existing?.name || "",
+            source: row.lead_source || existing?.source || "organic_direct",
+            whatsappOptIn: row.whatsapp_opt_in ?? existing?.whatsappOptIn ?? true,
+            derivLoginId: row.deriv_loginid || row.id || existing?.derivLoginId,
+            derivAccounts: row.deriv_accounts || existing?.derivAccounts,
+            createdAt: row.created_at || existing?.createdAt || new Date().toISOString(),
+          });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("[Leads] Could not fetch Supabase 'profiles' table:", e);
+  }
+
+  return Array.from(leadMap.values()).sort((a, b) => {
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  });
 }
 
 /**
@@ -118,7 +282,11 @@ export async function fireTikTokPixelEvent(
           c.async = true;
           c.src = i + "?sdkid=" + e + "&lib=" + t;
           const s = d.getElementsByTagName("script")[0];
-          s.parentNode.insertBefore(c, s);
+          if (s && s.parentNode) {
+            s.parentNode.insertBefore(c, s);
+          } else if (d.head) {
+            d.head.appendChild(c);
+          }
         };
 
         if (TIKTOK_PIXEL_ID && TIKTOK_PIXEL_ID !== "C1234567890") {

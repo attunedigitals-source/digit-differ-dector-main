@@ -8,6 +8,7 @@ import {
   type DerivAccount,
   type DerivSession,
 } from "@/lib/deriv-oauth";
+import { associateDerivAccount } from "@/lib/leads";
 
 // Function URL — using the same Supabase URL as the client
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -67,6 +68,7 @@ export default function AuthCallback() {
               active_loginid: activeLoginid,
             };
             saveSession(session);
+            associateDerivAccount(activeLoginid, accounts.map((a) => a.loginid));
 
             // Step 5: Create or sign in to Supabase shadow account
             setStep("Setting up your session...");
@@ -234,6 +236,7 @@ export default function AuthCallback() {
           active_loginid: defaultAccount?.loginid ?? jwtSub,
         };
         saveSession(session);
+        associateDerivAccount(session.active_loginid, accounts.map((a) => a.loginid));
 
         // Step 5: Create or sign in to Supabase shadow account
         setStep("Setting up your session...");

@@ -26,9 +26,14 @@ import {
   TrendingUp,
   TrendingDown,
   Activity,
-  ArrowUpRight
+  ArrowUpRight,
+  Download,
+  Phone,
+  MessageSquare,
+  Link2
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { getCapturedLeads, LeadData } from "@/lib/leads";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -112,6 +117,7 @@ export default function UserManagement() {
   }, [queryClient]);
 
   // Fetch Pending Payments
+  // Fetch Pending Payments
   const { data: payments, isLoading: paymentsLoading } = useQuery({
     queryKey: ["admin-payments"],
     queryFn: async () => {
@@ -124,6 +130,39 @@ export default function UserManagement() {
       return data;
     }
   });
+
+  // Fetch Captured Leads
+  const { data: capturedLeads, isLoading: leadsLoading } = useQuery({
+    queryKey: ["admin-captured-leads"],
+    queryFn: getCapturedLeads,
+    refetchInterval: 15000,
+  });
+
+  const exportLeadsCSV = (leadsList?: LeadData[]) => {
+    if (!leadsList || leadsList.length === 0) {
+      toast.error("No lead records available to export.");
+      return;
+    }
+    const headers = ["Full Name", "Email", "WhatsApp Phone", "Connected Deriv Account", "Deriv Accounts List", "Source", "Date Captured"];
+    const rows = leadsList.map(l => [
+      `"${l.name || ""}"`,
+      `"${l.email || ""}"`,
+      `"${l.phone || ""}"`,
+      `"${l.derivLoginId || "Not Connected Yet"}"`,
+      `"${(l.derivAccounts || []).join(", ")}"`,
+      `"${l.source === "tiktok_paid" ? "TikTok Paid (LP2)" : "Organic Direct"}"`,
+      `"${new Date(l.createdAt || Date.now()).toLocaleString()}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `digit_bot_leads_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Captured leads exported to CSV!");
+  };
 
   // Mutation to Approve Payment
   const approvePayment = useMutation({
@@ -257,6 +296,9 @@ export default function UserManagement() {
                     {payments.length}
                   </Badge>
                 )}
+              </TabsTrigger>
+              <TabsTrigger value="captured-leads" className="text-xs font-semibold text-primary">
+                Captured Leads ({capturedLeads?.length || 0})
               </TabsTrigger>
             </TabsList>
             
@@ -487,6 +529,125 @@ export default function UserManagement() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="captured-leads">
+            <Card className="border-border bg-card/40 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                    TikTok & Organic Lead Registrations
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
+                      {capturedLeads?.length || 0} Total
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Contact information captured from LP2 TikTok Ads and direct registration.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => exportLeadsCSV(capturedLeads)}
+                  className="bg-primary text-primary-foreground text-xs gap-1.5 shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" /> Export Leads CSV
+                </Button>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-border">
+                    <TableHead className="text-xs">Full Name</TableHead>
+                    <TableHead className="text-xs">Email</TableHead>
+                    <TableHead className="text-xs">WhatsApp Phone</TableHead>
+                    <TableHead className="text-xs">Connected Deriv Account</TableHead>
+                    <TableHead className="text-xs">Traffic Source</TableHead>
+                    <TableHead className="text-xs">Date Captured</TableHead>
+                    <TableHead className="text-xs text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leadsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
+                        Loading captured leads...
+                      </TableCell>
+                    </TableRow>
+                  ) : capturedLeads?.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs italic">
+                        No captured leads found yet. Submit a registration at /lp2 or /register to test.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    capturedLeads
+                      ?.filter((l) =>
+                        (l.email || "").toLowerCase().includes(search.toLowerCase()) ||
+                        (l.phone || "").includes(search) ||
+                        (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
+                        (l.derivLoginId || "").toLowerCase().includes(search.toLowerCase())
+                      )
+                      .map((lead, idx) => {
+                        const cleanPhone = (lead.phone || "").replace(/[^\d+]/g, "");
+                        const waUrl = cleanPhone ? `https://wa.me/${cleanPhone.replace("+", "")}` : null;
+
+                        return (
+                          <TableRow key={lead.email + idx} className="border-border/50 hover:bg-muted/20">
+                            <TableCell className="text-sm font-medium text-foreground">
+                              {lead.name || "N/A"}
+                            </TableCell>
+                            <TableCell className="text-xs font-mono text-primary">
+                              {lead.email}
+                            </TableCell>
+                            <TableCell className="text-xs font-mono">
+                              <span className="flex items-center gap-1.5">
+                                <Phone className="w-3 h-3 text-muted-foreground" />
+                                {lead.phone || "N/A"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs font-mono">
+                              {lead.derivLoginId ? (
+                                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] font-bold">
+                                  {lead.derivLoginId}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground italic text-[11px]">Not Connected</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] uppercase font-semibold ${
+                                  lead.source === "tiktok_paid"
+                                    ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                    : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                                }`}
+                              >
+                                {lead.source === "tiktok_paid" ? "TikTok Ads (LP2)" : "Organic Direct"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {new Date(lead.createdAt || Date.now()).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {waUrl && (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-400 font-semibold transition-colors"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                                </a>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                  )}
                 </TableBody>
               </Table>
             </Card>

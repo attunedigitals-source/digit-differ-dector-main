@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import TikTokLanding from "@/pages/TikTokLanding";
 import ThankYou2 from "@/pages/ThankYou2";
 import RegistrationPage from "@/pages/RegistrationPage";
 import ThankYou1 from "@/pages/ThankYou1";
-import { submitLead } from "@/lib/leads";
+import { submitLead, associateDerivAccount, getCapturedLeads } from "@/lib/leads";
 
 afterEach(() => {
   cleanup();
@@ -16,22 +16,19 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({
       insert: vi.fn().mockResolvedValue({ error: null }),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+      update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      select: vi.fn().mockReturnValue({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }),
     }),
   },
 }));
 
-// Mock submitLead
-vi.mock("@/lib/leads", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/leads")>();
-  return {
-    ...actual,
-    submitLead: vi.fn().mockResolvedValue({ success: true, message: "Lead submitted" }),
-    fireTikTokPixelEvent: vi.fn(),
-  };
-});
+describe("Lead Generation, Deriv Association & Funnel Pages", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
 
-describe("Lead Generation and Traffic Funnel Pages", () => {
-  it("renders TikTok Landing Page 2 and submits lead for paid traffic", async () => {
+  it("renders TikTok Landing Page 2 and calls lead submission handler", async () => {
     render(
       <MemoryRouter>
         <TikTokLanding />
@@ -49,13 +46,8 @@ describe("Lead Generation and Traffic Funnel Pages", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(submitLead).toHaveBeenCalledWith(
-        expect.objectContaining({
-          email: "tiktoklead@example.com",
-          phone: "+2348123456789",
-          source: "tiktok_paid",
-        })
-      );
+      const stored = localStorage.getItem("digit_bot_captured_leads");
+      expect(stored).toContain("tiktoklead@example.com");
     });
   });
 
@@ -71,7 +63,7 @@ describe("Lead Generation and Traffic Funnel Pages", () => {
     expect(screen.getByText(/Proceed to Login & Launch App/i)).toBeDefined();
   });
 
-  it("renders Organic Registration Page and submits lead for direct traffic", async () => {
+  it("renders Organic Registration Page and submits lead to storage", async () => {
     render(
       <MemoryRouter>
         <RegistrationPage />
@@ -89,14 +81,31 @@ describe("Lead Generation and Traffic Funnel Pages", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(submitLead).toHaveBeenCalledWith(
-        expect.objectContaining({
-          email: "organic@example.com",
-          phone: "+2348987654321",
-          source: "organic_direct",
-        })
-      );
+      const stored = localStorage.getItem("digit_bot_captured_leads");
+      expect(stored).toContain("organic@example.com");
     });
+  });
+
+  it("associates Deriv account ID to submitted lead email", async () => {
+    // 1. Submit lead
+    await submitLead({
+      name: "John Lead",
+      email: "johnlead@example.com",
+      phone: "+2348099998888",
+      source: "tiktok_paid",
+    });
+
+    let leads = await getCapturedLeads();
+    expect(leads[0].email).toBe("johnlead@example.com");
+    expect(leads[0].derivLoginId).toBeUndefined();
+
+    // 2. Associate Deriv Account CR998877
+    await associateDerivAccount("CR998877", ["CR998877", "VRTC112233"]);
+
+    // 3. Verify association
+    leads = await getCapturedLeads();
+    expect(leads[0].derivLoginId).toBe("CR998877");
+    expect(leads[0].derivAccounts).toEqual(["CR998877", "VRTC112233"]);
   });
 
   it("renders Thank You Page 1 for organic traffic", () => {

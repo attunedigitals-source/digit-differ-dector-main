@@ -13,9 +13,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Terminal,
-  Clock
+  Clock,
+  UserCheck
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCapturedLeads } from "@/lib/leads";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
@@ -59,11 +61,15 @@ export default function AdminDashboard() {
         supabase.from('system_settings').select('value').eq('key', 'default_trial_duration').single()
       ]);
 
+      const capturedLeadsList = await getCapturedLeads();
+
       return {
         totalUsers: totalUsers || 0,
         paidUsers: paidUsers || 0,
         freeUsers: freeUsers || 0,
         pendingPayments: pendingPayments || 0,
+        capturedLeadsCount: capturedLeadsList.length,
+        connectedDerivLeadsCount: capturedLeadsList.filter(l => Boolean(l.derivLoginId)).length,
         recentRevenue: recentRevenue || [],
         enableClientLogs: logSetting?.value === true || logSetting?.value === 'true',
         defaultTrialDuration: trialSetting?.value ? String(trialSetting.value) : '7'
@@ -141,12 +147,20 @@ export default function AdminDashboard() {
     <AdminLayout title="Overview">
       <div className="space-y-8">
         {/* Quick Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <StatCard 
             title="Total Users" 
             value={stats?.totalUsers || 0} 
             icon={Users} 
             description="Across all plan types" 
+          />
+          <StatCard 
+            title="Captured Leads" 
+            value={stats?.capturedLeadsCount || 0} 
+            icon={UserCheck} 
+            description={`${stats?.connectedDerivLeadsCount || 0} connected to Deriv`}
+            trend="up"
+            trendValue="New"
           />
           <StatCard 
             title="Paid Members" 
