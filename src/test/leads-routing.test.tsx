@@ -43,12 +43,14 @@ describe("Lead Generation, Client Portal & Deriv Association", () => {
 
     expect(screen.getByText(/Get Instant VIP Access/i)).toBeDefined();
 
+    const nameInput = screen.getByPlaceholderText(/Enter your full name/i);
     const emailInput = screen.getByPlaceholderText(/you@example.com/i);
     const phoneInput = screen.getByPlaceholderText(/\+2348012345678/i);
     const passInput = screen.getByPlaceholderText(/Create a password/i);
     const confirmPassInput = screen.getByPlaceholderText(/Confirm your password/i);
     const submitBtn = screen.getByRole("button", { name: /Join WhatsApp & Continue/i });
 
+    fireEvent.change(nameInput, { target: { value: "TikTok Lead" } });
     fireEvent.change(emailInput, { target: { value: "tiktoklead@example.com" } });
     fireEvent.change(phoneInput, { target: { value: "+2348123456789" } });
     fireEvent.change(passInput, { target: { value: "Secret123!" } });

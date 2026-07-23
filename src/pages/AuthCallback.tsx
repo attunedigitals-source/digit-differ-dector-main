@@ -60,15 +60,15 @@ export default function AuthCallback() {
             const activeToken = defaultAccount.token || accounts[0].token!;
             const activeLoginid = defaultAccount.loginid;
             
-            // Save legacy session (expires far in the future or handle dynamically)
+            // Save legacy session
             const session: DerivSession = {
-              access_token: activeToken, // use legacy token
-              expires_at: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days fallback
+              access_token: activeToken,
+              expires_at: Date.now() + 30 * 24 * 60 * 60 * 1000,
               accounts,
               active_loginid: activeLoginid,
             };
             saveSession(session);
-            associateDerivAccount(activeLoginid, accounts.map((a) => a.loginid));
+            await associateDerivAccount(activeLoginid, accounts.map((a) => a.loginid), returnedState || undefined);
 
             // Step 5: Create or sign in to Supabase shadow account
             setStep("Setting up your session...");
@@ -215,6 +215,21 @@ export default function AuthCallback() {
           }
         } catch (accountsErr) {
           console.warn("[AuthCallback] Accounts fetch failed (non-fatal):", accountsErr);
+        }
+
+        // Also parse any accounts returned directly in URL query parameters (acct1, acct2, etc.)
+        let idxUrl = 1;
+        while (urlParams.has(`acct${idxUrl}`)) {
+          const loginid = urlParams.get(`acct${idxUrl}`);
+          if (loginid && !accounts.some((a) => a.loginid === loginid)) {
+            accounts.push({
+              loginid,
+              currency: urlParams.get(`cur${idxUrl}`) || "USD",
+              is_virtual: loginid.startsWith("VR"),
+              balance: 0,
+            });
+          }
+          idxUrl++;
         }
 
         // If accounts still empty, create a placeholder using JWT subject

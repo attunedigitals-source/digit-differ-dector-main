@@ -480,17 +480,42 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
 
     // Update Supabase leads & profiles tables
     if (targetEmail) {
+      // Fetch existing lead record to preserve and merge accounts
+      let existingAccounts: string[] = [];
+      try {
+        const { data: existingLead } = await supabase
+          .from("leads" as any)
+          .select("deriv_accounts, deriv_loginid")
+          .eq("email", targetEmail)
+          .maybeSingle();
+
+        if (Array.isArray(existingLead?.deriv_accounts)) {
+          existingAccounts = existingLead.deriv_accounts;
+        } else if (typeof existingLead?.deriv_accounts === "string") {
+          try { existingAccounts = JSON.parse(existingLead.deriv_accounts); } catch (e) {}
+        }
+        if (existingLead?.deriv_loginid && !existingAccounts.includes(existingLead.deriv_loginid)) {
+          existingAccounts.push(existingLead.deriv_loginid);
+        }
+      } catch (e) {}
+
+      const mergedAccounts = Array.from(new Set([
+        ...existingAccounts,
+        ...(derivAccounts || []),
+        derivLoginId
+      ])).filter(Boolean);
+
       await supabase
         .from("leads" as any)
-        .update({ deriv_loginid: derivLoginId, deriv_accounts: derivAccounts })
+        .update({ deriv_loginid: derivLoginId, deriv_accounts: mergedAccounts })
         .eq("email", targetEmail);
 
       await supabase
         .from("profiles" as any)
-        .update({ deriv_loginid: derivLoginId, deriv_accounts: derivAccounts })
+        .update({ deriv_loginid: derivLoginId, deriv_accounts: mergedAccounts })
         .eq("email", targetEmail);
 
-      console.log(`[Leads] Automatically updated Deriv account ${derivLoginId} in Supabase for ${targetEmail}`);
+      console.log(`[Leads] Automatically updated Deriv accounts [${mergedAccounts.join(", ")}] in Supabase for ${targetEmail}`);
     }
 
     // Also update shadow profile matching `${derivLoginId}@deriv-user.local`

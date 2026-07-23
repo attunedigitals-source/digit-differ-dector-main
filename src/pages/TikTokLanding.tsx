@@ -123,10 +123,11 @@ export const TikTokLanding: React.FC = () => {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4 text-left">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground/80">Full Name (Optional)</label>
+                  <label className="text-xs font-semibold text-foreground/80">Full Name <span className="text-red-400">*</span></label>
                   <Input
                     type="text"
-                    placeholder="Enter your name"
+                    required
+                    placeholder="Enter your full name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="bg-background/60 border-border/60 focus:border-primary"
