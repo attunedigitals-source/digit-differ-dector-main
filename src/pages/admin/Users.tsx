@@ -352,15 +352,21 @@ export default function UserManagement() {
                   {filteredUsers.map((u) => (
                     <TableRow key={u.id} className="border-border/50 group hover:bg-muted/20 transition-colors">
                       <TableCell>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-xs text-foreground">{u.full_name || u.name || (u.email ? u.email.split("@")[0] : "Client")}</span>
                           <Link 
                             to={`/admin/users/${u.id}`}
-                            className="font-medium text-sm flex items-center gap-1.5 hover:text-primary transition-colors decoration-primary underline-offset-4 hover:underline"
+                            className="font-mono text-xs flex items-center gap-1 hover:text-primary transition-colors text-primary font-medium"
                           >
                              {u.email}
                              <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </Link>
-                          <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[150px]">{u.id}</span>
+                          {u.phone && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
+                              <Phone className="w-2.5 h-2.5 text-green-500" /> {u.phone}
+                            </span>
+                          )}
+                          <span className="text-[9px] text-muted-foreground font-mono truncate max-w-[150px]">{u.user_id || u.id}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -616,6 +622,18 @@ export default function UserManagement() {
                       .map((lead, idx) => {
                         const cleanPhone = (lead.phone || "").replace(/[^\d+]/g, "");
                         const waUrl = cleanPhone ? `https://wa.me/${cleanPhone.replace("+", "")}` : null;
+                        const fullName = lead.name || (lead.email ? lead.email.split("@")[0] : "N/A");
+
+                        // Extract all accounts (Real vs Demo)
+                        const accountsList: string[] = [];
+                        if (Array.isArray(lead.derivAccounts)) {
+                          lead.derivAccounts.forEach((acc) => {
+                            if (acc && !accountsList.includes(acc)) accountsList.push(acc);
+                          });
+                        }
+                        if (lead.derivLoginId && !accountsList.includes(lead.derivLoginId)) {
+                          accountsList.unshift(lead.derivLoginId);
+                        }
 
                         return (
                           <TableRow key={lead.email + idx} className="border-border/50 hover:bg-muted/20">
@@ -623,28 +641,47 @@ export default function UserManagement() {
                               {lead.userId || "N/A"}
                             </TableCell>
                             <TableCell className="text-sm font-medium text-foreground">
-                              {lead.name || "N/A"}
+                              {fullName}
                             </TableCell>
                             <TableCell className="text-xs font-mono text-primary">
                               {lead.email}
                             </TableCell>
                             <TableCell className="text-xs font-mono">
-                               <span className="flex items-center gap-1.5">
-                                 <Phone className="w-3 h-3 text-muted-foreground" />
-                                 {lead.phone || "N/A"}
-                               </span>
-                             </TableCell>
+                              {lead.phone ? (
+                                <span className="flex items-center gap-1.5 text-foreground font-semibold">
+                                  <Phone className="w-3 h-3 text-green-500" />
+                                  {lead.phone}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground italic text-[11px]">Not Provided</span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-xs font-mono">
-                               {lead.derivLoginId ? (
-                                 <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] font-bold">
-                                   {lead.derivLoginId}
-                                 </Badge>
-                               ) : (
-                                 <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">
-                                   Pending Connection
-                                 </Badge>
-                               )}
-                             </TableCell>
+                              {accountsList.length > 0 ? (
+                                <div className="flex flex-wrap items-center gap-1 max-w-[260px]">
+                                  {accountsList.map((accId) => {
+                                    const isDemo = accId.toUpperCase().startsWith("VR");
+                                    return (
+                                      <Badge
+                                        key={accId}
+                                        variant="outline"
+                                        className={
+                                          isDemo
+                                            ? "bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] font-bold"
+                                            : "bg-green-500/10 text-green-500 border-green-500/20 text-[10px] font-bold"
+                                        }
+                                      >
+                                        {isDemo ? `DEMO: ${accId}` : `REAL: ${accId}`}
+                                      </Badge>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">
+                                  Pending Connection
+                                </Badge>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Badge
                                 variant="outline"

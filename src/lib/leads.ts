@@ -613,16 +613,30 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
         if (row.email) {
           const key = row.email.toLowerCase();
           activeSupabaseEmails.add(key);
+
+          const phoneVal = row.phone || row.phone_number || row.whatsapp_phone || row.mobile || row.whatsapp || "";
+          const nameVal = row.name || row.full_name || row.user_name || row.display_name || row.first_name || "";
+
+          let derivAccounts: string[] | undefined = undefined;
+          if (Array.isArray(row.deriv_accounts)) {
+            derivAccounts = row.deriv_accounts;
+          } else if (typeof row.deriv_accounts === "string") {
+            try { derivAccounts = JSON.parse(row.deriv_accounts); } catch (e) {}
+          }
+          if (!derivAccounts && row.deriv_loginid) {
+            derivAccounts = [row.deriv_loginid];
+          }
+
           leadMap.set(key, {
             email: row.email,
-            phone: row.phone || "",
-            name: row.name || "",
+            phone: phoneVal,
+            name: nameVal,
             source: row.source || "tiktok_paid",
             whatsappOptIn: row.whatsapp_opt_in ?? true,
             userId: row.user_id || (row.id ? `usr_${row.id.substring(0, 8)}` : undefined),
             rstate: row.rstate || undefined,
             derivLoginId: row.deriv_loginid || undefined,
-            derivAccounts: row.deriv_accounts || undefined,
+            derivAccounts,
             createdAt: row.created_at || new Date().toISOString(),
           });
         }
@@ -654,23 +668,40 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
           const key = row.email.toLowerCase();
           activeSupabaseEmails.add(key);
           const existing = leadMap.get(key);
+
+          const phoneVal = row.phone || row.phone_number || row.whatsapp_phone || row.mobile || row.whatsapp || existing?.phone || "";
+          const nameVal = row.full_name || row.name || row.user_name || row.display_name || row.first_name || existing?.name || "";
+
+          let profAccounts: string[] | undefined = undefined;
+          if (Array.isArray(row.deriv_accounts)) {
+            profAccounts = row.deriv_accounts;
+          } else if (typeof row.deriv_accounts === "string") {
+            try { profAccounts = JSON.parse(row.deriv_accounts); } catch (e) {}
+          }
+          if (!profAccounts && row.deriv_loginid) {
+            profAccounts = [row.deriv_loginid];
+          }
+          const mergedAccounts = Array.from(new Set([...(existing?.derivAccounts || []), ...(profAccounts || [])]));
+
           if (existing) {
             leadMap.set(key, {
               ...existing,
-              phone: row.phone || existing.phone,
-              name: row.full_name || row.name || existing.name,
+              phone: phoneVal || existing.phone,
+              name: nameVal || existing.name,
               userId: row.user_id || existing.userId,
               derivLoginId: row.deriv_loginid || existing.derivLoginId,
+              derivAccounts: mergedAccounts.length > 0 ? mergedAccounts : existing.derivAccounts,
             });
           } else {
             leadMap.set(key, {
               email: row.email,
-              phone: row.phone || "",
-              name: row.full_name || row.name || "",
+              phone: phoneVal,
+              name: nameVal,
               source: row.lead_source || "organic_direct",
               whatsappOptIn: row.whatsapp_opt_in ?? true,
               userId: row.user_id || (row.id ? `usr_${row.id.substring(0, 8)}` : undefined),
               derivLoginId: row.deriv_loginid || undefined,
+              derivAccounts: mergedAccounts.length > 0 ? mergedAccounts : undefined,
               createdAt: row.created_at || new Date().toISOString(),
             });
           }
