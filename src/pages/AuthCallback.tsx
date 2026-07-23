@@ -236,7 +236,7 @@ export default function AuthCallback() {
           active_loginid: defaultAccount?.loginid ?? jwtSub,
         };
         saveSession(session);
-        associateDerivAccount(session.active_loginid, accounts.map((a) => a.loginid));
+        await associateDerivAccount(session.active_loginid, accounts.map((a) => a.loginid), returnedState);
 
         // Step 5: Create or sign in to Supabase shadow account
         setStep("Setting up your session...");

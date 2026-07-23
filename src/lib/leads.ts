@@ -7,6 +7,8 @@ export interface LeadData {
   whatsappOptIn?: boolean;
   name?: string;
   password?: string;
+  userId?: string;
+  rstate?: string;
   derivLoginId?: string;
   derivAccounts?: string[];
   createdAt?: string;
@@ -36,13 +38,191 @@ export async function sha256Hash(str: string): Promise<string> {
 }
 
 /**
+ * Generates a unique random user_id for a registered user.
+ */
+export function generateUserId(email?: string): string {
+  const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `usr_${randomHex}`;
+}
+
+/**
+ * Generates a random State (RState) for a user_id & email and saves it to database & storage.
+ */
+export async function createAndSaveRState(email: string, existingUserId?: string): Promise<string> {
+  const cleanEmail = email.trim().toLowerCase();
+  const userId = existingUserId || generateUserId(cleanEmail);
+  const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(12)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const rstate = `rst_${userId.replace(/^usr_/, "").substring(0, 6)}_${randomHex}`;
+
+  const record = {
+    userId,
+    email: cleanEmail,
+    rstate,
+    createdAt: new Date().toISOString(),
+  };
+
+  // 1. Save in LocalStorage
+  localStorage.setItem(`oauth_rstate_${cleanEmail}`, JSON.stringify(record));
+  localStorage.setItem("active_oauth_rstate", JSON.stringify(record));
+
+  // 2. Save in Supabase table 'oauth_states' & update leads & profiles
+  try {
+    await supabase.from("oauth_states" as any).upsert({
+      user_id: userId,
+      email: cleanEmail,
+      rstate,
+      created_at: new Date().toISOString(),
+    }, { onConflict: "email" });
+  } catch (e) {
+    console.warn("[Leads] Supabase 'oauth_states' notice:", e);
+  }
+
+  try {
+    await supabase.from("leads" as any).update({
+      user_id: userId,
+      rstate,
+    }).eq("email", cleanEmail);
+
+    await supabase.from("profiles" as any).update({
+      user_id: userId,
+      rstate,
+    }).eq("email", cleanEmail);
+  } catch (e) {}
+
+  console.log(`[Leads] Generated RState '${rstate}' for user '${cleanEmail}' (${userId})`);
+  return rstate;
+}
+
+/**
+ * Associates an RState with an authenticated Deriv Account, then deletes RState for security.
+ */
+export async function consumeRState(rstate: string): Promise<{ email: string; userId: string } | null> {
+  if (!rstate) return null;
+  const cleanState = rstate.trim();
+
+  let matchedEmail: string | null = null;
+  let matchedUserId: string | null = null;
+
+  // 1. Check active LocalStorage RState
+  try {
+    const rawActive = localStorage.getItem("active_oauth_rstate");
+    if (rawActive) {
+      const parsed = JSON.parse(rawActive);
+      if (parsed?.rstate === cleanState && parsed?.email) {
+        matchedEmail = parsed.email.toLowerCase();
+        matchedUserId = parsed.userId || "";
+      }
+    }
+  } catch (e) {}
+
+  // 2. Search captured leads in LocalStorage
+  if (!matchedEmail) {
+    try {
+      const rawLeads = localStorage.getItem("digit_bot_captured_leads");
+      if (rawLeads) {
+        const leads: LeadData[] = JSON.parse(rawLeads);
+        const found = leads.find((l) => l.rstate === cleanState);
+        if (found) {
+          matchedEmail = found.email.toLowerCase();
+          matchedUserId = found.userId || "";
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. Search Supabase table 'oauth_states'
+  if (!matchedEmail) {
+    try {
+      const { data: stRow } = await supabase
+        .from("oauth_states" as any)
+        .select("*")
+        .eq("rstate", cleanState)
+        .maybeSingle();
+
+      if (stRow?.email) {
+        matchedEmail = stRow.email.toLowerCase();
+        matchedUserId = stRow.user_id || "";
+      }
+    } catch (e) {}
+  }
+
+  // 4. Search Supabase table 'leads' or 'profiles'
+  if (!matchedEmail) {
+    try {
+      const { data: leadRow } = await supabase
+        .from("leads" as any)
+        .select("*")
+        .eq("rstate", cleanState)
+        .maybeSingle();
+
+      if (leadRow?.email) {
+        matchedEmail = leadRow.email.toLowerCase();
+        matchedUserId = leadRow.user_id || "";
+      }
+    } catch (e) {}
+  }
+
+  // 5. DELETE RState value after single use for security reasons
+  if (cleanState) {
+    try {
+      localStorage.removeItem("active_oauth_rstate");
+      if (matchedEmail) {
+        localStorage.removeItem(`oauth_rstate_${matchedEmail}`);
+      }
+
+      // Clear rstate from LocalStorage captured leads list
+      const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
+      if (existingLeadsRaw) {
+        try {
+          const leads: LeadData[] = JSON.parse(existingLeadsRaw);
+          let modified = false;
+          leads.forEach((l) => {
+            if (l.rstate === cleanState || (matchedEmail && l.email.toLowerCase() === matchedEmail)) {
+              delete l.rstate;
+              modified = true;
+            }
+          });
+          if (modified) {
+            localStorage.setItem("digit_bot_captured_leads", JSON.stringify(leads));
+          }
+        } catch (e) {}
+      }
+
+      await supabase.from("oauth_states" as any).delete().eq("rstate", cleanState);
+      if (matchedEmail) {
+        await supabase.from("leads" as any).update({ rstate: null }).eq("email", matchedEmail);
+        await supabase.from("profiles" as any).update({ rstate: null }).eq("email", matchedEmail);
+      }
+    } catch (e) {
+      console.warn("[Leads] Notice deleting RState:", e);
+    }
+  }
+
+  if (matchedEmail) {
+    console.log(`[Leads] Consumed & deleted RState '${cleanState}' for user '${matchedEmail}'`);
+    return { email: matchedEmail, userId: matchedUserId || "" };
+  }
+
+  return null;
+}
+
+/**
  * Saves lead details to Supabase table `leads` & `profiles` if available, and backup to localStorage.
  */
 export async function submitLead(data: LeadData): Promise<{ success: boolean; message: string }> {
   try {
     const timestamp = new Date().toISOString();
+    const userId = data.userId || generateUserId(data.email);
+    const rstate = await createAndSaveRState(data.email, userId);
+
     const leadRecord: LeadData = {
       ...data,
+      userId,
+      rstate,
       createdAt: timestamp,
     };
 
@@ -61,6 +241,8 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
 
     // 2. Insert into Supabase table 'leads' if it exists
     const { error: leadsErr } = await supabase.from("leads" as any).insert({
+      user_id: userId,
+      rstate,
       email: data.email,
       phone: data.phone,
       name: data.name || null,
@@ -72,12 +254,14 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     if (leadsErr) {
       console.warn("[Leads] Supabase 'leads' insert notice:", leadsErr.message);
     } else {
-      console.log("[Leads] Lead saved to Supabase 'leads' table:", data.email);
+      console.log(`[Leads] Lead saved to Supabase 'leads' table with userId ${userId} & RState ${rstate}: ${data.email}`);
     }
 
     // 3. Upsert into Supabase table 'profiles' so it shows up in main profiles table
     try {
       await supabase.from("profiles" as any).upsert({
+        user_id: userId,
+        rstate,
         email: data.email,
         phone: data.phone,
         full_name: data.name || null,
@@ -204,17 +388,28 @@ export function getCurrentClientUser(): { email: string; name: string; phone?: s
 /**
  * Automatically links an authenticated Deriv account ID to the registered lead email.
  */
-export async function associateDerivAccount(derivLoginId: string, derivAccounts: string[] = []): Promise<void> {
+export async function associateDerivAccount(derivLoginId: string, derivAccounts: string[] = [], rstate?: string): Promise<void> {
   try {
     if (!derivLoginId) return;
 
-    // 1. Resolve lead email from all potential session sources
+    // 1. Resolve lead email from RState or session sources
     let targetEmail: string | undefined;
 
+    // Source 0: Consume and match RState returned by Deriv callback
+    if (rstate) {
+      const consumed = await consumeRState(rstate);
+      if (consumed?.email) {
+        targetEmail = consumed.email.toLowerCase();
+        console.log(`[Leads] Matched RState '${rstate}' to registered email: ${targetEmail}`);
+      }
+    }
+
     // Source A: Currently active logged-in client user
-    const currentClient = getCurrentClientUser();
-    if (currentClient?.email) {
-      targetEmail = currentClient.email.toLowerCase();
+    if (!targetEmail) {
+      const currentClient = getCurrentClientUser();
+      if (currentClient?.email) {
+        targetEmail = currentClient.email.toLowerCase();
+      }
     }
 
     // Source B: Pending lead to associate

@@ -133,4 +133,33 @@ describe("Lead Generation, Client Portal & Deriv Association", () => {
     leads = await getCapturedLeads();
     expect(leads.some((l) => l.email === "todelete@example.com")).toBe(false);
   });
+
+  it("generates RState on registration, matches returned RState on Deriv callback, and deletes RState for security", async () => {
+    const { consumeRState, associateDerivAccount } = await import("@/lib/leads");
+
+    // 1. Submit lead which generates RState & userId
+    await submitLead({
+      name: "RState User",
+      email: "rstatetest@example.com",
+      phone: "+2348011223344",
+      source: "organic_direct",
+    });
+
+    let leads = await getCapturedLeads();
+    const leadRecord = leads.find((l) => l.email === "rstatetest@example.com");
+    expect(leadRecord).toBeDefined();
+    const rstate = leadRecord?.rstate || "";
+    expect(rstate).toContain("rst_");
+
+    // 2. Simulate Deriv OAuth Callback returning state=RState
+    await associateDerivAccount("CR77665544", ["CR77665544"], rstate);
+
+    leads = await getCapturedLeads();
+    const matched = leads.find((l) => l.email === "rstatetest@example.com");
+    expect(matched?.derivLoginId).toBe("CR77665544");
+
+    // 3. Verify RState was deleted after single use for security
+    const doubleConsume = await consumeRState(rstate);
+    expect(doubleConsume).toBeNull();
+  });
 });

@@ -31,7 +31,7 @@ const LEGACY_ACTIVE_KEY = "deriv.activeLoginid";
 // ---- OAuth URL Builder ----
 
 /**
- * Initiates the Deriv OAuth flow using PKCE.
+ * Initiates the Deriv OAuth flow using PKCE & random RState.
  * Returns the authorization URL to redirect the user to.
  */
 export async function getOAuthUrl(action: "login" | "signup" = "login"): Promise<string> {
@@ -40,15 +40,27 @@ export async function getOAuthUrl(action: "login" | "signup" = "login"): Promise
       ? `${window.location.origin}/auth/callback`
       : "https://digitbotpro.com/auth/callback";
 
-  const { codeVerifier, codeChallenge, state } = await generatePKCE();
-  storePKCEData(codeVerifier, state);
+  const { codeVerifier, codeChallenge, state: pkceState } = await generatePKCE();
+  let oauthState = pkceState;
+
+  try {
+    const { getCurrentClientUser, createAndSaveRState } = await import("./leads");
+    const clientUser = getCurrentClientUser();
+    if (clientUser?.email) {
+      oauthState = await createAndSaveRState(clientUser.email);
+    }
+  } catch (e) {
+    console.warn("[OAuth] Could not attach RState to OAuth URL:", e);
+  }
+
+  storePKCEData(codeVerifier, oauthState);
 
   const params = new URLSearchParams({
     response_type: "code",
     client_id: DERIV_APP_ID,
     redirect_uri: redirectUri,
     scope: "trade account_manage",
-    state,
+    state: oauthState,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
     app_id: "117322",
