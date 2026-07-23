@@ -630,37 +630,13 @@ export default function UserManagement() {
                              </TableCell>
                             <TableCell className="text-xs font-mono">
                                {lead.derivLoginId ? (
-                                 <div className="flex items-center gap-1.5">
-                                   <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] font-bold">
-                                     {lead.derivLoginId}
-                                   </Badge>
-                                   <Button
-                                     size="icon"
-                                     variant="ghost"
-                                     className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                                     title="Change Connected Deriv Account"
-                                     onClick={() => {
-                                       setSelectedLeadForLink(lead);
-                                       setCustomDerivId(lead.derivLoginId || "");
-                                       setIsLinkModalOpen(true);
-                                     }}
-                                   >
-                                     <Link2 className="w-3 h-3" />
-                                   </Button>
-                                 </div>
+                                 <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] font-bold">
+                                   {lead.derivLoginId}
+                                 </Badge>
                                ) : (
-                                 <Button
-                                   size="sm"
-                                   variant="outline"
-                                   className="h-6 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10"
-                                   onClick={() => {
-                                     setSelectedLeadForLink(lead);
-                                     setCustomDerivId("");
-                                     setIsLinkModalOpen(true);
-                                   }}
-                                 >
-                                   <Link2 className="w-3 h-3" /> Link Account
-                                 </Button>
+                                 <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">
+                                   Pending Connection
+                                 </Badge>
                                )}
                              </TableCell>
                             <TableCell>
@@ -809,92 +785,6 @@ export default function UserManagement() {
               disabled={manualUpdate.isPending}
             >
               {manualUpdate.isPending ? "Processing..." : "Downgrade User"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Link Deriv Account Dialog */}
-      <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-foreground">
-              <Link2 className="w-4 h-4 text-primary" /> Link Deriv Account
-            </DialogTitle>
-            <DialogDescription>
-              Assign a Deriv Account ID to captured lead <span className="font-semibold text-primary">{selectedLeadForLink?.email}</span> ({selectedLeadForLink?.name || "N/A"})
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Select Existing Deriv Profile User</Label>
-              <Select
-                value={customDerivId}
-                onValueChange={(val) => setCustomDerivId(val)}
-              >
-                <SelectTrigger className="bg-background border-border text-xs">
-                  <SelectValue placeholder="-- Choose from active Deriv users --" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border max-h-48">
-                  {users?.map((u: any) => {
-                    let derivId = u.email;
-                    if (u.email && u.email.endsWith("@deriv-user.local")) {
-                      derivId = u.email.split("@")[0].toUpperCase();
-                    }
-                    return (
-                      <SelectItem key={u.id} value={derivId} className="text-xs">
-                        {derivId} {u.email !== derivId ? `(${u.email})` : ""}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-border/60"></div>
-              <span className="flex-shrink mx-2 text-[10px] text-muted-foreground uppercase font-bold">Or Enter Custom ID</span>
-              <div className="flex-grow border-t border-border/60"></div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Deriv CR / VR Login ID</Label>
-              <Input
-                placeholder="e.g. CR92012918 or VRTC123456"
-                value={customDerivId}
-                onChange={(e) => setCustomDerivId(e.target.value)}
-                className="bg-background border-border text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsLinkModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className="bg-primary text-primary-foreground font-semibold"
-              onClick={async () => {
-                if (!selectedLeadForLink || !customDerivId.trim()) {
-                  toast.error("Please select or enter a valid Deriv Account ID");
-                  return;
-                }
-                const success = await manuallyLinkLeadDerivAccount(selectedLeadForLink.email, customDerivId.trim());
-                if (success) {
-                  toast.success(`Linked ${selectedLeadForLink.email} to Deriv Account ${customDerivId.trim()}`);
-                  queryClient.invalidateQueries({ queryKey: ["admin-captured-leads"] });
-                  queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
-                  setIsLinkModalOpen(false);
-                  setSelectedLeadForLink(null);
-                  setCustomDerivId("");
-                } else {
-                  toast.error("Failed to link Deriv Account");
-                }
-              }}
-            >
-              Save & Link Account
             </Button>
           </DialogFooter>
         </DialogContent>
