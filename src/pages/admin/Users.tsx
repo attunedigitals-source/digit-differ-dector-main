@@ -772,6 +772,10 @@ export default function UserManagement() {
             >
               {manualUpdate.isPending ? "Processing..." : "Downgrade User"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Link Deriv Account Dialog */}
       <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>
         <DialogContent className="sm:max-w-md bg-card border-border">
