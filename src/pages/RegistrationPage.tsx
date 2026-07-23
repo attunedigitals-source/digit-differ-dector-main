@@ -13,12 +13,18 @@ export const RegistrationPage: React.FC = () => {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !phone || !password) {
-      toast.error("Please fill in email, WhatsApp phone, and create a password.");
+    if (!email || !phone || !password || !confirmPassword) {
+      toast.error("Please fill in email, WhatsApp phone, and create/confirm your password.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match. Please enter matching passwords.");
       return;
     }
 
@@ -147,6 +153,18 @@ export const RegistrationPage: React.FC = () => {
                     placeholder="Create a password for client login"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className="bg-background/60 border-border/60 focus:border-primary"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground/80">Confirm Password <span className="text-red-400">*</span></label>
+                  <Input
+                    type="password"
+                    required
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     className="bg-background/60 border-border/60 focus:border-primary"
                   />
                 </div>
