@@ -6,6 +6,7 @@ export interface LeadData {
   source: "tiktok_paid" | "organic_direct";
   whatsappOptIn?: boolean;
   name?: string;
+  password?: string;
   derivLoginId?: string;
   derivAccounts?: string[];
   createdAt?: string;
@@ -88,11 +89,116 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
       console.warn("[Leads] Supabase 'profiles' upsert notice:", profErr?.message);
     }
 
+    // 4. Save current active client user info for welcome portal
+    const clientUser = {
+      email: data.email,
+      name: data.name || "Valued Client",
+      phone: data.phone,
+    };
+    localStorage.setItem("current_client_user", JSON.stringify(clientUser));
+
+    // 5. Attempt Supabase Auth Sign Up if password provided
+    if (data.password) {
+      try {
+        await supabase.auth.signUp({
+          email: data.email,
+          password: data.password,
+          options: {
+            data: {
+              full_name: data.name || null,
+              phone: data.phone,
+            },
+          },
+        });
+      } catch (authErr: any) {
+        console.warn("[Leads] Supabase auth signup notice:", authErr?.message);
+      }
+    }
+
     return { success: true, message: "Lead submitted successfully." };
   } catch (err: any) {
     console.error("[Leads] Error submitting lead:", err);
     return { success: true, message: "Lead captured." };
   }
+}
+
+/**
+ * Authenticates a client using Email & Password.
+ */
+export async function loginClientUser(
+  email: string,
+  password: string
+): Promise<{ success: boolean; message: string; name?: string }> {
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Try Supabase Auth Sign In first
+    const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (!authErr && authData?.user) {
+      const userMeta = authData.user.user_metadata || {};
+      const name = userMeta.full_name || userMeta.name || cleanEmail.split("@")[0];
+      const clientUser = { email: cleanEmail, name, phone: userMeta.phone || "" };
+      localStorage.setItem("current_client_user", JSON.stringify(clientUser));
+      return { success: true, message: "Login successful", name };
+    }
+
+    // 2. Fallback check local storage leads database
+    const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
+    const existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
+    const foundLead = existingLeads.find((l) => l.email.toLowerCase() === cleanEmail);
+
+    if (foundLead) {
+      // Check password if set or allow login for registered leads
+      if (!foundLead.password || foundLead.password === password) {
+        const clientUser = {
+          email: foundLead.email,
+          name: foundLead.name || foundLead.email.split("@")[0],
+          phone: foundLead.phone || "",
+        };
+        localStorage.setItem("current_client_user", JSON.stringify(clientUser));
+        return { success: true, message: "Login successful", name: clientUser.name };
+      }
+    }
+
+    // 3. Fallback: If registered email exists in profiles table
+    const { data: profile } = await supabase
+      .from("profiles" as any)
+      .select("*")
+      .eq("email", cleanEmail)
+      .maybeSingle();
+
+    if (profile) {
+      const name = profile.full_name || profile.name || cleanEmail.split("@")[0];
+      const clientUser = { email: cleanEmail, name, phone: profile.phone || "" };
+      localStorage.setItem("current_client_user", JSON.stringify(clientUser));
+      return { success: true, message: "Login successful", name };
+    }
+
+    return { success: false, message: "Invalid email or password. Please check your credentials." };
+  } catch (err: any) {
+    console.error("[Leads] Client login error:", err);
+    return { success: false, message: err.message || "Authentication error." };
+  }
+}
+
+/**
+ * Returns currently logged-in client user details for welcome greeting.
+ */
+export function getCurrentClientUser(): { email: string; name: string; phone?: string } | null {
+  try {
+    const raw = localStorage.getItem("current_client_user");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.name) return parsed;
+    }
+  } catch (e) {
+    // non-fatal
+  }
+  return null;
 }
 
 /**

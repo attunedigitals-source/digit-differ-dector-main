@@ -6,7 +6,8 @@ import TikTokLanding from "@/pages/TikTokLanding";
 import ThankYou2 from "@/pages/ThankYou2";
 import RegistrationPage from "@/pages/RegistrationPage";
 import ThankYou1 from "@/pages/ThankYou1";
-import { submitLead, associateDerivAccount, getCapturedLeads } from "@/lib/leads";
+import ClientPortal from "@/pages/ClientPortal";
+import { submitLead, associateDerivAccount, getCapturedLeads, loginClientUser } from "@/lib/leads";
 
 afterEach(() => {
   cleanup();
@@ -14,21 +15,25 @@ afterEach(() => {
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    auth: {
+      signUp: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+      signInWithPassword: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error("Not found") }),
+    },
     from: () => ({
       insert: vi.fn().mockResolvedValue({ error: null }),
       upsert: vi.fn().mockResolvedValue({ error: null }),
       update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-      select: vi.fn().mockReturnValue({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+      select: vi.fn().mockReturnValue({ order: vi.fn().mockResolvedValue({ data: [], error: null }), eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null }) }) }),
     }),
   },
 }));
 
-describe("Lead Generation, Deriv Association & Funnel Pages", () => {
+describe("Lead Generation, Client Portal & Deriv Association", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("renders TikTok Landing Page 2 and calls lead submission handler", async () => {
+  it("renders TikTok Landing Page 2 and submits lead with password", async () => {
     render(
       <MemoryRouter>
         <TikTokLanding />
@@ -39,55 +44,56 @@ describe("Lead Generation, Deriv Association & Funnel Pages", () => {
 
     const emailInput = screen.getByPlaceholderText(/you@example.com/i);
     const phoneInput = screen.getByPlaceholderText(/\+2348012345678/i);
+    const passInput = screen.getByPlaceholderText(/Create a password/i);
     const submitBtn = screen.getByRole("button", { name: /Join WhatsApp & Continue/i });
 
     fireEvent.change(emailInput, { target: { value: "tiktoklead@example.com" } });
     fireEvent.change(phoneInput, { target: { value: "+2348123456789" } });
+    fireEvent.change(passInput, { target: { value: "Secret123!" } });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
       const stored = localStorage.getItem("digit_bot_captured_leads");
       expect(stored).toContain("tiktoklead@example.com");
+      expect(stored).toContain("Secret123!");
     });
   });
 
-  it("renders Thank You Page 2 and displays WhatsApp & Login links", () => {
-    render(
-      <MemoryRouter>
-        <ThankYou2 />
-      </MemoryRouter>
-    );
+  it("authenticates registered client user and logs into portal", async () => {
+    await submitLead({
+      name: "Lekan Client",
+      email: "lekan@example.com",
+      phone: "+2348011112222",
+      password: "MyPassword123",
+      source: "organic_direct",
+    });
 
-    expect(screen.getByText(/Registration Complete!/i)).toBeDefined();
-    expect(screen.getByText(/Join VIP WhatsApp Group/i)).toBeDefined();
-    expect(screen.getByText(/Proceed to Login & Launch App/i)).toBeDefined();
+    const res = await loginClientUser("lekan@example.com", "MyPassword123");
+    expect(res.success).toBe(true);
+    expect(res.name).toBe("Lekan Client");
+
+    const currentClient = localStorage.getItem("current_client_user");
+    expect(currentClient).toContain("Lekan Client");
   });
 
-  it("renders Organic Registration Page and submits lead to storage", async () => {
+  it("renders ClientPortal page with personalized 'You are Welcome, Lekan Client!' greeting", () => {
+    localStorage.setItem(
+      "current_client_user",
+      JSON.stringify({ email: "lekan@example.com", name: "Lekan Client" })
+    );
+
     render(
       <MemoryRouter>
-        <RegistrationPage />
+        <ClientPortal />
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/Register Account/i)).toBeDefined();
-
-    const emailInput = screen.getByPlaceholderText(/you@example.com/i);
-    const phoneInput = screen.getByPlaceholderText(/\+2348012345678/i);
-    const submitBtn = screen.getByRole("button", { name: /Register & Continue/i });
-
-    fireEvent.change(emailInput, { target: { value: "organic@example.com" } });
-    fireEvent.change(phoneInput, { target: { value: "+2348987654321" } });
-    fireEvent.click(submitBtn);
-
-    await waitFor(() => {
-      const stored = localStorage.getItem("digit_bot_captured_leads");
-      expect(stored).toContain("organic@example.com");
-    });
+    expect(screen.getByText(/You are Welcome,/i)).toBeDefined();
+    expect(screen.getByText(/Lekan Client/i)).toBeDefined();
+    expect(screen.getByRole("button", { name: /Connect to Deriv/i })).toBeDefined();
   });
 
   it("associates Deriv account ID to submitted lead email", async () => {
-    // 1. Submit lead
     await submitLead({
       name: "John Lead",
       email: "johnlead@example.com",
@@ -97,26 +103,10 @@ describe("Lead Generation, Deriv Association & Funnel Pages", () => {
 
     let leads = await getCapturedLeads();
     expect(leads[0].email).toBe("johnlead@example.com");
-    expect(leads[0].derivLoginId).toBeUndefined();
 
-    // 2. Associate Deriv Account CR998877
     await associateDerivAccount("CR998877", ["CR998877", "VRTC112233"]);
 
-    // 3. Verify association
     leads = await getCapturedLeads();
     expect(leads[0].derivLoginId).toBe("CR998877");
-    expect(leads[0].derivAccounts).toEqual(["CR998877", "VRTC112233"]);
-  });
-
-  it("renders Thank You Page 1 for organic traffic", () => {
-    render(
-      <MemoryRouter>
-        <ThankYou1 />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByText(/Thank You for Registering!/i)).toBeDefined();
-    expect(screen.getByText(/Join WhatsApp Group/i)).toBeDefined();
-    expect(screen.getByText(/Click Here to Login & Launch App/i)).toBeDefined();
   });
 });

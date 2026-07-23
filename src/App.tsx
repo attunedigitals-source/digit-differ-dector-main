@@ -15,6 +15,7 @@ import TikTokLanding from "./pages/TikTokLanding.tsx";
 import ThankYou2 from "./pages/ThankYou2.tsx";
 import RegistrationPage from "./pages/RegistrationPage.tsx";
 import ThankYou1 from "./pages/ThankYou1.tsx";
+import ClientPortal from "./pages/ClientPortal.tsx";
 import AdminLogin from "./pages/admin/Login.tsx";
 import AdminDashboard from "./pages/admin/Dashboard.tsx";
 import UserManagement from "./pages/admin/Users.tsx";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/register" element={<RegistrationPage />} />
             <Route path="/thank-you-1" element={<ThankYou1 />} />
+            <Route path="/client-portal" element={<ClientPortal />} />
             <Route path="/lp2" element={<TikTokLanding />} />
             <Route path="/tiktok-leads" element={<TikTokLanding />} />
             <Route path="/thank-you-2" element={<ThankYou2 />} />

@@ -12,12 +12,13 @@ export const TikTokLanding: React.FC = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !phone) {
-      toast.error("Please enter both your email address and WhatsApp phone number.");
+    if (!email || !phone || !password) {
+      toast.error("Please enter your email, WhatsApp phone number, and create a password.");
       return;
     }
 
@@ -27,6 +28,7 @@ export const TikTokLanding: React.FC = () => {
         email,
         phone,
         name,
+        password,
         source: "tiktok_paid",
         whatsappOptIn: true,
       });
@@ -148,6 +150,18 @@ export const TikTokLanding: React.FC = () => {
                     className="bg-background/60 border-border/60 focus:border-primary"
                   />
                   <span className="text-[10px] text-muted-foreground">Include country code (e.g. +234, +1, +44)</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground/80">Create Password <span className="text-red-400">*</span></label>
+                  <Input
+                    type="password"
+                    required
+                    placeholder="Create a password for client login"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-background/60 border-border/60 focus:border-primary"
+                  />
                 </div>
 
                 <Button
