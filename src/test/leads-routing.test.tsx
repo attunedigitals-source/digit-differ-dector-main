@@ -23,6 +23,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       insert: vi.fn().mockResolvedValue({ error: null }),
       upsert: vi.fn().mockResolvedValue({ error: null }),
       update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      delete: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
       select: vi.fn().mockReturnValue({ order: vi.fn().mockResolvedValue({ data: [], error: null }), eq: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null }) }) }),
     }),
   },
@@ -45,17 +46,20 @@ describe("Lead Generation, Client Portal & Deriv Association", () => {
     const emailInput = screen.getByPlaceholderText(/you@example.com/i);
     const phoneInput = screen.getByPlaceholderText(/\+2348012345678/i);
     const passInput = screen.getByPlaceholderText(/Create a password/i);
+    const confirmPassInput = screen.getByPlaceholderText(/Confirm your password/i);
     const submitBtn = screen.getByRole("button", { name: /Join WhatsApp & Continue/i });
 
     fireEvent.change(emailInput, { target: { value: "tiktoklead@example.com" } });
     fireEvent.change(phoneInput, { target: { value: "+2348123456789" } });
     fireEvent.change(passInput, { target: { value: "Secret123!" } });
+    fireEvent.change(confirmPassInput, { target: { value: "Secret123!" } });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
       const stored = localStorage.getItem("digit_bot_captured_leads");
-      expect(stored).toContain("tiktoklead@example.com");
-      expect(stored).toContain("Secret123!");
+      expect(stored).toBeTruthy();
+      expect(stored || "").toContain("tiktoklead@example.com");
+      expect(stored || "").toContain("Secret123!");
     });
   });
 
@@ -108,5 +112,25 @@ describe("Lead Generation, Client Portal & Deriv Association", () => {
 
     leads = await getCapturedLeads();
     expect(leads[0].derivLoginId).toBe("CR998877");
+  });
+
+  it("deletes lead record across storage and Supabase payload", async () => {
+    const { deleteLeadRecord } = await import("@/lib/leads");
+
+    await submitLead({
+      name: "ToDelete Lead",
+      email: "todelete@example.com",
+      phone: "+2348011223344",
+      source: "organic_direct",
+    });
+
+    let leads = await getCapturedLeads();
+    expect(leads.some((l) => l.email === "todelete@example.com")).toBe(true);
+
+    const deleted = await deleteLeadRecord("todelete@example.com");
+    expect(deleted).toBe(true);
+
+    leads = await getCapturedLeads();
+    expect(leads.some((l) => l.email === "todelete@example.com")).toBe(false);
   });
 });

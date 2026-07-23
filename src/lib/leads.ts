@@ -318,6 +318,51 @@ export async function manuallyLinkLeadDerivAccount(email: string, derivLoginId: 
 }
 
 /**
+ * Deletes a lead record across Supabase leads table, profiles table, and local storage.
+ */
+export async function deleteLeadRecord(email: string): Promise<boolean> {
+  try {
+    if (!email) return false;
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Remove from localStorage backup
+    const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
+    let existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
+    if (Array.isArray(existingLeads)) {
+      existingLeads = existingLeads.filter((l) => l.email.toLowerCase() !== cleanEmail);
+      localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
+    }
+
+    const lastEmail = localStorage.getItem("last_registered_lead_email");
+    if (lastEmail && lastEmail.toLowerCase() === cleanEmail) {
+      localStorage.removeItem("last_registered_lead_email");
+    }
+
+    // 2. Delete from Supabase 'leads' table
+    await supabase
+      .from("leads" as any)
+      .delete()
+      .eq("email", cleanEmail);
+
+    // 3. Delete from Supabase 'profiles' table
+    try {
+      await supabase
+        .from("profiles" as any)
+        .delete()
+        .eq("email", cleanEmail);
+    } catch (e) {
+      // non-fatal
+    }
+
+    console.log(`[Leads] Successfully deleted lead record for ${cleanEmail}`);
+    return true;
+  } catch (err) {
+    console.error("[Leads] Error deleting lead record:", err);
+    return false;
+  }
+}
+
+/**
  * Retrieves and merges all captured leads from local storage and Supabase tables.
  */
 export async function getCapturedLeads(): Promise<LeadData[]> {

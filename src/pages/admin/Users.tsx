@@ -30,10 +30,11 @@ import {
   Download,
   Phone,
   MessageSquare,
-  Link2
+  Link2,
+  Trash2
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getCapturedLeads, manuallyLinkLeadDerivAccount, LeadData } from "@/lib/leads";
+import { getCapturedLeads, manuallyLinkLeadDerivAccount, deleteLeadRecord, LeadData } from "@/lib/leads";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -97,7 +98,7 @@ export default function UserManagement() {
     refetchInterval: 30000, // Auto-refresh every 30s to catch the 60s bot reports
   });
 
-  // Real-time synchronization for the main list
+  // Real-time synchronization for users, leads, and daily reports
   useEffect(() => {
     const channel = supabase
       .channel('admin-global-sync')
@@ -112,7 +113,21 @@ export default function UserManagement() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
-        () => queryClient.invalidateQueries({ queryKey: ["admin-users"] })
+        () => {
+          console.log("[AdminUsers] Profiles change/deletion detected. Refreshing...");
+          queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-captured-leads"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads' },
+        () => {
+          console.log("[AdminUsers] Leads change/deletion detected. Refreshing...");
+          queryClient.invalidateQueries({ queryKey: ["admin-captured-leads"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+        }
       )
       .subscribe();
 
@@ -664,16 +679,39 @@ export default function UserManagement() {
                               {new Date(lead.createdAt || Date.now()).toLocaleString()}
                             </TableCell>
                             <TableCell className="text-right">
-                              {waUrl && (
-                                <a
-                                  href={waUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-400 font-semibold transition-colors"
+                              <div className="flex items-center justify-end gap-2">
+                                {waUrl && (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-green-500 hover:text-green-400 font-semibold transition-colors"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                                  </a>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  title="Delete lead record"
+                                  onClick={async () => {
+                                    if (window.confirm(`Are you sure you want to delete lead record for ${lead.email}?`)) {
+                                      const ok = await deleteLeadRecord(lead.email);
+                                      if (ok) {
+                                        toast.success(`Deleted lead ${lead.email}`);
+                                        queryClient.invalidateQueries({ queryKey: ["admin-captured-leads"] });
+                                        queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+                                        queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+                                      } else {
+                                        toast.error(`Failed to delete lead ${lead.email}`);
+                                      }
+                                    }
+                                  }}
                                 >
-                                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
-                                </a>
-                              )}
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
