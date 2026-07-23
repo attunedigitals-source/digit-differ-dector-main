@@ -592,51 +592,38 @@ export async function deleteLeadRecord(email: string): Promise<boolean> {
 }
 
 /**
- * Retrieves and merges all captured leads from local storage and Supabase tables.
+ * Retrieves captured leads with Supabase as the Single Source of Truth.
+ * If a lead is deleted in Supabase, local backup storage is updated automatically.
  */
 export async function getCapturedLeads(): Promise<LeadData[]> {
   const leadMap = new Map<string, LeadData>();
+  let supabaseSuccess = false;
+  const activeSupabaseEmails = new Set<string>();
 
-  // 1. Load from localStorage backup
+  // 1. Fetch primary data from Supabase 'leads' table
   try {
-    const rawLocal = localStorage.getItem("digit_bot_captured_leads");
-    if (rawLocal) {
-      const parsed: LeadData[] = JSON.parse(rawLocal);
-      if (Array.isArray(parsed)) {
-        parsed.forEach((item) => {
-          if (item.email) {
-            leadMap.set(item.email.toLowerCase(), item);
-          }
-        });
-      }
-    }
-  } catch (e) {
-    console.warn("[Leads] Could not read local leads backup:", e);
-  }
-
-  // 2. Load from Supabase 'leads' table
-  try {
-    const { data: leadsData } = await supabase
+    const { data: leadsData, error: leadsErr } = await supabase
       .from("leads" as any)
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (Array.isArray(leadsData)) {
+    if (!leadsErr && Array.isArray(leadsData)) {
+      supabaseSuccess = true;
       leadsData.forEach((row: any) => {
         if (row.email) {
           const key = row.email.toLowerCase();
-          const existing = leadMap.get(key);
+          activeSupabaseEmails.add(key);
           leadMap.set(key, {
             email: row.email,
-            phone: row.phone || existing?.phone || "",
-            name: row.name || existing?.name || "",
-            source: row.source || existing?.source || "tiktok_paid",
-            whatsappOptIn: row.whatsapp_opt_in ?? existing?.whatsappOptIn ?? true,
-            userId: row.user_id || existing?.userId || (row.id ? `usr_${row.id.substring(0, 8)}` : undefined),
-            rstate: row.rstate || existing?.rstate,
-            derivLoginId: row.deriv_loginid || existing?.derivLoginId,
-            derivAccounts: row.deriv_accounts || existing?.derivAccounts,
-            createdAt: row.created_at || existing?.createdAt || new Date().toISOString(),
+            phone: row.phone || "",
+            name: row.name || "",
+            source: row.source || "tiktok_paid",
+            whatsappOptIn: row.whatsapp_opt_in ?? true,
+            userId: row.user_id || (row.id ? `usr_${row.id.substring(0, 8)}` : undefined),
+            rstate: row.rstate || undefined,
+            derivLoginId: row.deriv_loginid || undefined,
+            derivAccounts: row.deriv_accounts || undefined,
+            createdAt: row.created_at || new Date().toISOString(),
           });
         }
       });
@@ -645,15 +632,15 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
     console.warn("[Leads] Could not fetch Supabase 'leads' table:", e);
   }
 
-  // 3. Load from Supabase 'profiles' table
+  // 2. Fetch data from Supabase 'profiles' table
   try {
-    const { data: profilesData } = await supabase
+    const { data: profilesData, error: profErr } = await supabase
       .from("profiles" as any)
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (Array.isArray(profilesData)) {
-      // Build a map of profiles by deriv_loginid or email
+    if (!profErr && Array.isArray(profilesData)) {
+      supabaseSuccess = true;
       const profilesByDerivId = new Map<string, any>();
       profilesData.forEach((p: any) => {
         if (p.email && p.email.endsWith("@deriv-user.local")) {
@@ -665,25 +652,37 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
       profilesData.forEach((row: any) => {
         if (row.email && !row.email.endsWith("@deriv-user.local")) {
           const key = row.email.toLowerCase();
+          activeSupabaseEmails.add(key);
           const existing = leadMap.get(key);
           if (existing) {
             leadMap.set(key, {
               ...existing,
               phone: row.phone || existing.phone,
               name: row.full_name || row.name || existing.name,
+              userId: row.user_id || existing.userId,
               derivLoginId: row.deriv_loginid || existing.derivLoginId,
+            });
+          } else {
+            leadMap.set(key, {
+              email: row.email,
+              phone: row.phone || "",
+              name: row.full_name || row.name || "",
+              source: row.lead_source || "organic_direct",
+              whatsappOptIn: row.whatsapp_opt_in ?? true,
+              userId: row.user_id || (row.id ? `usr_${row.id.substring(0, 8)}` : undefined),
+              derivLoginId: row.deriv_loginid || undefined,
+              createdAt: row.created_at || new Date().toISOString(),
             });
           }
         }
       });
 
-      // 4. Smart proximity matching: If a lead still has no derivLoginId, check profiles
+      // 3. Proximity matching for shadow profiles
       const leadList = Array.from(leadMap.values());
       const shadowProfiles = Array.from(profilesByDerivId.values());
 
       leadList.forEach((lead) => {
         if (!lead.derivLoginId && shadowProfiles.length > 0) {
-          // Match by closest created_at timestamp
           const leadTime = new Date(lead.createdAt || 0).getTime();
           let closestProfile: any = null;
           let minDiff = Infinity;
@@ -691,7 +690,6 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
           shadowProfiles.forEach((prof) => {
             const profTime = new Date(prof.created_at || 0).getTime();
             const diff = Math.abs(leadTime - profTime);
-            // If created within 24 hours of each other or latest profile
             if (diff < minDiff && diff < 24 * 60 * 60 * 1000) {
               minDiff = diff;
               closestProfile = prof;
@@ -703,7 +701,6 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
             lead.derivLoginId = derivId;
             leadMap.set(lead.email.toLowerCase(), lead);
           } else if (shadowProfiles.length === 1 && leadList.length === 1) {
-            // Single lead & single Deriv user
             const derivId = shadowProfiles[0].email.split("@")[0].toUpperCase();
             lead.derivLoginId = derivId;
             leadMap.set(lead.email.toLowerCase(), lead);
@@ -713,6 +710,34 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
     }
   } catch (e) {
     console.warn("[Leads] Could not fetch Supabase 'profiles' table:", e);
+  }
+
+  // 4. Merge from LocalStorage backup to preserve full client properties
+  try {
+    const rawLocal = localStorage.getItem("digit_bot_captured_leads");
+    if (rawLocal) {
+      const parsed: LeadData[] = JSON.parse(rawLocal);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => {
+          if (item.email && !leadMap.has(item.email.toLowerCase())) {
+            leadMap.set(item.email.toLowerCase(), item);
+          } else if (item.email && leadMap.has(item.email.toLowerCase())) {
+            const existing = leadMap.get(item.email.toLowerCase())!;
+            leadMap.set(item.email.toLowerCase(), {
+              ...item,
+              ...existing,
+              phone: existing.phone || item.phone,
+              name: existing.name || item.name,
+              userId: existing.userId || item.userId,
+              rstate: existing.rstate || item.rstate,
+              derivLoginId: existing.derivLoginId || item.derivLoginId,
+            });
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("[Leads] Could not process local storage sync:", e);
   }
 
   return Array.from(leadMap.values()).sort((a, b) => {
