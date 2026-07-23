@@ -65,6 +65,18 @@ export async function getOAuthUrl(action: "login" | "signup" = "login"): Promise
 
 export function saveSession(session: DerivSession): void {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  try {
+    if (session.active_loginid) {
+      import("./leads").then(({ associateDerivAccount }) => {
+        associateDerivAccount(
+          session.active_loginid,
+          (session.accounts || []).map((a) => a.loginid)
+        );
+      }).catch(() => {});
+    }
+  } catch (e) {
+    // non-fatal
+  }
 }
 
 export function getSession(): DerivSession | null {

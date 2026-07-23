@@ -56,6 +56,7 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     
     localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
     localStorage.setItem("last_registered_lead_email", data.email.trim().toLowerCase());
+    localStorage.setItem("pending_lead_to_associate", JSON.stringify(leadRecord));
 
     // 2. Insert into Supabase table 'leads' if it exists
     const { error: leadsErr } = await supabase.from("leads" as any).insert({
@@ -102,23 +103,35 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
     if (!derivLoginId) return;
 
     const lastEmail = localStorage.getItem("last_registered_lead_email");
+    const pendingLeadRaw = localStorage.getItem("pending_lead_to_associate");
+    const pendingLead: LeadData | null = pendingLeadRaw ? JSON.parse(pendingLeadRaw) : null;
+    
     const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
     let existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
 
     if (!Array.isArray(existingLeads)) existingLeads = [];
 
-    // Find lead matching last email or latest lead without a Deriv account
+    // Find lead matching pending lead, last email, or latest unlinked lead
     let targetIndex = -1;
-    if (lastEmail) {
+    if (pendingLead?.email) {
+      targetIndex = existingLeads.findIndex((l) => l.email.toLowerCase() === pendingLead.email.toLowerCase());
+    }
+    if (targetIndex === -1 && lastEmail) {
       targetIndex = existingLeads.findIndex((l) => l.email.toLowerCase() === lastEmail.toLowerCase());
     }
     if (targetIndex === -1 && existingLeads.length > 0) {
-      targetIndex = existingLeads.length - 1;
+      // Find latest lead without derivLoginId
+      targetIndex = existingLeads.reverse().findIndex((l) => !l.derivLoginId);
+      if (targetIndex !== -1) {
+        targetIndex = existingLeads.length - 1 - targetIndex;
+      } else {
+        targetIndex = existingLeads.length - 1;
+      }
     }
 
     let targetEmail: string | undefined;
 
-    if (targetIndex !== -1) {
+    if (targetIndex !== -1 && existingLeads[targetIndex]) {
       existingLeads[targetIndex].derivLoginId = derivLoginId;
       existingLeads[targetIndex].derivAccounts = derivAccounts;
       targetEmail = existingLeads[targetIndex].email;
@@ -126,7 +139,7 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
       console.log(`[Leads] Associated Deriv account ${derivLoginId} to local lead ${targetEmail}`);
     }
 
-    const emailToUpdate = targetEmail || lastEmail;
+    const emailToUpdate = targetEmail || lastEmail || pendingLead?.email;
 
     // Update in Supabase leads & profiles if email available
     if (emailToUpdate) {
@@ -142,8 +155,59 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
 
       console.log(`[Leads] Updated Deriv account ${derivLoginId} in Supabase for ${emailToUpdate}`);
     }
+
+    // Also update profile matching shadow email `${derivLoginId}@deriv-user.local` if exists
+    try {
+      const shadowEmail = `${derivLoginId.toLowerCase()}@deriv-user.local`;
+      await supabase
+        .from("profiles" as any)
+        .update({ deriv_loginid: derivLoginId, deriv_accounts: derivAccounts })
+        .eq("email", shadowEmail);
+    } catch (e) {
+      // non-fatal
+    }
   } catch (err) {
     console.warn("[Leads] Failed to associate Deriv account to lead:", err);
+  }
+}
+
+/**
+ * Manually links a Deriv account ID to a captured lead (Admin Action).
+ */
+export async function manuallyLinkLeadDerivAccount(email: string, derivLoginId: string): Promise<boolean> {
+  try {
+    if (!email || !derivLoginId) return false;
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanDerivId = derivLoginId.trim();
+
+    // 1. Update localStorage
+    const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
+    let existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
+    if (Array.isArray(existingLeads)) {
+      const idx = existingLeads.findIndex((l) => l.email.toLowerCase() === cleanEmail);
+      if (idx !== -1) {
+        existingLeads[idx].derivLoginId = cleanDerivId;
+        localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
+      }
+    }
+
+    // 2. Update Supabase leads table
+    await supabase
+      .from("leads" as any)
+      .update({ deriv_loginid: cleanDerivId })
+      .eq("email", cleanEmail);
+
+    // 3. Update Supabase profiles table
+    await supabase
+      .from("profiles" as any)
+      .update({ deriv_loginid: cleanDerivId })
+      .eq("email", cleanEmail);
+
+    console.log(`[Leads] Admin manually linked Deriv account ${cleanDerivId} to ${cleanEmail}`);
+    return true;
+  } catch (e) {
+    console.error("[Leads] Error manually linking lead Deriv account:", e);
+    return false;
   }
 }
 
@@ -199,7 +263,7 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
     console.warn("[Leads] Could not fetch Supabase 'leads' table:", e);
   }
 
-  // 3. Load from Supabase 'profiles' table if phone or lead_source exists
+  // 3. Load from Supabase 'profiles' table
   try {
     const { data: profilesData } = await supabase
       .from("profiles" as any)
@@ -207,20 +271,61 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
       .order("created_at", { ascending: false });
 
     if (Array.isArray(profilesData)) {
+      // Build a map of profiles by deriv_loginid or email
+      const profilesByDerivId = new Map<string, any>();
+      profilesData.forEach((p: any) => {
+        if (p.email && p.email.endsWith("@deriv-user.local")) {
+          const derivId = p.email.split("@")[0].toUpperCase();
+          profilesByDerivId.set(derivId, p);
+        }
+      });
+
       profilesData.forEach((row: any) => {
-        if (row.email && (row.phone || row.lead_source || row.whatsapp_opt_in)) {
+        if (row.email && !row.email.endsWith("@deriv-user.local")) {
           const key = row.email.toLowerCase();
           const existing = leadMap.get(key);
-          leadMap.set(key, {
-            email: row.email,
-            phone: row.phone || existing?.phone || "",
-            name: row.full_name || row.name || existing?.name || "",
-            source: row.lead_source || existing?.source || "organic_direct",
-            whatsappOptIn: row.whatsapp_opt_in ?? existing?.whatsappOptIn ?? true,
-            derivLoginId: row.deriv_loginid || row.id || existing?.derivLoginId,
-            derivAccounts: row.deriv_accounts || existing?.derivAccounts,
-            createdAt: row.created_at || existing?.createdAt || new Date().toISOString(),
+          if (existing) {
+            leadMap.set(key, {
+              ...existing,
+              phone: row.phone || existing.phone,
+              name: row.full_name || row.name || existing.name,
+              derivLoginId: row.deriv_loginid || existing.derivLoginId,
+            });
+          }
+        }
+      });
+
+      // 4. Smart proximity matching: If a lead still has no derivLoginId, check profiles
+      const leadList = Array.from(leadMap.values());
+      const shadowProfiles = Array.from(profilesByDerivId.values());
+
+      leadList.forEach((lead) => {
+        if (!lead.derivLoginId && shadowProfiles.length > 0) {
+          // Match by closest created_at timestamp
+          const leadTime = new Date(lead.createdAt || 0).getTime();
+          let closestProfile: any = null;
+          let minDiff = Infinity;
+
+          shadowProfiles.forEach((prof) => {
+            const profTime = new Date(prof.created_at || 0).getTime();
+            const diff = Math.abs(leadTime - profTime);
+            // If created within 24 hours of each other or latest profile
+            if (diff < minDiff && diff < 24 * 60 * 60 * 1000) {
+              minDiff = diff;
+              closestProfile = prof;
+            }
           });
+
+          if (closestProfile) {
+            const derivId = closestProfile.email.split("@")[0].toUpperCase();
+            lead.derivLoginId = derivId;
+            leadMap.set(lead.email.toLowerCase(), lead);
+          } else if (shadowProfiles.length === 1 && leadList.length === 1) {
+            // Single lead & single Deriv user
+            const derivId = shadowProfiles[0].email.split("@")[0].toUpperCase();
+            lead.derivLoginId = derivId;
+            leadMap.set(lead.email.toLowerCase(), lead);
+          }
         }
       });
     }
