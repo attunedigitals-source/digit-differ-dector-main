@@ -163,8 +163,9 @@ export default function UserManagement() {
       toast.error("No lead records available to export.");
       return;
     }
-    const headers = ["Full Name", "Email", "WhatsApp Phone", "Connected Deriv Account", "Deriv Accounts List", "Source", "Date Captured"];
+    const headers = ["User ID", "Full Name", "Email", "WhatsApp Phone", "Connected Deriv Account", "Deriv Accounts List", "Source", "Date Captured"];
     const rows = leadsList.map(l => [
+      `"${l.userId || "N/A"}"`,
       `"${l.name || ""}"`,
       `"${l.email || ""}"`,
       `"${l.phone || ""}"`,
@@ -580,6 +581,7 @@ export default function UserManagement() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-border">
+                    <TableHead className="text-xs font-mono font-bold text-primary">User ID</TableHead>
                     <TableHead className="text-xs">Full Name</TableHead>
                     <TableHead className="text-xs">Email</TableHead>
                     <TableHead className="text-xs">WhatsApp Phone</TableHead>
@@ -592,13 +594,13 @@ export default function UserManagement() {
                 <TableBody>
                   {leadsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs">
                         Loading captured leads...
                       </TableCell>
                     </TableRow>
                   ) : capturedLeads?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs italic">
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs italic">
                         No captured leads found yet. Submit a registration at /lp2 or /register to test.
                       </TableCell>
                     </TableRow>
@@ -608,6 +610,7 @@ export default function UserManagement() {
                         (l.email || "").toLowerCase().includes(search.toLowerCase()) ||
                         (l.phone || "").includes(search) ||
                         (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
+                        (l.userId || "").toLowerCase().includes(search.toLowerCase()) ||
                         (l.derivLoginId || "").toLowerCase().includes(search.toLowerCase())
                       )
                       .map((lead, idx) => {
@@ -616,6 +619,9 @@ export default function UserManagement() {
 
                         return (
                           <TableRow key={lead.email + idx} className="border-border/50 hover:bg-muted/20">
+                            <TableCell className="text-xs font-mono font-semibold text-primary">
+                              {lead.userId || "N/A"}
+                            </TableCell>
                             <TableCell className="text-sm font-medium text-foreground">
                               {lead.name || "N/A"}
                             </TableCell>

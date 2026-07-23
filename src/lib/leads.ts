@@ -632,6 +632,8 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
             name: row.name || existing?.name || "",
             source: row.source || existing?.source || "tiktok_paid",
             whatsappOptIn: row.whatsapp_opt_in ?? existing?.whatsappOptIn ?? true,
+            userId: row.user_id || existing?.userId || (row.id ? `usr_${row.id.substring(0, 8)}` : undefined),
+            rstate: row.rstate || existing?.rstate,
             derivLoginId: row.deriv_loginid || existing?.derivLoginId,
             derivAccounts: row.deriv_accounts || existing?.derivAccounts,
             createdAt: row.created_at || existing?.createdAt || new Date().toISOString(),
