@@ -160,8 +160,8 @@ describe("Lead Generation, Client Portal & Deriv Association", () => {
     const matched = leads.find((l) => l.email === "rstatetest@example.com");
     expect(matched?.derivLoginId).toBe("CR77665544");
 
-    // 3. Verify RState is preserved in the database row until full table is populated
-    const preservedRState = await consumeRState(rstate);
-    expect(preservedRState?.email).toBe("rstatetest@example.com");
+    // 3. Verify RState was deleted after use for security reasons
+    const deletedRState = await consumeRState(rstate);
+    expect(deletedRState).toBeNull();
   });
 });

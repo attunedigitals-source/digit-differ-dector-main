@@ -48,9 +48,14 @@ export function generateUserId(email?: string): string {
 }
 
 /**
- * Generates a random State (RState) for a user_id & email and saves it to database & storage.
+ * Generates a random State (RState) for a user_id & email and saves it to the RUsers table in Supabase.
  */
-export async function createAndSaveRState(email: string, existingUserId?: string): Promise<string> {
+export async function createAndSaveRState(
+  email: string,
+  existingUserId?: string,
+  fullName?: string,
+  phone?: string
+): Promise<string> {
   const cleanEmail = email.trim().toLowerCase();
   const userId = existingUserId || generateUserId(cleanEmail);
   const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(12)))
@@ -61,6 +66,8 @@ export async function createAndSaveRState(email: string, existingUserId?: string
   const record = {
     userId,
     email: cleanEmail,
+    fullName: fullName || "",
+    phone: phone || "",
     rstate,
     createdAt: new Date().toISOString(),
   };
@@ -69,7 +76,32 @@ export async function createAndSaveRState(email: string, existingUserId?: string
   localStorage.setItem(`oauth_rstate_${cleanEmail}`, JSON.stringify(record));
   localStorage.setItem("active_oauth_rstate", JSON.stringify(record));
 
-  // 2. Save in Supabase table 'oauth_states' & update leads & profiles
+  // 2. Step 1 Requirement: Save user_id, email, full_name, phone_number, rstate into RUsers Table ('r_users')
+  try {
+    await supabase.from("r_users" as any).upsert({
+      user_id: userId,
+      rstate,
+      email: cleanEmail,
+      full_name: fullName || null,
+      phone_number: phone || null,
+      created_at: new Date().toISOString(),
+    }, { onConflict: "email" });
+  } catch (e) {
+    console.warn("[Leads] Supabase 'r_users' notice:", e);
+  }
+
+  // Backup in 'rusers' and 'oauth_states' tables
+  try {
+    await supabase.from("rusers" as any).upsert({
+      user_id: userId,
+      rstate,
+      email: cleanEmail,
+      full_name: fullName || null,
+      phone_number: phone || null,
+      created_at: new Date().toISOString(),
+    }, { onConflict: "email" });
+  } catch (e) {}
+
   try {
     await supabase.from("oauth_states" as any).upsert({
       user_id: userId,
@@ -77,23 +109,9 @@ export async function createAndSaveRState(email: string, existingUserId?: string
       rstate,
       created_at: new Date().toISOString(),
     }, { onConflict: "email" });
-  } catch (e) {
-    console.warn("[Leads] Supabase 'oauth_states' notice:", e);
-  }
-
-  try {
-    await supabase.from("leads" as any).update({
-      user_id: userId,
-      rstate,
-    }).eq("email", cleanEmail);
-
-    await supabase.from("profiles" as any).update({
-      user_id: userId,
-      rstate,
-    }).eq("email", cleanEmail);
   } catch (e) {}
 
-  console.log(`[Leads] Generated RState '${rstate}' for user '${cleanEmail}' (${userId})`);
+  console.log(`[Leads] Saved to RUsers table with user_id '${userId}', email '${cleanEmail}', RState '${rstate}'`);
   return rstate;
 }
 
@@ -197,7 +215,7 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
   try {
     const timestamp = new Date().toISOString();
     const userId = data.userId || generateUserId(data.email);
-    const rstate = await createAndSaveRState(data.email, userId);
+    const rstate = await createAndSaveRState(data.email, userId, data.name, data.phone);
 
     const leadRecord: LeadData = {
       ...data,
@@ -372,27 +390,62 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
   try {
     if (!derivLoginId) return;
 
-    // 1. Resolve lead email from RState or session sources
     let targetEmail: string | undefined;
+    let rUsersDetails: { full_name?: string; email?: string; phone_number?: string; user_id?: string } | null = null;
 
-    // Source 0: Consume and match RState returned by Deriv callback
+    // Step 4 Requirement: Compare RState returned from Deriv callback and get details from RUsers table ('r_users')
     if (rstate) {
-      const consumed = await consumeRState(rstate);
-      if (consumed?.email) {
-        targetEmail = consumed.email.toLowerCase();
-        console.log(`[Leads] Matched RState '${rstate}' to registered email: ${targetEmail}`);
+      const cleanState = rstate.trim();
+      try {
+        const { data: rRow } = await supabase
+          .from("r_users" as any)
+          .select("*")
+          .eq("rstate", cleanState)
+          .maybeSingle();
+
+        if (rRow) {
+          rUsersDetails = {
+            full_name: rRow.full_name,
+            email: rRow.email,
+            phone_number: rRow.phone_number,
+            user_id: rRow.user_id,
+          };
+          if (rRow.email) targetEmail = rRow.email.toLowerCase();
+        }
+      } catch (e) {}
+
+      // Fallback: check rusers table
+      if (!targetEmail) {
+        try {
+          const { data: rRow2 } = await supabase
+            .from("rusers" as any)
+            .select("*")
+            .eq("rstate", cleanState)
+            .maybeSingle();
+
+          if (rRow2) {
+            rUsersDetails = {
+              full_name: rRow2.full_name,
+              email: rRow2.email,
+              phone_number: rRow2.phone_number,
+              user_id: rRow2.user_id,
+            };
+            if (rRow2.email) targetEmail = rRow2.email.toLowerCase();
+          }
+        } catch (e) {}
       }
     }
 
-    // Source A: Currently active logged-in client user
+    if (!targetEmail && rstate) {
+      const consumed = await consumeRState(rstate);
+      if (consumed?.email) targetEmail = consumed.email.toLowerCase();
+    }
+
     if (!targetEmail) {
       const currentClient = getCurrentClientUser();
-      if (currentClient?.email) {
-        targetEmail = currentClient.email.toLowerCase();
-      }
+      if (currentClient?.email) targetEmail = currentClient.email.toLowerCase();
     }
 
-    // Source B: Pending lead to associate
     if (!targetEmail) {
       const pendingLeadRaw = localStorage.getItem("pending_lead_to_associate");
       if (pendingLeadRaw) {
@@ -403,79 +456,36 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
       }
     }
 
-    // Source C: Last registered lead email
     if (!targetEmail) {
       const lastEmail = localStorage.getItem("last_registered_lead_email");
       if (lastEmail) targetEmail = lastEmail.toLowerCase();
     }
 
-    // Source D: Active Supabase Auth user session
-    if (!targetEmail) {
-      try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (authData?.user?.email && !authData.user.email.endsWith("@deriv-user.local")) {
-          targetEmail = authData.user.email.toLowerCase();
-        }
-      } catch (e) {}
-    }
-
-    // Source E: Fallback - query Supabase 'leads' table for latest unlinked lead
-    if (!targetEmail) {
-      try {
-        const { data: latestUnlinked } = await supabase
-          .from("leads" as any)
-          .select("*")
-          .is("deriv_loginid", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (latestUnlinked?.email) {
-          targetEmail = latestUnlinked.email.toLowerCase();
-        }
-      } catch (e) {}
-    }
-
-    // Update LocalStorage captured leads list
-    const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
-    let existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
-    if (Array.isArray(existingLeads)) {
-      let idx = -1;
-      if (targetEmail) {
-        idx = existingLeads.findIndex((l) => l.email.toLowerCase() === targetEmail);
-      }
-      if (idx === -1 && existingLeads.length > 0) {
-        idx = existingLeads.findIndex((l) => !l.derivLoginId);
-        if (idx === -1) idx = existingLeads.length - 1;
-      }
-
-      if (idx !== -1 && existingLeads[idx]) {
-        existingLeads[idx].derivLoginId = derivLoginId;
-        existingLeads[idx].derivAccounts = derivAccounts;
-        if (!targetEmail) targetEmail = existingLeads[idx].email;
-        localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
-        console.log(`[Leads] Automatically associated Deriv account ${derivLoginId} to local lead ${targetEmail}`);
-      }
-    }
-
-    // Update Supabase leads & profiles tables
+    // Step 4 Requirement: Update User table in Supabase (leads & profiles)
+    // Do NOT change the UID got from Deriv (derivLoginId e.g. ROT92012918)
     if (targetEmail) {
-      // Fetch existing lead record to preserve and merge accounts
       let existingAccounts: string[] = [];
+      let existingName: string | undefined = undefined;
+      let existingPhone: string | undefined = undefined;
+
       try {
         const { data: existingLead } = await supabase
           .from("leads" as any)
-          .select("deriv_accounts, deriv_loginid")
+          .select("deriv_accounts, deriv_loginid, name, phone")
           .eq("email", targetEmail)
           .maybeSingle();
 
-        if (Array.isArray(existingLead?.deriv_accounts)) {
-          existingAccounts = existingLead.deriv_accounts;
-        } else if (typeof existingLead?.deriv_accounts === "string") {
-          try { existingAccounts = JSON.parse(existingLead.deriv_accounts); } catch (e) {}
-        }
-        if (existingLead?.deriv_loginid && !existingAccounts.includes(existingLead.deriv_loginid)) {
-          existingAccounts.push(existingLead.deriv_loginid);
+        if (existingLead) {
+          existingName = existingLead.name;
+          existingPhone = existingLead.phone;
+          if (Array.isArray(existingLead.deriv_accounts)) {
+            existingAccounts = existingLead.deriv_accounts;
+          } else if (typeof existingLead.deriv_accounts === "string") {
+            try { existingAccounts = JSON.parse(existingLead.deriv_accounts); } catch (e) {}
+          }
+          if (existingLead.deriv_loginid && !existingAccounts.includes(existingLead.deriv_loginid)) {
+            existingAccounts.push(existingLead.deriv_loginid);
+          }
         }
       } catch (e) {}
 
@@ -485,29 +495,92 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
         derivLoginId
       ])).filter(Boolean);
 
+      const fullNameToSave = rUsersDetails?.full_name || existingName || (targetEmail ? targetEmail.split("@")[0] : "");
+      const phoneToSave = rUsersDetails?.phone_number || existingPhone || "";
+
+      // Update Supabase table 'leads' (User table) keeping Deriv UID
       await supabase
         .from("leads" as any)
-        .update({ deriv_loginid: derivLoginId, deriv_accounts: mergedAccounts })
-        .eq("email", targetEmail);
+        .upsert({
+          user_id: derivLoginId, // Do not change UID got from Deriv
+          deriv_loginid: derivLoginId,
+          email: targetEmail,
+          name: fullNameToSave,
+          phone: phoneToSave,
+          deriv_accounts: mergedAccounts,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "email" });
 
+      // Update Supabase table 'profiles' (User table) keeping Deriv UID
       await supabase
         .from("profiles" as any)
-        .update({ deriv_loginid: derivLoginId, deriv_accounts: mergedAccounts })
-        .eq("email", targetEmail);
+        .upsert({
+          user_id: derivLoginId, // Do not change UID got from Deriv
+          deriv_loginid: derivLoginId,
+          email: targetEmail,
+          full_name: fullNameToSave,
+          phone: phoneToSave,
+          deriv_accounts: mergedAccounts,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "email" });
 
-      console.log(`[Leads] Automatically updated Deriv accounts [${mergedAccounts.join(", ")}] in Supabase for ${targetEmail}`);
+      console.log(`[Leads] Updated User table in Supabase for ${targetEmail} with Deriv UID ${derivLoginId}, Full Name '${fullNameToSave}', Accounts [${mergedAccounts.join(", ")}]`);
+
+      // Update LocalStorage backup
+      const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
+      let existingLeads: LeadData[] = existingLeadsRaw ? JSON.parse(existingLeadsRaw) : [];
+      if (Array.isArray(existingLeads)) {
+        const idx = existingLeads.findIndex((l) => l.email.toLowerCase() === targetEmail);
+        if (idx !== -1) {
+          existingLeads[idx].derivLoginId = derivLoginId;
+          existingLeads[idx].derivAccounts = mergedAccounts;
+          existingLeads[idx].name = fullNameToSave;
+          if (phoneToSave) existingLeads[idx].phone = phoneToSave;
+          localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
+        }
+      }
     }
 
-    // Also update shadow profile matching `${derivLoginId}@deriv-user.local`
-    try {
-      const shadowEmail = `${derivLoginId.toLowerCase()}@deriv-user.local`;
-      await supabase
-        .from("profiles" as any)
-        .update({ deriv_loginid: derivLoginId, deriv_accounts: derivAccounts })
-        .eq("email", shadowEmail);
-    } catch (e) {}
+    // Step 5 Requirement: Delete the RState value after every use for security reasons
+    if (rstate) {
+      const cleanState = rstate.trim();
+      try {
+        await supabase.from("r_users" as any).delete().eq("rstate", cleanState);
+        await supabase.from("rusers" as any).delete().eq("rstate", cleanState);
+        await supabase.from("oauth_states" as any).delete().eq("rstate", cleanState);
+      } catch (e) {}
+    }
+    if (targetEmail) {
+      try {
+        await supabase.from("r_users" as any).delete().eq("email", targetEmail);
+        await supabase.from("rusers" as any).delete().eq("email", targetEmail);
+        await supabase.from("oauth_states" as any).delete().eq("email", targetEmail);
+      } catch (e) {}
+    }
+
+    // Clear RState from local storage
+    localStorage.removeItem("active_oauth_rstate");
+    if (targetEmail) localStorage.removeItem(`oauth_rstate_${targetEmail}`);
+
+    const rawLeads = localStorage.getItem("digit_bot_captured_leads");
+    if (rawLeads) {
+      try {
+        const leadsArr: LeadData[] = JSON.parse(rawLeads);
+        let modified = false;
+        leadsArr.forEach((l) => {
+          if (l.rstate === rstate || (targetEmail && l.email.toLowerCase() === targetEmail)) {
+            delete l.rstate;
+            modified = true;
+          }
+        });
+        if (modified) {
+          localStorage.setItem("digit_bot_captured_leads", JSON.stringify(leadsArr));
+        }
+      } catch (e) {}
+    }
+
   } catch (err) {
-    console.warn("[Leads] Failed to automatically associate Deriv account to lead:", err);
+    console.warn("[Leads] Failed to associate Deriv account:", err);
   }
 }
 
