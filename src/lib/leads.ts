@@ -293,10 +293,15 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
         await supabase.auth.signUp({
           email: data.email,
           password: data.password,
+          phone: data.phone || undefined,
           options: {
             data: {
-              full_name: data.name || null,
-              phone: data.phone,
+              display_name: data.name || data.email.split("@")[0],
+              full_name: data.name || data.email.split("@")[0],
+              name: data.name || data.email.split("@")[0],
+              phone: data.phone || "",
+              phone_number: data.phone || "",
+              whatsapp_phone: data.phone || "",
             },
           },
         });
@@ -514,7 +519,9 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
           deriv_loginid: derivLoginId,
           email: targetEmail,
           name: fullNameToSave,
+          full_name: fullNameToSave,
           phone: phoneToSave,
+          phone_number: phoneToSave,
           deriv_accounts: mergedAccounts,
           updated_at: new Date().toISOString(),
         }, { onConflict: "email" });
@@ -526,11 +533,30 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
           user_id: derivLoginId, // Do not change UID got from Deriv
           deriv_loginid: derivLoginId,
           email: targetEmail,
+          name: fullNameToSave,
           full_name: fullNameToSave,
           phone: phoneToSave,
+          phone_number: phoneToSave,
           deriv_accounts: mergedAccounts,
           updated_at: new Date().toISOString(),
         }, { onConflict: "email" });
+
+      // Update Auth User Metadata so Phone and Display Name appear in Supabase Auth Users Directory
+      try {
+        const { data: authUser } = await supabase.auth.getUser();
+        if (authUser?.user) {
+          await supabase.auth.updateUser({
+            phone: phoneToSave || undefined,
+            data: {
+              display_name: fullNameToSave,
+              full_name: fullNameToSave,
+              name: fullNameToSave,
+              phone: phoneToSave,
+              phone_number: phoneToSave,
+            },
+          });
+        }
+      } catch (e) {}
 
       console.log(`[Leads] Updated User table in Supabase for ${targetEmail} with Deriv UID ${derivLoginId}, Full Name '${fullNameToSave}', Accounts [${mergedAccounts.join(", ")}]`);
 
