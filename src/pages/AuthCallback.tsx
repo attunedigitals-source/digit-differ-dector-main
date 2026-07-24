@@ -70,34 +70,8 @@ export default function AuthCallback() {
             saveSession(session);
             await associateDerivAccount(activeLoginid, accounts.map((a) => a.loginid), returnedState || undefined);
 
-            // Step 5: Create or sign in to Supabase shadow account
-            setStep("Setting up your session...");
-            const email = `${activeLoginid.toLowerCase()}@deriv-user.local`;
-            const password = `${activeLoginid}_digitbot_auth`;
-
-            const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-
-            if (signInError) {
-              const { error: signUpError } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                  data: {
-                    full_name: `Deriv User ${activeLoginid}`,
-                    deriv_loginid: activeLoginid,
-                  },
-                },
-              });
-
-              if (signUpError) {
-                setError(`Account setup failed: ${signUpError.message}`);
-                return;
-              }
-            }
-
-            // Done — go to dashboard
-        // Done — go to dashboard
-        window.location.href = "/auth";
+            // Done — redirect to client dashboard
+            window.location.href = "/auth";
             return;
           }
         }
@@ -253,34 +227,7 @@ export default function AuthCallback() {
         saveSession(session);
         await associateDerivAccount(session.active_loginid, accounts.map((a) => a.loginid), returnedState);
 
-        // Step 5: Create or sign in to Supabase shadow account
-        setStep("Setting up your session...");
-        const activeAccount = accounts[0]?.loginid || "user";
-        const email = `${activeAccount.toLowerCase()}@deriv-user.local`;
-        const password = `${activeAccount}_digitbot_auth`;
-
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-
-        if (signInError) {
-          // Create shadow account if it doesn't exist
-          const { error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                full_name: `Deriv User ${activeAccount}`,
-                deriv_loginid: activeAccount,
-              },
-            },
-          });
-
-          if (signUpError) {
-            setError(`Account setup failed: ${signUpError.message}`);
-            return;
-          }
-        }
-
-        // Done — go to dashboard
+        // Done — redirect to client dashboard
         navigate("/auth", { replace: true });
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "OAuth callback failed unexpectedly.");

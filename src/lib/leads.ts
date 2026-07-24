@@ -166,9 +166,24 @@ export async function consumeRState(rstate: string): Promise<{ email: string; us
     } catch (e) {}
   }
 
-  // Preserve RState in database tables so complete record is populated
+  // Strip/clear rstate after callback result has been received for single unified record
+  if (cleanState) {
+    try {
+      localStorage.removeItem("active_oauth_rstate");
+      if (matchedEmail) {
+        localStorage.removeItem(`oauth_rstate_${matchedEmail}`);
+      }
+
+      await supabase.from("oauth_states" as any).delete().eq("rstate", cleanState);
+      if (matchedEmail) {
+        await supabase.from("leads" as any).update({ rstate: null }).eq("email", matchedEmail);
+        await supabase.from("profiles" as any).update({ rstate: null }).eq("email", matchedEmail);
+      }
+    } catch (e) {}
+  }
+
   if (matchedEmail) {
-    console.log(`[Leads] Matched RState '${cleanState}' for user '${matchedEmail}'`);
+    console.log(`[Leads] Stripped & consumed RState '${cleanState}' for user '${matchedEmail}'`);
     return { email: matchedEmail, userId: matchedUserId || "" };
   }
 
@@ -740,19 +755,20 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
       const parsed: LeadData[] = JSON.parse(rawLocal);
       if (Array.isArray(parsed)) {
         parsed.forEach((item) => {
-          if (item.email && !leadMap.has(item.email.toLowerCase())) {
-            leadMap.set(item.email.toLowerCase(), item);
-          } else if (item.email && leadMap.has(item.email.toLowerCase())) {
-            const existing = leadMap.get(item.email.toLowerCase())!;
-            leadMap.set(item.email.toLowerCase(), {
-              ...item,
-              ...existing,
-              phone: existing.phone || item.phone,
-              name: existing.name || item.name,
-              userId: existing.userId || item.userId,
-              rstate: existing.rstate || item.rstate,
-              derivLoginId: existing.derivLoginId || item.derivLoginId,
-            });
+          if (item.email && !item.email.toLowerCase().endsWith("@deriv-user.local")) {
+            if (!leadMap.has(item.email.toLowerCase())) {
+              leadMap.set(item.email.toLowerCase(), item);
+            } else {
+              const existing = leadMap.get(item.email.toLowerCase())!;
+              leadMap.set(item.email.toLowerCase(), {
+                ...item,
+                ...existing,
+                phone: existing.phone || item.phone,
+                name: existing.name || item.name,
+                userId: existing.userId || item.userId,
+                derivLoginId: existing.derivLoginId || item.derivLoginId,
+              });
+            }
           }
         });
       }
@@ -761,7 +777,12 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
     console.warn("[Leads] Could not process local storage sync:", e);
   }
 
-  return Array.from(leadMap.values()).sort((a, b) => {
+  // Filter out any shadow records ending with @deriv-user.local
+  const cleanList = Array.from(leadMap.values()).filter(
+    (l) => l.email && !l.email.toLowerCase().endsWith("@deriv-user.local")
+  );
+
+  return cleanList.sort((a, b) => {
     return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
 }
