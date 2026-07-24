@@ -47,7 +47,7 @@ export async function getOAuthUrl(action: "login" | "signup" = "login"): Promise
     const { getCurrentClientUser, createAndSaveRState } = await import("./leads");
     const clientUser = getCurrentClientUser();
     if (clientUser?.email) {
-      oauthState = await createAndSaveRState(clientUser.email);
+      oauthState = await createAndSaveRState(clientUser.email, clientUser.userId);
     }
   } catch (e) {
     console.warn("[OAuth] Could not attach RState to OAuth URL:", e);

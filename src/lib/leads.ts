@@ -40,6 +40,10 @@ export async function sha256Hash(str: string): Promise<string> {
 /**
  * Generates a unique random user_id for a registered user.
  */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export function generateUserId(email?: string): string {
   const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -51,7 +55,7 @@ export function generateUserId(email?: string): string {
  * Generates a random State (RState) for a user_id & email and saves it to database & storage.
  */
 export async function createAndSaveRState(email: string, existingUserId?: string): Promise<string> {
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanEmail = normalizeEmail(email);
   const userId = existingUserId || generateUserId(cleanEmail);
   const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(12)))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -196,11 +200,13 @@ export async function consumeRState(rstate: string): Promise<{ email: string; us
 export async function submitLead(data: LeadData): Promise<{ success: boolean; message: string }> {
   try {
     const timestamp = new Date().toISOString();
-    const userId = data.userId || generateUserId(data.email);
-    const rstate = await createAndSaveRState(data.email, userId);
+    const cleanEmail = normalizeEmail(data.email);
+    const userId = data.userId || generateUserId(cleanEmail);
+    const rstate = await createAndSaveRState(cleanEmail, userId);
 
     const leadRecord: LeadData = {
       ...data,
+      email: cleanEmail,
       userId,
       rstate,
       createdAt: timestamp,
@@ -212,29 +218,30 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     if (!Array.isArray(existingLeads)) existingLeads = [];
     
     // Filter out previous duplicate by email if re-registering
-    existingLeads = existingLeads.filter((l) => l.email.toLowerCase() !== data.email.toLowerCase());
+    existingLeads = existingLeads.filter((l) => normalizeEmail(l.email) !== cleanEmail);
     existingLeads.push(leadRecord);
     
     localStorage.setItem("digit_bot_captured_leads", JSON.stringify(existingLeads));
-    localStorage.setItem("last_registered_lead_email", data.email.trim().toLowerCase());
+    localStorage.setItem("last_registered_lead_email", cleanEmail);
     localStorage.setItem("pending_lead_to_associate", JSON.stringify(leadRecord));
 
     // 2. Insert into Supabase table 'leads' if it exists
-    const { error: leadsErr } = await supabase.from("leads" as any).insert({
+    const { error: leadsErr } = await supabase.from("leads" as any).upsert({
       user_id: userId,
       rstate,
-      email: data.email,
+      email: cleanEmail,
       phone: data.phone,
       name: data.name || null,
       source: data.source,
       whatsapp_opt_in: data.whatsappOptIn ?? true,
       created_at: timestamp,
-    });
+      updated_at: timestamp,
+    }, { onConflict: "email" });
 
     if (leadsErr) {
       console.warn("[Leads] Supabase 'leads' insert notice:", leadsErr.message);
     } else {
-      console.log(`[Leads] Lead saved to Supabase 'leads' table with userId ${userId} & RState ${rstate}: ${data.email}`);
+      console.log(`[Leads] Lead saved to Supabase 'leads' table with userId ${userId} & RState ${rstate}: ${cleanEmail}`);
     }
 
     // 3. Upsert into Supabase table 'profiles' so it shows up in main profiles table
@@ -242,7 +249,7 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
       await supabase.from("profiles" as any).upsert({
         user_id: userId,
         rstate,
-        email: data.email,
+        email: cleanEmail,
         phone: data.phone,
         full_name: data.name || null,
         lead_source: data.source,
@@ -255,9 +262,11 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
 
     // 4. Save current active client user info for welcome portal
     const clientUser = {
-      email: data.email,
+      email: cleanEmail,
       name: data.name || "Valued Client",
       phone: data.phone,
+      userId,
+      rstate,
     };
     localStorage.setItem("current_client_user", JSON.stringify(clientUser));
 
@@ -265,7 +274,7 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     if (data.password) {
       try {
         await supabase.auth.signUp({
-          email: data.email,
+          email: cleanEmail,
           password: data.password,
           options: {
             data: {
@@ -352,7 +361,7 @@ export async function loginClientUser(
 /**
  * Returns currently logged-in client user details for welcome greeting.
  */
-export function getCurrentClientUser(): { email: string; name: string; phone?: string } | null {
+export function getCurrentClientUser(): { email: string; name: string; phone?: string; userId?: string; rstate?: string } | null {
   try {
     const raw = localStorage.getItem("current_client_user");
     if (raw) {
@@ -379,7 +388,7 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
     if (rstate) {
       const consumed = await consumeRState(rstate);
       if (consumed?.email) {
-        targetEmail = consumed.email.toLowerCase();
+        targetEmail = normalizeEmail(consumed.email);
         console.log(`[Leads] Matched RState '${rstate}' to registered email: ${targetEmail}`);
       }
     }
@@ -388,7 +397,7 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
     if (!targetEmail) {
       const currentClient = getCurrentClientUser();
       if (currentClient?.email) {
-        targetEmail = currentClient.email.toLowerCase();
+        targetEmail = normalizeEmail(currentClient.email);
       }
     }
 
@@ -398,7 +407,7 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
       if (pendingLeadRaw) {
         try {
           const pending = JSON.parse(pendingLeadRaw);
-          if (pending?.email) targetEmail = pending.email.toLowerCase();
+          if (pending?.email) targetEmail = normalizeEmail(pending.email);
         } catch (e) {}
       }
     }
@@ -406,7 +415,7 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
     // Source C: Last registered lead email
     if (!targetEmail) {
       const lastEmail = localStorage.getItem("last_registered_lead_email");
-      if (lastEmail) targetEmail = lastEmail.toLowerCase();
+      if (lastEmail) targetEmail = normalizeEmail(lastEmail);
     }
 
     // Source D: Active Supabase Auth user session
@@ -414,26 +423,36 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
       try {
         const { data: authData } = await supabase.auth.getUser();
         if (authData?.user?.email && !authData.user.email.endsWith("@deriv-user.local")) {
-          targetEmail = authData.user.email.toLowerCase();
+          targetEmail = normalizeEmail(authData.user.email);
         }
       } catch (e) {}
     }
 
-    // Source E: Fallback - query Supabase 'leads' table for latest unlinked lead
+    // Source E: Fallback - only use the latest unlinked lead when this browser has exactly one pending lead.
+    // This prevents pairing one visitor's Deriv account to another visitor's newest registration.
     if (!targetEmail) {
+      let hasSingleLocalPendingLead = false;
       try {
-        const { data: latestUnlinked } = await supabase
-          .from("leads" as any)
-          .select("*")
-          .is("deriv_loginid", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (latestUnlinked?.email) {
-          targetEmail = latestUnlinked.email.toLowerCase();
-        }
+        const raw = localStorage.getItem("digit_bot_captured_leads");
+        const localLeads: LeadData[] = raw ? JSON.parse(raw) : [];
+        hasSingleLocalPendingLead = Array.isArray(localLeads) && localLeads.filter((l) => !l.derivLoginId).length === 1;
       } catch (e) {}
+
+      if (hasSingleLocalPendingLead) {
+        try {
+          const { data: latestUnlinked } = await supabase
+            .from("leads" as any)
+            .select("*")
+            .is("deriv_loginid", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestUnlinked?.email) {
+            targetEmail = normalizeEmail(latestUnlinked.email);
+          }
+        } catch (e) {}
+      }
     }
 
     // Update LocalStorage captured leads list
@@ -442,7 +461,7 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
     if (Array.isArray(existingLeads)) {
       let idx = -1;
       if (targetEmail) {
-        idx = existingLeads.findIndex((l) => l.email.toLowerCase() === targetEmail);
+        idx = existingLeads.findIndex((l) => normalizeEmail(l.email) === targetEmail);
       }
       if (idx === -1 && existingLeads.length > 0) {
         idx = existingLeads.findIndex((l) => !l.derivLoginId);
@@ -487,8 +506,12 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
 
       await supabase
         .from("leads" as any)
-        .update({ deriv_loginid: derivLoginId, deriv_accounts: mergedAccounts })
-        .eq("email", targetEmail);
+        .upsert({
+          email: targetEmail,
+          deriv_loginid: derivLoginId,
+          deriv_accounts: mergedAccounts,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "email" });
 
       await supabase
         .from("profiles" as any)
