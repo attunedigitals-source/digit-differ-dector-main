@@ -219,17 +219,20 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     localStorage.setItem("last_registered_lead_email", data.email.trim().toLowerCase());
     localStorage.setItem("pending_lead_to_associate", JSON.stringify(leadRecord));
 
-    // 2. Insert into Supabase table 'leads' if it exists
-    const { error: leadsErr } = await supabase.from("leads" as any).insert({
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    // 2. Upsert into Supabase table 'leads' so repeat registrations keep contact data fresh
+    const { error: leadsErr } = await supabase.from("leads" as any).upsert({
       user_id: userId,
       rstate,
-      email: data.email,
+      email: cleanEmail,
       phone: data.phone,
       name: data.name || null,
       source: data.source,
       whatsapp_opt_in: data.whatsappOptIn ?? true,
+      updated_at: timestamp,
       created_at: timestamp,
-    });
+    }, { onConflict: "email" });
 
     if (leadsErr) {
       console.warn("[Leads] Supabase 'leads' insert notice:", leadsErr.message);
@@ -242,7 +245,7 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
       await supabase.from("profiles" as any).upsert({
         user_id: userId,
         rstate,
-        email: data.email,
+        email: cleanEmail,
         phone: data.phone,
         full_name: data.name || null,
         lead_source: data.source,
@@ -264,16 +267,31 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
     // 5. Attempt Supabase Auth Sign Up if password provided
     if (data.password) {
       try {
-        await supabase.auth.signUp({
-          email: data.email,
+        const { data: authData } = await supabase.auth.signUp({
+          email: cleanEmail,
           password: data.password,
           options: {
             data: {
               full_name: data.name || null,
+              name: data.name || null,
+              display_name: data.name || null,
               phone: data.phone,
+              phone_number: data.phone,
             },
           },
         });
+
+        if (authData.user?.id) {
+          await supabase.from("profiles" as any).update({
+            id: authData.user.id,
+            email: cleanEmail,
+            phone: data.phone,
+            full_name: data.name || null,
+            lead_source: data.source,
+            whatsapp_opt_in: data.whatsappOptIn ?? true,
+            updated_at: timestamp,
+          }).eq("id", authData.user.id);
+        }
       } catch (authErr: any) {
         console.warn("[Leads] Supabase auth signup notice:", authErr?.message);
       }
@@ -465,7 +483,7 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
       try {
         const { data: existingLead } = await supabase
           .from("leads" as any)
-          .select("deriv_accounts, deriv_loginid")
+          .select("deriv_accounts, deriv_loginid, phone, name, user_id")
           .eq("email", targetEmail)
           .maybeSingle();
 
@@ -492,7 +510,12 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
 
       await supabase
         .from("profiles" as any)
-        .update({ deriv_loginid: derivLoginId, deriv_accounts: mergedAccounts })
+        .update({
+          deriv_loginid: derivLoginId,
+          deriv_accounts: mergedAccounts,
+          phone: existingLead?.phone || undefined,
+          full_name: existingLead?.name || undefined,
+        })
         .eq("email", targetEmail);
 
       console.log(`[Leads] Automatically updated Deriv accounts [${mergedAccounts.join(", ")}] in Supabase for ${targetEmail}`);
