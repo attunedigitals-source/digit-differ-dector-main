@@ -163,14 +163,15 @@ export default function UserManagement() {
       toast.error("No lead records available to export.");
       return;
     }
-    const headers = ["User ID", "Full Name", "Email", "WhatsApp Phone", "Connected Deriv Account", "Deriv Accounts List", "Source", "Date Captured"];
+    const headers = ["User ID", "Full Name / Display Name", "Email Address", "Phone Number", "Connected Deriv Account", "Deriv Accounts List", "RState Token", "Source", "Date Registered"];
     const rows = leadsList.map(l => [
       `"${l.userId || "N/A"}"`,
-      `"${l.name || ""}"`,
+      `"${l.name || (l.email ? l.email.split("@")[0] : "")}"`,
       `"${l.email || ""}"`,
       `"${l.phone || ""}"`,
       `"${l.derivLoginId || "Not Connected Yet"}"`,
       `"${(l.derivAccounts || []).join(", ")}"`,
+      `"${l.rstate || "Active"}"`,
       `"${l.source === "tiktok_paid" ? "TikTok Paid (LP2)" : "Organic Direct"}"`,
       `"${new Date(l.createdAt || Date.now()).toLocaleString()}"`
     ]);
@@ -566,13 +567,13 @@ export default function UserManagement() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                    TikTok & Organic Lead Registrations
+                    Registered Users & Captured Leads Directory
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
                       {capturedLeads?.length || 0} Total
                     </Badge>
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Contact information captured from LP2 TikTok Ads and direct registration.
+                    Complete directory of registered users, RState tokens, contact details, and connected Deriv account IDs.
                   </p>
                 </div>
                 <Button
@@ -588,25 +589,26 @@ export default function UserManagement() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-border">
                     <TableHead className="text-xs font-mono font-bold text-primary">User ID</TableHead>
-                    <TableHead className="text-xs">Full Name</TableHead>
-                    <TableHead className="text-xs">Email</TableHead>
-                    <TableHead className="text-xs">WhatsApp Phone</TableHead>
-                    <TableHead className="text-xs">Connected Deriv Account</TableHead>
-                    <TableHead className="text-xs">Traffic Source</TableHead>
-                    <TableHead className="text-xs">Date Captured</TableHead>
-                    <TableHead className="text-xs text-right">Action</TableHead>
+                    <TableHead className="text-xs font-semibold">Full Name / Display Name</TableHead>
+                    <TableHead className="text-xs font-semibold">Email Address</TableHead>
+                    <TableHead className="text-xs font-semibold">Phone Number</TableHead>
+                    <TableHead className="text-xs font-semibold">Connected Deriv Account(s)</TableHead>
+                    <TableHead className="text-xs font-mono font-bold text-purple-400">RState Token</TableHead>
+                    <TableHead className="text-xs font-semibold">Traffic Source</TableHead>
+                    <TableHead className="text-xs font-semibold">Date Registered</TableHead>
+                    <TableHead className="text-xs text-right font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {leadsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs">
+                      <TableCell colSpan={9} className="text-center py-12 text-muted-foreground text-xs">
                         Loading captured leads...
                       </TableCell>
                     </TableRow>
                   ) : capturedLeads?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs italic">
+                      <TableCell colSpan={9} className="text-center py-12 text-muted-foreground text-xs italic">
                         No captured leads found yet. Submit a registration at /lp2 or /register to test.
                       </TableCell>
                     </TableRow>
@@ -680,6 +682,15 @@ export default function UserManagement() {
                                 <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">
                                   Pending Connection
                                 </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs font-mono">
+                              {lead.rstate ? (
+                                <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px] font-mono">
+                                  {lead.rstate}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground italic text-[10px]">Active</span>
                               )}
                             </TableCell>
                             <TableCell>

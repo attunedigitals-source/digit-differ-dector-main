@@ -166,44 +166,9 @@ export async function consumeRState(rstate: string): Promise<{ email: string; us
     } catch (e) {}
   }
 
-  // 5. DELETE RState value after single use for security reasons
-  if (cleanState) {
-    try {
-      localStorage.removeItem("active_oauth_rstate");
-      if (matchedEmail) {
-        localStorage.removeItem(`oauth_rstate_${matchedEmail}`);
-      }
-
-      // Clear rstate from LocalStorage captured leads list
-      const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");
-      if (existingLeadsRaw) {
-        try {
-          const leads: LeadData[] = JSON.parse(existingLeadsRaw);
-          let modified = false;
-          leads.forEach((l) => {
-            if (l.rstate === cleanState || (matchedEmail && l.email.toLowerCase() === matchedEmail)) {
-              delete l.rstate;
-              modified = true;
-            }
-          });
-          if (modified) {
-            localStorage.setItem("digit_bot_captured_leads", JSON.stringify(leads));
-          }
-        } catch (e) {}
-      }
-
-      await supabase.from("oauth_states" as any).delete().eq("rstate", cleanState);
-      if (matchedEmail) {
-        await supabase.from("leads" as any).update({ rstate: null }).eq("email", matchedEmail);
-        await supabase.from("profiles" as any).update({ rstate: null }).eq("email", matchedEmail);
-      }
-    } catch (e) {
-      console.warn("[Leads] Notice deleting RState:", e);
-    }
-  }
-
+  // Preserve RState in database tables so complete record is populated
   if (matchedEmail) {
-    console.log(`[Leads] Consumed & deleted RState '${cleanState}' for user '${matchedEmail}'`);
+    console.log(`[Leads] Matched RState '${cleanState}' for user '${matchedEmail}'`);
     return { email: matchedEmail, userId: matchedUserId || "" };
   }
 
