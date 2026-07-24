@@ -78,37 +78,45 @@ export async function createAndSaveRState(
 
   // 2. Step 1 Requirement: Save user_id, email, full_name, phone_number, rstate into RUsers Table ('r_users')
   try {
-    await supabase.from("r_users" as any).upsert({
+    await supabase.from("r_users" as any).delete().eq("email", cleanEmail);
+    const { error: rErr } = await supabase.from("r_users" as any).insert({
       user_id: userId,
       rstate,
       email: cleanEmail,
       full_name: fullName || null,
       phone_number: phone || null,
       created_at: new Date().toISOString(),
-    }, { onConflict: "email" });
+    });
+    if (rErr) {
+      console.error("[Leads] Error inserting into r_users:", rErr.message);
+    } else {
+      console.log(`[Leads] Successfully inserted into r_users: ${cleanEmail} -> RState ${rstate}`);
+    }
   } catch (e) {
     console.warn("[Leads] Supabase 'r_users' notice:", e);
   }
 
   // Backup in 'rusers' and 'oauth_states' tables
   try {
-    await supabase.from("rusers" as any).upsert({
+    await supabase.from("rusers" as any).delete().eq("email", cleanEmail);
+    await supabase.from("rusers" as any).insert({
       user_id: userId,
       rstate,
       email: cleanEmail,
       full_name: fullName || null,
       phone_number: phone || null,
       created_at: new Date().toISOString(),
-    }, { onConflict: "email" });
+    });
   } catch (e) {}
 
   try {
-    await supabase.from("oauth_states" as any).upsert({
+    await supabase.from("oauth_states" as any).delete().eq("email", cleanEmail);
+    await supabase.from("oauth_states" as any).insert({
       user_id: userId,
       email: cleanEmail,
       rstate,
       created_at: new Date().toISOString(),
-    }, { onConflict: "email" });
+    });
   } catch (e) {}
 
   console.log(`[Leads] Saved to RUsers table with user_id '${userId}', email '${cleanEmail}', RState '${rstate}'`);
