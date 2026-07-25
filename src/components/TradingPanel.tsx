@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download } from "lucide-react";
+import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking } from "@/hooks/useAutoTrader";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
@@ -110,6 +110,7 @@ export function TradingPanel({
   const [localInitialBalance, setLocalInitialBalance] = useState(config.initialBalance?.toString() || "");
   const [localAllowableLoss, setLocalAllowableLoss] = useState(config.allowableLoss?.toString() || "");
   const [localTargetProfit, setLocalTargetProfit] = useState(config.targetProfit?.toString() || "");
+  const [autoGenMode, setAutoGenMode] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   const effectiveStrategy = config.strategy === "strategy_q" 
@@ -186,6 +187,63 @@ export function TradingPanel({
   const handleTargetProfitBlur = () => {
     const val = parseFloat(localTargetProfit);
     onConfigChange({ ...config, targetProfit: isNaN(val) ? undefined : val });
+  };
+
+  /**
+   * Auto-generates BASE STAKE, ALLOW LOSS and TARGET PROFIT from INIT BALANCE.
+   * Rule 1: initBalance 500–1000  => baseStake=1.0, allowLoss=200, targetProfit=120
+   * Rule 2: initBalance >1000     => allowLoss=initBalance/5, baseStake=allowLoss/285.714, targetProfit=allowLoss*0.6
+   */
+  const handleAutoGenerate = () => {
+    const initBal = parseFloat(localInitialBalance);
+    if (isNaN(initBal) || initBal < 500) {
+      toast.error("Please enter a valid Init Balance of at least $500 before auto-generating.");
+      return;
+    }
+
+    let newBaseStake: number;
+    let newAllowLoss: number;
+    let newTargetProfit: number;
+
+    if (initBal >= 500 && initBal <= 1000) {
+      // Rule 1
+      newBaseStake = 1.0;
+      newAllowLoss = 200;
+      newTargetProfit = 120;
+    } else {
+      // Rule 2: initBal > 1000
+      newAllowLoss = parseFloat((initBal / 5).toFixed(2));
+      newBaseStake = parseFloat((newAllowLoss / 285.714).toFixed(2));
+      newTargetProfit = parseFloat((newAllowLoss * 0.6).toFixed(2));
+    }
+
+    setLocalStake(newBaseStake.toString());
+    setLocalStakeL(newBaseStake.toString());
+    setLocalStakeM(newBaseStake.toString());
+    setLocalStakeO(newBaseStake.toString());
+    setLocalStakeP(newBaseStake.toString());
+    setLocalStakeR(newBaseStake.toString());
+    setLocalAllowableLoss(newAllowLoss.toString());
+    setLocalTargetProfit(newTargetProfit.toString());
+
+    onConfigChange({
+      ...config,
+      initialBalance: initBal,
+      baseStake: newBaseStake,
+      strategyLBaseStake: newBaseStake,
+      strategyMBaseStake: newBaseStake,
+      strategyOBaseStake: newBaseStake,
+      strategyPBaseStake: newBaseStake,
+      strategyRBaseStake: newBaseStake,
+      allowableLoss: newAllowLoss,
+      targetProfit: newTargetProfit,
+    });
+
+    setAutoGenMode(true);
+    toast.success(
+      `Auto-generated ✓  Base Stake: $${newBaseStake} | Allow Loss: $${newAllowLoss} | Target Profit: $${newTargetProfit}`,
+      { duration: 5000 }
+    );
   };
 
   const handleStakeBlur = () => {
@@ -410,54 +468,96 @@ export function TradingPanel({
       </div>
 
       {/* Risk Management Limits */}
-      <div className="grid grid-cols-3 gap-3 border-t border-border/20 pt-3">
-        <div className="space-y-2">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-emerald-400" /> Init Balance
-          </label>
-          <Input
-            type="number"
-            min={0}
-            step={1}
-            disabled={config.enabled}
-            value={localInitialBalance}
-            onChange={(e) => setLocalInitialBalance(e.target.value)}
-            onBlur={handleInitialBalanceBlur}
-            className="bg-muted border-border font-mono text-sm h-8"
-            placeholder="e.g. 500"
-          />
+      <div className="border-t border-border/20 pt-3 space-y-3">
+        {/* Row 1: Init Balance + Auto Generate button */}
+        <div className="flex items-end gap-2">
+          <div className="flex-1 space-y-2">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <DollarSign className="w-3 h-3 text-emerald-400" /> Init Balance
+            </label>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              disabled={config.enabled}
+              value={localInitialBalance}
+              onChange={(e) => { setLocalInitialBalance(e.target.value); setAutoGenMode(false); }}
+              onBlur={handleInitialBalanceBlur}
+              className="bg-muted border-border font-mono text-sm h-8"
+              placeholder="e.g. 500"
+            />
+          </div>
+          {!config.enabled && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={autoGenMode ? () => setAutoGenMode(false) : handleAutoGenerate}
+              className={`h-8 text-[10px] font-bold px-3 gap-1.5 shrink-0 transition-all ${
+                autoGenMode
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                  : "bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30"
+              }`}
+              variant="ghost"
+            >
+              {autoGenMode ? (
+                <><Pencil className="w-3 h-3" /> Manual</>
+              ) : (
+                <><Wand2 className="w-3 h-3" /> Auto Generate</>
+              )}
+            </Button>
+          )}
         </div>
-        <div className="space-y-2">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-rose-400" /> Allow Loss
-          </label>
-          <Input
-            type="number"
-            min={0}
-            step={1}
-            disabled={config.enabled}
-            value={localAllowableLoss}
-            onChange={(e) => setLocalAllowableLoss(e.target.value)}
-            onBlur={handleAllowableLossBlur}
-            className="bg-muted border-border font-mono text-sm h-8"
-            placeholder="e.g. 200"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <Target className="w-3 h-3 text-sky-400" /> Target Profit
-          </label>
-          <Input
-            type="number"
-            min={0}
-            step={1}
-            disabled={config.enabled}
-            value={localTargetProfit}
-            onChange={(e) => setLocalTargetProfit(e.target.value)}
-            onBlur={handleTargetProfitBlur}
-            className="bg-muted border-border font-mono text-sm h-8"
-            placeholder="e.g. 100"
-          />
+
+        {/* Auto-gen hint */}
+        {!autoGenMode && !config.enabled && (
+          <p className="text-[9px] text-muted-foreground italic">
+            Enter Init Balance then click <span className="text-primary font-semibold">Auto Generate</span> — or fill the fields below manually.
+          </p>
+        )}
+        {autoGenMode && (
+          <p className="text-[9px] text-amber-400 font-semibold animate-in fade-in">
+            ✓ Values auto-generated. Click <span className="underline">Manual</span> to edit freely.
+          </p>
+        )}
+
+        {/* Row 2: Allow Loss + Target Profit */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <DollarSign className="w-3 h-3 text-rose-400" /> Allow Loss
+            </label>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              disabled={config.enabled || autoGenMode}
+              value={localAllowableLoss}
+              onChange={(e) => setLocalAllowableLoss(e.target.value)}
+              onBlur={handleAllowableLossBlur}
+              className={`bg-muted border-border font-mono text-sm h-8 ${
+                autoGenMode ? "opacity-70 cursor-not-allowed" : ""
+              }`}
+              placeholder="e.g. 200"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Target className="w-3 h-3 text-sky-400" /> Target Profit
+            </label>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              disabled={config.enabled || autoGenMode}
+              value={localTargetProfit}
+              onChange={(e) => setLocalTargetProfit(e.target.value)}
+              onBlur={handleTargetProfitBlur}
+              className={`bg-muted border-border font-mono text-sm h-8 ${
+                autoGenMode ? "opacity-70 cursor-not-allowed" : ""
+              }`}
+              placeholder="e.g. 100"
+            />
+          </div>
         </div>
       </div>
 
