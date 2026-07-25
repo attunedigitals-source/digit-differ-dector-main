@@ -2,8 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Zap, ShieldCheck, LogIn, Lock, Mail, UserPlus, ArrowRight } from "lucide-react";
-import { getOAuthUrl } from "@/lib/deriv-oauth";
+import { Zap, LogIn, Lock, Mail, ArrowRight } from "lucide-react";
 import { loginClientUser } from "@/lib/leads";
 import { toast } from "sonner";
 
@@ -12,10 +11,6 @@ export function AuthForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleDerivLogin = async () => {
-    window.location.href = await getOAuthUrl();
-  };
 
   const handleClientLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,22 +94,7 @@ export function AuthForm() {
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-border/60"></div>
-            <span className="flex-shrink mx-3 text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Or Connect Direct</span>
-            <div className="flex-grow border-t border-border/60"></div>
-          </div>
 
-          {/* Direct Deriv Sign-In */}
-          <Button
-            type="button"
-            onClick={handleDerivLogin}
-            variant="outline"
-            className="w-full h-11 text-sm font-semibold border-primary/40 hover:bg-primary/10 text-primary gap-2"
-          >
-            <ShieldCheck className="w-4 h-4 text-primary" /> Sign in with Deriv
-          </Button>
 
           {/* Registration Prompt */}
           <div className="pt-2 text-center border-t border-border/40">
