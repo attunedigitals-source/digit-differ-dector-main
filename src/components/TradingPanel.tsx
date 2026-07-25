@@ -402,76 +402,10 @@ export function TradingPanel({
         </p>
       )}
 
-      <div className={`grid ${config.strategy === "strategy_n" ? "grid-cols-2" : "grid-cols-1"} gap-4`}>
-        {config.strategy === "strategy_n" ? (
-          <>
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <DollarSign className="w-3 h-3" /> Stake (L)
-              </label>
-              <Input
-                type="number"
-                min={0.35}
-                step={0.1}
-                value={localStakeL}
-                onChange={(e) => setLocalStakeL(e.target.value)}
-                onBlur={handleStakeLBlur}
-                className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeLValid && localStakeL !== "" ? "border-destructive text-destructive" : ""}`}
-              />
-              {!isStakeLValid && localStakeL !== "" && (
-                <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <DollarSign className="w-3 h-3" /> Stake (M)
-              </label>
-              <Input
-                type="number"
-                min={0.35}
-                step={0.1}
-                value={localStakeM}
-                onChange={(e) => setLocalStakeM(e.target.value)}
-                onBlur={handleStakeMBlur}
-                className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeMValid && localStakeM !== "" ? "border-destructive text-destructive" : ""}`}
-              />
-              {!isStakeMValid && localStakeM !== "" && (
-                <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="space-y-2">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <DollarSign className="w-3 h-3" /> Base Stake
-            </label>
-            <Input
-              type="number"
-              min={0.35}
-              step={0.1}
-              value={config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))}
-              onChange={(e) => config.strategy === "strategy_o" ? setLocalStakeO(e.target.value) : (config.strategy === "strategy_p" ? setLocalStakeP(e.target.value) : (config.strategy === "strategy_r" ? setLocalStakeR(e.target.value) : setLocalStake(e.target.value)))}
-              onBlur={config.strategy === "strategy_o" ? handleStakeOBlur : (config.strategy === "strategy_p" ? handleStakePBlur : (config.strategy === "strategy_r" ? handleStakeRBlur : handleStakeBlur))}
-              className={`bg-muted border-border font-mono text-sm h-8 ${
-                !(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
-                (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" 
-                  ? "border-destructive text-destructive" 
-                  : ""
-              }`}
-            />
-            {!(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
-             (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" && (
-              <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Risk Management Limits */}
-      <div className="border-t border-border/20 pt-3 space-y-3">
-        {/* Row 1: Init Balance + Auto Generate button */}
+      {/* 1. Init Balance + Auto Generate Section */}
+      <div className="space-y-2 border-b border-border/20 pb-3">
         <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-2">
+          <div className="flex-1 space-y-1.5">
             <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
               <DollarSign className="w-3 h-3 text-emerald-400" /> Init Balance
             </label>
@@ -511,53 +445,122 @@ export function TradingPanel({
         {/* Auto-gen hint */}
         {!autoGenMode && !config.enabled && (
           <p className="text-[9px] text-muted-foreground italic">
-            Enter Init Balance then click <span className="text-primary font-semibold">Auto Generate</span> — or fill the fields below manually.
+            Enter Init Balance then click <span className="text-primary font-semibold">Auto Generate</span> — or set parameters manually.
           </p>
         )}
         {autoGenMode && (
           <p className="text-[9px] text-amber-400 font-semibold animate-in fade-in">
-            ✓ Values auto-generated. Click <span className="underline">Manual</span> to edit freely.
+            ✓ Values auto-generated. Click <span className="underline font-bold">Manual</span> to edit Base Stake, Allow Loss, & Target Profit freely.
           </p>
         )}
+      </div>
 
-        {/* Row 2: Allow Loss + Target Profit */}
-        <div className="grid grid-cols-2 gap-3">
+      {/* 2. Base Stake Section */}
+      <div className={`grid ${config.strategy === "strategy_n" ? "grid-cols-2" : "grid-cols-1"} gap-4`}>
+        {config.strategy === "strategy_n" ? (
+          <>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> Stake (L)
+              </label>
+              <Input
+                type="number"
+                min={0.35}
+                step={0.1}
+                disabled={config.enabled || autoGenMode}
+                value={localStakeL}
+                onChange={(e) => setLocalStakeL(e.target.value)}
+                onBlur={handleStakeLBlur}
+                className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeLValid && localStakeL !== "" ? "border-destructive text-destructive" : ""} ${autoGenMode ? "opacity-70 cursor-not-allowed" : ""}`}
+              />
+              {!isStakeLValid && localStakeL !== "" && (
+                <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> Stake (M)
+              </label>
+              <Input
+                type="number"
+                min={0.35}
+                step={0.1}
+                disabled={config.enabled || autoGenMode}
+                value={localStakeM}
+                onChange={(e) => setLocalStakeM(e.target.value)}
+                onBlur={handleStakeMBlur}
+                className={`bg-muted border-border font-mono text-sm h-8 ${!isStakeMValid && localStakeM !== "" ? "border-destructive text-destructive" : ""} ${autoGenMode ? "opacity-70 cursor-not-allowed" : ""}`}
+              />
+              {!isStakeMValid && localStakeM !== "" && (
+                <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
+              )}
+            </div>
+          </>
+        ) : (
           <div className="space-y-2">
             <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <DollarSign className="w-3 h-3 text-rose-400" /> Allow Loss
+              <DollarSign className="w-3 h-3" /> Base Stake
             </label>
             <Input
               type="number"
-              min={0}
-              step={1}
+              min={0.35}
+              step={0.1}
               disabled={config.enabled || autoGenMode}
-              value={localAllowableLoss}
-              onChange={(e) => setLocalAllowableLoss(e.target.value)}
-              onBlur={handleAllowableLossBlur}
+              value={config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))}
+              onChange={(e) => config.strategy === "strategy_o" ? setLocalStakeO(e.target.value) : (config.strategy === "strategy_p" ? setLocalStakeP(e.target.value) : (config.strategy === "strategy_r" ? setLocalStakeR(e.target.value) : setLocalStake(e.target.value)))}
+              onBlur={config.strategy === "strategy_o" ? handleStakeOBlur : (config.strategy === "strategy_p" ? handleStakePBlur : (config.strategy === "strategy_r" ? handleStakeRBlur : handleStakeBlur))}
               className={`bg-muted border-border font-mono text-sm h-8 ${
-                autoGenMode ? "opacity-70 cursor-not-allowed" : ""
-              }`}
-              placeholder="e.g. 200"
+                !(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
+                (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" 
+                  ? "border-destructive text-destructive" 
+                  : ""
+              } ${autoGenMode ? "opacity-70 cursor-not-allowed" : ""}`}
             />
+            {!(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
+             (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" && (
+              <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
+            )}
           </div>
-          <div className="space-y-2">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Target className="w-3 h-3 text-sky-400" /> Target Profit
-            </label>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              disabled={config.enabled || autoGenMode}
-              value={localTargetProfit}
-              onChange={(e) => setLocalTargetProfit(e.target.value)}
-              onBlur={handleTargetProfitBlur}
-              className={`bg-muted border-border font-mono text-sm h-8 ${
-                autoGenMode ? "opacity-70 cursor-not-allowed" : ""
-              }`}
-              placeholder="e.g. 100"
-            />
-          </div>
+        )}
+      </div>
+
+      {/* 3. Allow Loss & Target Profit Limits */}
+      <div className="grid grid-cols-2 gap-3 border-t border-border/20 pt-3">
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <DollarSign className="w-3 h-3 text-rose-400" /> Allow Loss
+          </label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            disabled={config.enabled || autoGenMode}
+            value={localAllowableLoss}
+            onChange={(e) => setLocalAllowableLoss(e.target.value)}
+            onBlur={handleAllowableLossBlur}
+            className={`bg-muted border-border font-mono text-sm h-8 ${
+              autoGenMode ? "opacity-70 cursor-not-allowed" : ""
+            }`}
+            placeholder="e.g. 200"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Target className="w-3 h-3 text-sky-400" /> Target Profit
+          </label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            disabled={config.enabled || autoGenMode}
+            value={localTargetProfit}
+            onChange={(e) => setLocalTargetProfit(e.target.value)}
+            onBlur={handleTargetProfitBlur}
+            className={`bg-muted border-border font-mono text-sm h-8 ${
+              autoGenMode ? "opacity-70 cursor-not-allowed" : ""
+            }`}
+            placeholder="e.g. 100"
+          />
         </div>
       </div>
 
