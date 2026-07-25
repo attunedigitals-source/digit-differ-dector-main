@@ -65,10 +65,15 @@ export function AuthForm() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground/80 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-primary" /> Password
-              </label>
+            <div className="space-y-1.5 text-left">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-foreground/90 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-primary" /> Password
+                </label>
+                <Link to="/forgot-password" className="text-[11px] text-primary font-semibold hover:underline">
+                  Forgot Password?
+                </Link>
+              </div>
               <Input
                 type="password"
                 required
