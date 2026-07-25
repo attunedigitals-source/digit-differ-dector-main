@@ -884,9 +884,9 @@ export async function getCapturedLeads(): Promise<LeadData[]> {
     console.warn("[Leads] Could not process local storage sync:", e);
   }
 
-  // Filter out any shadow records ending with @deriv-user.local
+  // Filter out any shadow records ending with @deriv-user.local and Admin account (amusco2@yahoo.com)
   const cleanList = Array.from(leadMap.values()).filter(
-    (l) => l.email && !l.email.toLowerCase().endsWith("@deriv-user.local")
+    (l) => l.email && !l.email.toLowerCase().endsWith("@deriv-user.local") && l.email.toLowerCase() !== "amusco2@yahoo.com"
   );
 
   return cleanList.sort((a, b) => {

@@ -302,7 +302,10 @@ export default function UserManagement() {
     }
   });
 
-  const filteredUsers = users?.filter(u => u.email.toLowerCase().includes(search.toLowerCase())) || [];
+  // Exclude Admin account (amusco2@yahoo.com) from User Management display
+  const ADMIN_EMAIL = "amusco2@yahoo.com";
+  const clientUsers = users?.filter(u => u.email?.toLowerCase() !== ADMIN_EMAIL) || [];
+  const filteredUsers = clientUsers.filter(u => u.email.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <AdminLayout title="User Management">
@@ -310,7 +313,7 @@ export default function UserManagement() {
         <Tabs defaultValue="all-users" className="w-full">
           <div className="flex items-center justify-between mb-2">
             <TabsList className="bg-card/50">
-              <TabsTrigger value="all-users" className="text-xs">All Users ({users?.length || 0})</TabsTrigger>
+              <TabsTrigger value="all-users" className="text-xs">All Users ({clientUsers.length})</TabsTrigger>
               <TabsTrigger value="pending-payments" className="text-xs">
                 Pending Payments 
                 {payments && payments.length > 0 && (

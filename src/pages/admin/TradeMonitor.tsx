@@ -62,8 +62,15 @@ export default function TradeMonitor() {
         console.error("[AdminMonitor] Fetch error:", error);
         throw error;
       }
-      console.log(`[AdminMonitor] Successfully fetched ${data?.length} accounts`);
-      return data as AccountSummary[];
+      
+      // Purge Admin account (amusco2@yahoo.com) and associated Deriv accounts from Account Health Monitor
+      const filtered = (data as AccountSummary[] || []).filter(a => {
+        const email = (a.profiles?.email || a.user_id || "").toLowerCase();
+        return email !== "amusco2@yahoo.com";
+      });
+
+      console.log(`[AdminMonitor] Successfully fetched ${filtered.length} client accounts (admin purged)`);
+      return filtered;
     },
     refetchInterval: 5000 // Poll every 5s as backup to subscription
   });

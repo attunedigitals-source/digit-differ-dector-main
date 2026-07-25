@@ -42,6 +42,8 @@ export default function AdminDashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: async () => {
+      const ADMIN_EMAIL = "amusco2@yahoo.com";
+
       // Parallel fetches for speed
       const [
         { count: totalUsers },
@@ -52,9 +54,9 @@ export default function AdminDashboard() {
         { data: logSetting },
         { data: trialSetting }
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'free'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).neq('email', ADMIN_EMAIL),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active').neq('email', ADMIN_EMAIL),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'free').neq('email', ADMIN_EMAIL),
         supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('payments').select('amount, created_at').eq('status', 'approved').order('created_at', { ascending: false }).limit(100),
         supabase.from('system_settings').select('value').eq('key', 'enable_client_logs').single(),
