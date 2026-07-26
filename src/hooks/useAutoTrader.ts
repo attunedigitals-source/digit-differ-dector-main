@@ -39,7 +39,7 @@ export const STRATEGY_DIRECTIONS: Record<string, TradeCategory[]> = {
   strategy_o: ["over2", "under7", "over1", "under8"],
   strategy_p: ["over1", "under8", "over5", "under4"],
   strategy_q: ["under4", "over4", "under5", "over5", "even", "odd", "rise", "fall"],
-  strategy_r: ["over1", "under8", "over5", "under4", "under5", "over4", "even", "odd", "rise", "fall"],
+  strategy_r: ["over1", "under8", "even", "odd", "rise", "fall"],
   alternating: ["under4", "over4", "under5", "over5"]
 };
 
