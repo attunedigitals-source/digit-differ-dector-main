@@ -623,34 +623,12 @@ export function TradingPanel({
             <SelectValue placeholder="Strategy R (Special Markup & Exclusions)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="strategy_r">Strategy R (Special Markup & Exclusions)</SelectItem>
+            {/* Strategy R hidden from client UI to protect intellectual property */}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Strategy R Stickiness Toggle */}
-      {config.strategy === "strategy_r" && (
-        <div className="flex items-center justify-between p-3 rounded-md bg-muted/20 border border-border/50">
-          <div className="space-y-0.5">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1">
-              Strategy R Stickiness
-            </label>
-            <p className="text-[9px] text-muted-foreground">
-              Enable random sticky cycles: win (5-8 runs), none (3-5 runs), loss (2-4 runs) during execution.
-            </p>
-          </div>
-          <Switch
-            id="strategy-r-sticky"
-            checked={config.strategyRStickyEnabled ?? false}
-            onCheckedChange={(checked) =>
-              onConfigChange({
-                ...config,
-                strategyRStickyEnabled: checked,
-              })
-            }
-          />
-        </div>
-      )}
+      {/* Strategy R Stickiness Toggle — hidden from client UI */}
 
       {/* Strategy A/B/C/D Visualizer Panel */}
       {(effectiveStrategy === "strategy_a" || effectiveStrategy === "strategy_b" || effectiveStrategy === "strategy_c" || effectiveStrategy === "strategy_d" || effectiveStrategy === "strategy_e" || effectiveStrategy === "strategy_f" || effectiveStrategy === "strategy_g" || effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") && (
@@ -1456,7 +1434,8 @@ export function TradingPanel({
         </div>
       )}
 
-      {config.strategy === "strategy_r" && (
+      {/* Strategy R monitoring panel — hidden from client UI to protect intellectual property */}
+      {false && config.strategy === "strategy_r" && (
         <div className="bg-gradient-to-br from-violet-500/15 via-card to-fuchsia-500/15 border border-violet-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
           
