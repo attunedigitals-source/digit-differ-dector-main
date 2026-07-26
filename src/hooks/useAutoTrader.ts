@@ -1434,7 +1434,7 @@ export function useAutoTrader(
           if (currentStatus === "WIN" || currentStatus === "IDLE") {
             pool = ["over1", "under8"];
           } else {
-            pool = ["over5", "under4", "under5", "over4", "even", "odd", "rise", "fall"];
+            pool = ["even", "odd", "rise", "fall"];
             if (state.currentCategory) {
               pool = pool.filter(c => c !== state.currentCategory);
             }
