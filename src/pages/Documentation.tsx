@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { WHATSAPP_GROUP_URL } from "@/lib/leads";
 
 const sections = [
   { id: "overview", title: "Overview" },
@@ -249,9 +250,9 @@ const Documentation = () => {
 
             <div className="mt-8 pt-8 border-t border-border">
               <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">Need Support?</p>
-              <p className="text-xs text-muted-foreground mb-4 leading-relaxed">Join our VIP WhatsApp or Telegram for instant assistance.</p>
-              <a href="https://t.me/DigitBotPro" className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
-                Contact Technical Support <ArrowRight className="h-3 w-3" />
+              <p className="text-xs text-muted-foreground mb-4 leading-relaxed">Join our active VIP WhatsApp Group for instant assistance.</p>
+              <a href={WHATSAPP_GROUP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
+                Join VIP WhatsApp Group <ArrowRight className="h-3 w-3" />
               </a>
             </div>
           </aside>
@@ -646,7 +647,7 @@ const Documentation = () => {
           <p className="text-xl opacity-90 mb-10 max-w-2xl mx-auto">Our official support channel is ready to assist with account connection or automation queries.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90 font-bold px-10 rounded-2xl h-16 text-lg">
-              <a href="https://t.me/DigitBotPro" target="_blank" rel="noopener noreferrer">Join Telegram Support</a>
+              <a href={WHATSAPP_GROUP_URL} target="_blank" rel="noopener noreferrer">Join VIP WhatsApp Group</a>
             </Button>
             <Button asChild size="lg" variant="outline" className="border-white/40 text-white hover:bg-white/10 font-bold px-10 rounded-2xl h-16 text-lg">
               <Link to="/">Go to Dashboard</Link>
