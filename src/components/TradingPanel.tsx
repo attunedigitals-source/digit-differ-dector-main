@@ -594,39 +594,7 @@ export function TradingPanel({
         </p>
       </div>
 
-      {/* Trading Strategy Selection */}
-      <div className="space-y-1.5 bg-muted/20 p-3 rounded-md border border-border/50">
-        <div className="flex items-center justify-between">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <Shuffle className="w-3.5 h-3.5 text-primary animate-pulse" /> Trading Strategy
-          </label>
-          <div className="flex items-center gap-1.5">
-            {hasAnyBlacklist() && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-5 px-2 text-[8px] text-primary hover:bg-primary/10 hover:text-primary font-bold uppercase tracking-wider border border-primary/20 flex items-center gap-1"
-                onClick={exportBlacklistToCSV}
-              >
-                <Download className="w-2.5 h-2.5" /> Export Blacklist
-              </Button>
-            )}
-          </div>
-        </div>
-        <Select
-          value={config.strategy}
-          disabled={true}
-          onValueChange={() => {}}
-        >
-          <SelectTrigger className="bg-muted border-border font-semibold text-xs h-8">
-            <SelectValue placeholder="Strategy R (Special Markup & Exclusions)" />
-          </SelectTrigger>
-          <SelectContent>
-            {/* Strategy R hidden from client UI to protect intellectual property */}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Trading Strategy Selection — hidden from client UI to protect intellectual property */}
 
       {/* Strategy R Stickiness Toggle — hidden from client UI */}
 
