@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { addContactToBrevo } from "./brevo";
 
 export interface LeadData {
   email: string;
@@ -308,6 +309,18 @@ export async function submitLead(data: LeadData): Promise<{ success: boolean; me
       } catch (authErr: any) {
         console.warn("[Leads] Supabase auth signup notice:", authErr?.message);
       }
+    }
+
+    // 6. Sync contact details to Brevo List ID 3 for automated email sequences
+    try {
+      await addContactToBrevo({
+        email: data.email,
+        name: data.name,
+        phone: data.phone,
+        source: data.source,
+      });
+    } catch (brevoErr: any) {
+      console.warn("[Leads] Brevo contact sync notice:", brevoErr?.message || brevoErr);
     }
 
     return { success: true, message: "Lead submitted successfully." };
