@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { addContactToBrevo } from "@/lib/brevo";
 
 export type UserRole = 'user' | 'admin' | 'sub-admin';
 export type SubscriptionStatus = 'free' | 'pending' | 'active' | 'expired' | 'suspended';
@@ -97,6 +98,18 @@ export function useAuth() {
       }
 
       setProfile(userProfile);
+      
+      // Auto-sync contact details to Brevo List ID 3 for automated email sequence
+      if (userProfile?.email) {
+        const profileName = (userProfile as any).full_name || (userProfile as any).name || userProfile.email.split("@")[0];
+        const profilePhone = (userProfile as any).phone || (userProfile as any).phone_number || "";
+        addContactToBrevo({
+          email: userProfile.email,
+          name: profileName,
+          phone: profilePhone,
+          source: "app_user",
+        }).catch((bErr) => console.warn("[Brevo] Auto profile sync notice:", bErr));
+      }
       
       // Update timezone if changed or missing
       const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -237,6 +250,11 @@ export function useAuth() {
   };
 
   const signUp = async (email: string, password: string) => {
+    addContactToBrevo({
+      email,
+      name: email.split("@")[0],
+      source: "supabase_signup",
+    }).catch(() => {});
     return supabase.auth.signUp({ 
       email, 
       password, 

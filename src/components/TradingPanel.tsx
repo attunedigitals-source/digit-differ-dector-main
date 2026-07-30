@@ -583,10 +583,9 @@ export function TradingPanel({
             <SelectValue placeholder="Select cooldown interval" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="10">10 Minutes</SelectItem>
+            <SelectItem value="20">20 Minutes</SelectItem>
             <SelectItem value="30">30 Minutes</SelectItem>
-            <SelectItem value="40">40 Minutes</SelectItem>
-            <SelectItem value="50">50 Minutes</SelectItem>
-            <SelectItem value="60">60 Minutes</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-[9px] text-muted-foreground">

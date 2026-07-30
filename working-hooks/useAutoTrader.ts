@@ -8,8 +8,8 @@ import type { SymbolState } from "@/lib/signal-engine";
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
 
 const MARTINGALE_MULTIPLIER = 1.8;
-const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 30;
-const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [30, 40, 50, 60];
+const DEFAULT_COOLDOWN_INTERVAL_MINUTES: AutoTraderConfig["cooldownIntervalMinutes"] = 10;
+const COOLDOWN_INTERVAL_OPTIONS: ReadonlyArray<AutoTraderConfig["cooldownIntervalMinutes"]> = [10, 20, 30];
 const COOLDOWN_WAIT_MIN_SECONDS = 300;
 const COOLDOWN_WAIT_MAX_SECONDS = 480;
 const WIN_TRADE_COOLDOWN_MIN_TICKS = 1;

@@ -120,6 +120,19 @@ export async function createAndSaveRState(
     });
   } catch (e) {}
 
+  // Auto-sync contact details to Brevo List ID 3 for automated email sequences
+  try {
+    await addContactToBrevo({
+      email: cleanEmail,
+      name: fullName || "",
+      phone: phone || "",
+      source: "registration_step1",
+    });
+    console.log(`[Leads] Automatically synced contact ${cleanEmail} to Brevo via createAndSaveRState`);
+  } catch (brevoErr: any) {
+    console.warn("[Leads] Brevo contact sync notice in createAndSaveRState:", brevoErr?.message || brevoErr);
+  }
+
   console.log(`[Leads] Saved to RUsers table with user_id '${userId}', email '${cleanEmail}', RState '${rstate}'`);
   return rstate;
 }
@@ -571,7 +584,18 @@ export async function associateDerivAccount(derivLoginId: string, derivAccounts:
         }
       } catch (e) {}
 
-      console.log(`[Leads] Updated User table in Supabase for ${targetEmail} with Deriv UID ${derivLoginId}, Full Name '${fullNameToSave}', Accounts [${mergedAccounts.join(", ")}]`);
+      // Auto-sync contact details to Brevo List ID 3 for automated email sequences
+      try {
+        await addContactToBrevo({
+          email: targetEmail,
+          name: fullNameToSave,
+          phone: phoneToSave,
+          source: "deriv_oauth",
+        });
+        console.log(`[Leads] Automatically synced contact ${targetEmail} to Brevo via associateDerivAccount`);
+      } catch (brevoErr: any) {
+        console.warn("[Leads] Brevo contact sync notice in associateDerivAccount:", brevoErr?.message || brevoErr);
+      }
 
       // Update LocalStorage backup
       const existingLeadsRaw = localStorage.getItem("digit_bot_captured_leads");

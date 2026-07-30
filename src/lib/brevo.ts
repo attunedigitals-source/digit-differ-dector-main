@@ -5,13 +5,13 @@
  */
 
 export const BREVO_API_KEY =
-  (typeof process !== "undefined" && process.env.VITE_BREVO_API_KEY) ||
-  (import.meta.env && import.meta.env.VITE_BREVO_API_KEY) ||
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_BREVO_API_KEY) ||
+  (typeof process !== "undefined" && process.env && process.env.VITE_BREVO_API_KEY) ||
   "";
 
 export const BREVO_LIST_ID = Number(
-  (typeof process !== "undefined" && process.env.VITE_BREVO_LIST_ID) ||
-  (import.meta.env && import.meta.env.VITE_BREVO_LIST_ID) ||
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_BREVO_LIST_ID) ||
+  (typeof process !== "undefined" && process.env && process.env.VITE_BREVO_LIST_ID) ||
   3
 );
 
