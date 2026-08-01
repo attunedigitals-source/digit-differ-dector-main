@@ -556,7 +556,9 @@ export function useAutoTrader(
       const intervalPauseSeconds = randomCooldownSeconds();
       ticksToWaitNext = Math.max(ticksToWaitNext, intervalPauseSeconds);
       nextAction = `${nextAction}_B_CD_${config.cooldownIntervalMinutes}M`;
-      setContinuousTradeStartAt(now);
+      const nextStartAt = now + intervalPauseSeconds * 1000;
+      setContinuousTradeStartAt(nextStartAt);
+      continuousTradeStartAtRef.current = nextStartAt;
       setMartingaleCycles(0);
     }
 

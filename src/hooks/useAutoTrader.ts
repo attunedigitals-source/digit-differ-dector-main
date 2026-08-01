@@ -937,7 +937,9 @@ export function useAutoTrader(
     isExecutingRef.current = true;
     executionStartedAtRef.current = Date.now();
     if (!continuousTradeStartAtRef.current) {
-      setContinuousTradeStartAt(Date.now());
+      const now = Date.now();
+      setContinuousTradeStartAt(now);
+      continuousTradeStartAtRef.current = now;
     }
     try {
       const state = sessionStateRef.current;
@@ -2138,7 +2140,9 @@ export function useAutoTrader(
       const intervalPauseSeconds = randomCooldownSeconds();
       ticksToWaitNext = Math.max(ticksToWaitNext, intervalPauseSeconds);
       nextAction = `${nextAction}_B_CD_${config.cooldownIntervalMinutes}M`;
-      setContinuousTradeStartAt(now);
+      const nextStartAt = now + intervalPauseSeconds * 1000;
+      setContinuousTradeStartAt(nextStartAt);
+      continuousTradeStartAtRef.current = nextStartAt;
       setMartingaleCycles(0);
     }
 
