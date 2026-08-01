@@ -3,7 +3,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Check, CircleDollarSign, TestTube, Lock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,13 +23,19 @@ export function AccountSelector({ accounts, activeLoginId, onSelectAccount }: Ac
   const { isPaid, isAdmin, profile } = useAuth();
   const [showPaywall, setShowPaywall] = useState(false);
 
-  if (accounts.length === 0) return null;
-
   const realAccounts = accounts.filter((a) => !a.is_virtual);
   const demoAccounts = accounts.filter((a) => a.is_virtual);
 
   const activeAccount = accounts.find((a) => a.loginid === activeLoginId);
-  const defaultTab = activeAccount?.is_virtual ? "demo" : "real";
+  const [selectedTab, setSelectedTab] = useState<string>(activeAccount?.is_virtual ? "demo" : "real");
+
+  useEffect(() => {
+    if (activeAccount) {
+      setSelectedTab(activeAccount.is_virtual ? "demo" : "real");
+    }
+  }, [activeAccount?.loginid, activeAccount?.is_virtual]);
+
+  if (accounts.length === 0) return null;
 
   const handleSelectReal = (loginid: string) => {
     // Admins and Paid users can select Real accounts
@@ -47,7 +53,7 @@ export function AccountSelector({ accounts, activeLoginId, onSelectAccount }: Ac
         Account Balances
       </div>
 
-      <Tabs defaultValue={defaultTab} className="w-full">
+      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="real" className="text-xs">
             Real ({realAccounts.length})

@@ -44,6 +44,7 @@ export interface DerivWebSocketOptions {
   userId?: string;
   isPaid?: boolean;
   isAdmin?: boolean;
+  profileLoading?: boolean;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -127,7 +128,7 @@ async function fetchWebSocketUrl(accessToken: string, accountId: string, appId: 
   throw new Error("OTP response did not include an authenticated WebSocket URL");
 }
 
-export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid = false, isAdmin = false }: DerivWebSocketOptions = {}) {
+export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid = false, isAdmin = false, profileLoading = false }: DerivWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const statesRef = useRef<Map<string, SymbolState>>(new Map());
   const pendingRequestsRef = useRef<Map<string, (data: JsonObject) => void>>(new Map());
@@ -189,7 +190,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
     let loginIdToUse = activeAccount?.loginid || accountId;
 
     const hasAccessToReal = isPaid || isAdmin;
-    if (!hasAccessToReal) {
+    if (!profileLoading && !hasAccessToReal) {
       const demoAccount = sessionAccounts.find(a => a.is_virtual);
       if (demoAccount) {
         loginIdToUse = demoAccount.loginid;
@@ -246,7 +247,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
         
         let loginIdToUseAfterVerification = loginIdToUse;
         const hasAccessToReal = isPaid || isAdmin;
-        if (!hasAccessToReal) {
+        if (!profileLoading && !hasAccessToReal) {
           const demoAccount = sessionAccounts.find(a => a.is_virtual);
           if (demoAccount) {
             loginIdToUseAfterVerification = demoAccount.loginid;
@@ -441,6 +442,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
 
     console.log(`[WebSocket] Switching to account ${loginid} — reconnecting with new OTP`);
     setActiveAccount(loginid);
+    setActiveLoginId(loginid);
     // Close and reconnect — the connect fn will fetch a new OTP for the new account
     wsRef.current?.close();
   }, [activeLoginId, accounts, isPaid, isAdmin]);

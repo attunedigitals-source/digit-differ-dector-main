@@ -14,13 +14,16 @@ import { getActiveAccount, getAccounts, setActiveAccount, clearDerivAuth } from 
 import { TrialCountdown } from "@/components/TrialCountdown";
 
 export default function Dashboard() {
-  const { user, profile, signOut, isPaid, isAdmin } = useAuth();
+  const { user, profile, signOut, isPaid, isAdmin, loading: authLoading, profileLoading } = useAuth();
   
   const [activeOAuthAccount, setActiveOAuthAccount] = useState<any>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
   // Reactive account detection
   useEffect(() => {
+    // DO NOT enforce demo fallback while auth or profile is still loading from Supabase
+    if (authLoading || profileLoading) return;
+
     const checkAccount = () => {
       const acc = getActiveAccount();
       if (acc) {
@@ -57,7 +60,7 @@ export default function Dashboard() {
       }, 200);
       return () => clearInterval(interval);
     }
-  }, [isPaid, isAdmin]);
+  }, [isPaid, isAdmin, authLoading, profileLoading]);
 
   const handleLogout = async () => {
     // 1. Clear Deriv specific session data
@@ -83,10 +86,21 @@ export default function Dashboard() {
     accountId: activeOAuthAccount?.loginid,
     userId: user?.id,
     isPaid,
-    isAdmin
+    isAdmin,
+    profileLoading
   });
 
-  const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? null;
+  // Keep activeOAuthAccount in sync when activeLoginId changes via account selector
+  useEffect(() => {
+    if (activeLoginId) {
+      const currentAcc = getActiveAccount();
+      if (currentAcc && currentAcc.loginid !== activeOAuthAccount?.loginid) {
+        setActiveOAuthAccount(currentAcc);
+      }
+    }
+  }, [activeLoginId, activeOAuthAccount]);
+
+  const activeAccount = accounts.find(a => a.loginid === activeLoginId) ?? activeOAuthAccount ?? null;
 
   const { 
     config, setConfig, tradeLog, setTradeLog, 
