@@ -1127,9 +1127,20 @@ export function useAutoTrader(
                 nextNoneStickyCount = undefined;
               }
             } else {
-              shouldSwitchSymbol = false;
-              nextLMode = "loss_sticky";
-              nextNoneStickyCount = undefined;
+              if (state.martingaleStep >= 2) {
+                shouldSwitchSymbol = true;
+                nextLMode = getRandomLMode();
+                if (nextLMode === "none_sticky") {
+                  nextNoneStickyCount = Math.floor(Math.random() * 3) + 3;
+                  console.log(`[Strategy ${stratLabel} Volatility] Loss Sticky limit (max 2) reached. Swapped to None Sticky. Count: ${nextNoneStickyCount}`);
+                } else {
+                  nextNoneStickyCount = undefined;
+                }
+              } else {
+                shouldSwitchSymbol = false;
+                nextLMode = "loss_sticky";
+                nextNoneStickyCount = undefined;
+              }
             }
           } else {
             // win_sticky
@@ -1181,7 +1192,7 @@ export function useAutoTrader(
             return Math.floor(Math.random() * 4) + 5; // 5 - 8 runs
           }
           if (mode === "loss_sticky") {
-            return Math.floor(Math.random() * 3) + 2; // 2 - 4 runs
+            return Math.floor(Math.random() * 2) + 1; // 1 - 2 runs (max 2)
           }
           return Math.floor(Math.random() * 3) + 3; // 3 - 5 runs (none_sticky)
         };
