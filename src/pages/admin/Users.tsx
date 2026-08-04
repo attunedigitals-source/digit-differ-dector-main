@@ -258,6 +258,29 @@ export default function UserManagement() {
     }
   });
 
+  // Mutation to Reject Payment
+  const rejectPayment = useMutation({
+    mutationFn: async ({ paymentId, userId }: { paymentId: string; userId: string }) => {
+      // 1. Mark payment as rejected in payments table
+      const { error: paymentErr } = await supabase.from('payments').update({ status: 'rejected' }).eq('id', paymentId);
+      if (paymentErr) throw paymentErr;
+
+      // 2. Reset user's profile subscription_status back to 'free' so they can re-select plans
+      const { error: profileErr } = await supabase.from('profiles').update({
+        subscription_status: 'free'
+      }).eq('id', userId);
+      if (profileErr) throw profileErr;
+    },
+    onSuccess: () => {
+      toast.success("Payment request rejected. User account reset to free plan.");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reject payment request");
+    }
+  });
+
   // Manual Subscription Mutation
   const manualUpdate = useMutation({
     mutationFn: async ({ userId, type, planType, sendMail }: any) => {
@@ -569,8 +592,15 @@ export default function UserManagement() {
                           size="sm" 
                           variant="ghost" 
                           className="h-8 text-destructive hover:bg-destructive/10"
+                          onClick={() => rejectPayment.mutate({ paymentId: p.id, userId: p.user_id })}
+                          disabled={rejectPayment.isPending || approvePayment.isPending}
                         >
-                          <XCircle className="w-4 h-4 mr-1" /> Reject
+                          {rejectPayment.isPending ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <XCircle className="w-4 h-4 mr-1" />
+                          )}
+                          Reject
                         </Button>
                         <Button 
                           size="sm" 
