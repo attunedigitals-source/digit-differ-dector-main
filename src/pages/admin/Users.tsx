@@ -213,7 +213,8 @@ export default function UserManagement() {
   const approvePayment = useMutation({
     mutationFn: async ({ paymentId, userId, planType }: any) => {
       // 1. Approve payment
-      await supabase.from('payments').update({ status: 'approved' }).eq('id', paymentId);
+      const { error: pErr } = await supabase.from('payments').update({ status: 'approved' }).eq('id', paymentId);
+      if (pErr) throw pErr;
       
       // 2. Map plan to duration
       const months = planType === '1_month' ? 1 : planType === '6_months' ? 6 : 12;
@@ -221,39 +222,52 @@ export default function UserManagement() {
       expiry.setMonth(expiry.getMonth() + months);
 
       // 3. Update profile
-      await supabase.from('profiles').update({
-        subscription_status: 'active',
-        subscription_expiry: expiry.toISOString()
-      }).eq('id', userId);
+      if (userId) {
+        await supabase.from('profiles').update({
+          subscription_status: 'active',
+          subscription_expiry: expiry.toISOString()
+        }).eq('id', userId);
 
-      // 4. Create subscription record
-      await supabase.from('subscriptions').insert({
-        user_id: userId,
-        plan_type: planType,
-        amount: planType === '1_month' ? 45 : planType === '6_months' ? 240 : 400,
-        expiry_date: expiry.toISOString(),
-        status: 'active'
-      });
+        // 4. Create subscription record
+        await supabase.from('subscriptions').insert({
+          user_id: userId,
+          plan_type: planType || '1_month',
+          amount: planType === '1_month' ? 500 : planType === '6_months' ? 2400 : 4000,
+          expiry_date: expiry.toISOString(),
+          status: 'active'
+        });
 
-      // 5. Trigger Email Notification (Non-blocking)
-      try {
-        const { data: profile } = await supabase.from('profiles').select('email').eq('id', userId).single();
-        if (profile) {
-          await supabase.functions.invoke('send-lifecycle-email', {
-            body: { 
-              email: profile.email, 
-              type: 'activated', 
-              data: { plan: planType.replace('_', ' ') } 
-            }
-          });
+        // 5. Trigger Email Notification (Non-blocking)
+        try {
+          const { data: profile } = await supabase.from('profiles').select('email').eq('id', userId).single();
+          if (profile?.email) {
+            await supabase.functions.invoke('send-lifecycle-email', {
+              body: { 
+                email: profile.email, 
+                type: 'activated', 
+                data: { plan: (planType || '1_month').replace('_', ' ') } 
+              }
+            });
+          }
+        } catch (err) {
+          console.warn("Failed to send activation email:", err);
         }
-      } catch (err) {
-        console.warn("Failed to send activation email:", err);
       }
+    },
+    onMutate: async ({ paymentId }) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-payments"] });
+      queryClient.setQueryData(["admin-payments"], (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.filter((p) => p.id !== paymentId);
+      });
     },
     onSuccess: () => {
       toast.success("Payment approved and subscription activated");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to approve payment");
       queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
     }
   });
@@ -266,10 +280,21 @@ export default function UserManagement() {
       if (paymentErr) throw paymentErr;
 
       // 2. Reset user's profile subscription_status back to 'free' so they can re-select plans
-      const { error: profileErr } = await supabase.from('profiles').update({
-        subscription_status: 'free'
-      }).eq('id', userId);
-      if (profileErr) throw profileErr;
+      if (userId) {
+        const { error: profileErr } = await supabase.from('profiles').update({
+          subscription_status: 'free'
+        }).eq('id', userId);
+        if (profileErr) {
+          console.warn("[AdminUsers] Could not update profile subscription_status:", profileErr);
+        }
+      }
+    },
+    onMutate: async ({ paymentId }) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-payments"] });
+      queryClient.setQueryData(["admin-payments"], (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.filter((p) => p.id !== paymentId);
+      });
     },
     onSuccess: () => {
       toast.success("Payment request rejected. User account reset to free plan.");
@@ -278,6 +303,7 @@ export default function UserManagement() {
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to reject payment request");
+      queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
     }
   });
 
@@ -572,47 +598,69 @@ export default function UserManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments?.length === 0 && (
+                  {paymentsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-primary" />
+                        Loading pending payment requests...
+                      </TableCell>
+                    </TableRow>
+                  ) : (!payments || payments.length === 0) ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-12 text-muted-foreground text-xs italic">
                         No pending payment requests found
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    payments.map((p) => {
+                      if (!p || !p.id) return null;
+                      const isRejectingThis = rejectPayment.isPending && (rejectPayment.variables as any)?.paymentId === p.id;
+                      const isApprovingThis = approvePayment.isPending && (approvePayment.variables as any)?.paymentId === p.id;
+                      const planLabel = (p.plan_type || '1_month').replace('_', ' ');
+                      const userEmail = (p as any)?.profiles?.email || p.user_id || 'N/A';
+                      const formattedDate = p.created_at ? new Date(p.created_at).toLocaleString() : 'N/A';
+
+                      return (
+                        <TableRow key={p.id} className="border-border/50">
+                          <TableCell className="text-sm font-medium">{userEmail}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] uppercase font-bold">{planLabel}</Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">${p.amount ?? 0}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formattedDate}</TableCell>
+                          <TableCell className="text-right space-x-2">
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-8 text-destructive hover:bg-destructive/10"
+                              onClick={() => rejectPayment.mutate({ paymentId: p.id, userId: p.user_id })}
+                              disabled={isRejectingThis || isApprovingThis}
+                            >
+                              {isRejectingThis ? (
+                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              ) : (
+                                <XCircle className="w-4 h-4 mr-1" />
+                              )}
+                              Reject
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              className="h-8 bg-green-500/20 text-green-500 hover:bg-green-500/30 border border-green-500/30"
+                              onClick={() => approvePayment.mutate({ paymentId: p.id, userId: p.user_id, planType: p.plan_type })}
+                              disabled={isRejectingThis || isApprovingThis}
+                            >
+                              {isApprovingThis ? (
+                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-4 h-4 mr-1" />
+                              )}
+                              Approve
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
-                  {payments?.map((p) => (
-                    <TableRow key={p.id} className="border-border/50">
-                      <TableCell className="text-sm font-medium">{(p as any).profiles?.email}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[10px] uppercase font-bold">{p.plan_type.replace('_', ' ')}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">${p.amount}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleString()}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 text-destructive hover:bg-destructive/10"
-                          onClick={() => rejectPayment.mutate({ paymentId: p.id, userId: p.user_id })}
-                          disabled={rejectPayment.isPending || approvePayment.isPending}
-                        >
-                          {rejectPayment.isPending ? (
-                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                          ) : (
-                            <XCircle className="w-4 h-4 mr-1" />
-                          )}
-                          Reject
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          className="h-8 bg-green-500/20 text-green-500 hover:bg-green-500/30 border border-green-500/30"
-                          onClick={() => approvePayment.mutate({ paymentId: p.id, userId: p.user_id, planType: p.plan_type })}
-                          disabled={approvePayment.isPending}
-                        >
-                          <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
                 </TableBody>
               </Table>
             </Card>
