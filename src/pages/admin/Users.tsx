@@ -31,10 +31,12 @@ import {
   Phone,
   MessageSquare,
   Link2,
-  Trash2
+  Trash2,
+  Zap
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getCapturedLeads, manuallyLinkLeadDerivAccount, deleteLeadRecord, LeadData } from "@/lib/leads";
+import { syncAllLeadsToBrevo } from "@/lib/brevo";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -76,8 +78,29 @@ export default function UserManagement() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectedLeadForLink, setSelectedLeadForLink] = useState<LeadData | null>(null);
   const [customDerivId, setCustomDerivId] = useState("");
+  const [isSyncingBrevo, setIsSyncingBrevo] = useState(false);
   
   const queryClient = useQueryClient();
+
+  // Auto-sync leads to Brevo on admin mount
+  useEffect(() => {
+    syncAllLeadsToBrevo().then((res) => {
+      console.log(`[AdminUsers] Auto Brevo sync: ${res.synced}/${res.total}`);
+    }).catch(console.warn);
+  }, []);
+
+  const handleBrevoSync = async () => {
+    setIsSyncingBrevo(true);
+    toast.info("Syncing all Supabase leads to Brevo List 3...");
+    try {
+      const res = await syncAllLeadsToBrevo();
+      toast.success(`Successfully synced ${res.synced} / ${res.total} leads to Brevo List 3!`);
+    } catch (err: any) {
+      toast.error(`Brevo sync error: ${err.message || String(err)}`);
+    } finally {
+      setIsSyncingBrevo(false);
+    }
+  };
 
   // Real-time Subscriptions for Admin Sync (with enhanced debugging)
   
@@ -579,13 +602,25 @@ export default function UserManagement() {
                     Complete directory of registered users, RState tokens, contact details, and connected Deriv account IDs.
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => exportLeadsCSV(capturedLeads)}
-                  className="bg-primary text-primary-foreground text-xs gap-1.5 shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" /> Export Leads CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isSyncingBrevo}
+                    onClick={handleBrevoSync}
+                    className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 text-xs gap-1.5 font-semibold"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                    {isSyncingBrevo ? "Syncing Brevo..." : "Sync All to Brevo"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => exportLeadsCSV(capturedLeads)}
+                    className="bg-primary text-primary-foreground text-xs gap-1.5 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export Leads CSV
+                  </Button>
+                </div>
               </div>
 
               <Table>
