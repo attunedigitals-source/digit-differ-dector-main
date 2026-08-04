@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { COUNTRIES, Country } from "@/data/countries";
+import { COUNTRIES, Country, getDetectedUserCountry, fetchUserCountryByIP } from "@/data/countries";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronDown, Check } from "lucide-react";
 
@@ -22,11 +22,26 @@ export const PhoneInputWithCountry: React.FC<PhoneInputWithCountryProps> = ({
   placeholder = "8012345678",
   onBlur,
 }) => {
-  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Default Nigeria (+234)
+  // Initialize with synchronous timezone-detected country
+  const [selectedCountry, setSelectedCountry] = useState<Country>(() => getDetectedUserCountry());
   const [localNumber, setLocalNumber] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const hasUserInteractedRef = useRef(false);
+
+  // Auto-detect user country via IP geolocation in background if not manually modified
+  useEffect(() => {
+    let isMounted = true;
+    fetchUserCountryByIP().then((ipCountry) => {
+      if (isMounted && ipCountry && !hasUserInteractedRef.current && !value) {
+        setSelectedCountry(ipCountry);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [value]);
 
   // Sync internal state when external `value` changes
   useEffect(() => {
@@ -69,6 +84,7 @@ export const PhoneInputWithCountry: React.FC<PhoneInputWithCountryProps> = ({
   }, [searchQuery]);
 
   const handleCountrySelect = (country: Country) => {
+    hasUserInteractedRef.current = true;
     setSelectedCountry(country);
     setIsOpen(false);
     setSearchQuery("");
@@ -83,6 +99,7 @@ export const PhoneInputWithCountry: React.FC<PhoneInputWithCountryProps> = ({
   };
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    hasUserInteractedRef.current = true;
     let inputVal = e.target.value;
 
     // Handle full pasted number containing dial code
@@ -116,7 +133,7 @@ export const PhoneInputWithCountry: React.FC<PhoneInputWithCountryProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-1.5 px-3 py-2 h-10 rounded-md border border-border/60 bg-background/80 hover:bg-muted/50 transition-colors text-xs font-semibold shrink-0 focus:outline-none focus:ring-1 focus:ring-primary"
         aria-label="Select Country Code"
-        title="Select Country Flag & Calling Code"
+        title={`Connecting from ${selectedCountry.name} (${selectedCountry.dialCode})`}
       >
         <span className="text-base leading-none">{selectedCountry.flag}</span>
         <span className="font-mono font-bold text-foreground">{selectedCountry.dialCode}</span>

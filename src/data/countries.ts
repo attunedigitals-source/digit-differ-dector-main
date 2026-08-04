@@ -176,3 +176,120 @@ export const COUNTRIES: Country[] = [
   { name: "Zambia", code: "ZM", dialCode: "+260", flag: "🇿🇲" },
   { name: "Zimbabwe", code: "ZW", dialCode: "+263", flag: "🇿🇼" },
 ];
+
+export function getCountryByCode(code: string): Country | undefined {
+  if (!code) return undefined;
+  const upper = code.trim().toUpperCase();
+  return COUNTRIES.find((c) => c.code === upper);
+}
+
+const TIMEZONE_COUNTRY_MAP: Record<string, string> = {
+  "Africa/Lagos": "NG",
+  "Africa/Accra": "GH",
+  "Africa/Nairobi": "KE",
+  "Africa/Johannesburg": "ZA",
+  "Africa/Cairo": "EG",
+  "Africa/Casablanca": "MA",
+  "Africa/Tunis": "TN",
+  "Africa/Algiers": "DZ",
+  "Africa/Kampala": "UG",
+  "Africa/Dar_es_Salaam": "TZ",
+  "Africa/Harare": "ZW",
+  "Africa/Lusaka": "ZM",
+  "Africa/Kigali": "RW",
+  "Africa/Abidjan": "CI",
+  "Africa/Douala": "CM",
+  "Africa/Luanda": "AO",
+  "America/New_York": "US",
+  "America/Chicago": "US",
+  "America/Denver": "US",
+  "America/Los_Angeles": "US",
+  "America/Anchorage": "US",
+  "America/Adak": "US",
+  "Pacific/Honolulu": "US",
+  "America/Toronto": "CA",
+  "America/Vancouver": "CA",
+  "America/Montreal": "CA",
+  "America/Edmonton": "CA",
+  "Europe/London": "GB",
+  "Europe/Paris": "FR",
+  "Europe/Berlin": "DE",
+  "Europe/Rome": "IT",
+  "Europe/Madrid": "ES",
+  "Europe/Amsterdam": "NL",
+  "Europe/Brussels": "BE",
+  "Europe/Vienna": "AT",
+  "Europe/Zurich": "CH",
+  "Europe/Stockholm": "SE",
+  "Europe/Oslo": "NO",
+  "Europe/Copenhagen": "DK",
+  "Europe/Helsinki": "FI",
+  "Europe/Warsaw": "PL",
+  "Europe/Dublin": "IE",
+  "Europe/Athens": "GR",
+  "Europe/Istanbul": "TR",
+  "Asia/Kolkata": "IN",
+  "Asia/Calcutta": "IN",
+  "Asia/Dubai": "AE",
+  "Asia/Riyadh": "SA",
+  "Asia/Singapore": "SG",
+  "Asia/Kuala_Lumpur": "MY",
+  "Asia/Jakarta": "ID",
+  "Asia/Manila": "PH",
+  "Asia/Bangkok": "TH",
+  "Asia/Tokyo": "JP",
+  "Asia/Seoul": "KR",
+  "Asia/Shanghai": "CN",
+  "Asia/Hong_Kong": "HK",
+  "Asia/Karachi": "PK",
+  "Asia/Dhaka": "BD",
+  "Australia/Sydney": "AU",
+  "Australia/Melbourne": "AU",
+  "Australia/Brisbane": "AU",
+  "Australia/Perth": "AU",
+  "Pacific/Auckland": "NZ",
+  "America/Sao_Paulo": "BR",
+  "America/Mexico_City": "MX",
+  "America/Bogota": "CO",
+  "America/Buenos_Aires": "AR",
+};
+
+/**
+ * Synchronously detects the user's country using browser Intl timezone.
+ */
+export function getDetectedUserCountry(): Country {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && TIMEZONE_COUNTRY_MAP[tz]) {
+      const matched = getCountryByCode(TIMEZONE_COUNTRY_MAP[tz]);
+      if (matched) return matched;
+    }
+  } catch (e) {
+    console.warn("[Geo] Timezone detection notice:", e);
+  }
+  return COUNTRIES[0]; // Default to Nigeria (+234)
+}
+
+/**
+ * Asynchronously detects the user's country using IP geolocation.
+ */
+export async function fetchUserCountryByIP(): Promise<Country | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+    const response = await fetch("https://ipapi.co/json/", { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.country_code) {
+        const matched = getCountryByCode(data.country_code);
+        if (matched) return matched;
+      }
+    }
+  } catch (e) {
+    // Non-fatal IP lookup error
+  }
+  return null;
+}
