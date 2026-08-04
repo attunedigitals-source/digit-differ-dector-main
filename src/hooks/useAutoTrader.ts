@@ -735,6 +735,17 @@ export function useAutoTrader(
   const pendingBuys = useRef<Map<string, { symbol: string; supabaseId: string }>>(new Map());
 
   const isExecutingRef = useRef(false);
+  const startBalanceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (config.enabled && accountInfo?.balance !== undefined) {
+      if (startBalanceRef.current === null) {
+        startBalanceRef.current = accountInfo.balance;
+      }
+    } else if (!config.enabled) {
+      startBalanceRef.current = null;
+    }
+  }, [config.enabled, accountInfo?.balance]);
   // Stores per-proposal timeout handles so they can be cancelled when a response arrives
   const proposalTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -912,12 +923,16 @@ export function useAutoTrader(
       return;
     }
 
-    // Check allowable loss limit
-    if (config.initialBalance !== undefined && config.initialBalance > 0 && config.allowableLoss !== undefined && config.allowableLoss > 0 && accountInfo?.balance !== undefined) {
-      const stopBalance = config.initialBalance - config.allowableLoss;
-      if (accountInfo.balance <= stopBalance) {
-        console.log(`[AutoTrader] Allowable Loss limit reached. Balance: $${accountInfo.balance.toFixed(2)}, Stop Balance: $${stopBalance.toFixed(2)} (Initial: $${config.initialBalance.toFixed(2)}, Allowable Loss: $${config.allowableLoss.toFixed(2)}). Disabling bot.`);
-        toast.error(`Allowable Loss limit reached! Current Balance: $${accountInfo.balance.toFixed(2)} is at/below the limit of $${stopBalance.toFixed(2)}. Disabling bot.`);
+    // Check allowed loss limit
+    if (config.allowableLoss !== undefined && config.allowableLoss > 0 && accountInfo?.balance !== undefined) {
+      const startBal = startBalanceRef.current ?? accountInfo.balance;
+      const stopBalance = startBal - config.allowableLoss;
+      const isLossBySession = sessionPLRef.current <= -config.allowableLoss;
+      const isLossByBalance = accountInfo.balance <= stopBalance;
+
+      if (isLossBySession || isLossByBalance) {
+        console.log(`[AutoTrader] Allowed Loss limit reached. Balance: $${accountInfo.balance.toFixed(2)}, Stop Balance: $${stopBalance.toFixed(2)} (Start Balance: $${startBal.toFixed(2)}, Allowed Loss: $${config.allowableLoss.toFixed(2)}). Disabling bot.`);
+        toast.error(`Allowed Loss limit reached! Current Balance: $${accountInfo.balance.toFixed(2)} is at/below the limit of $${stopBalance.toFixed(2)}. Disabling bot.`);
         stableSetConfig(prev => ({ ...prev, enabled: false }));
         return;
       }
@@ -3398,13 +3413,17 @@ export function useAutoTrader(
       stableSetConfig(prev => ({ ...prev, enabled: false }));
     }
 
-    // Check allowable loss limit
+    // Check allowed loss limit
     if (sessionState.status !== "WIN") {
-      if (config.initialBalance !== undefined && config.initialBalance > 0 && config.allowableLoss !== undefined && config.allowableLoss > 0 && accountInfo?.balance !== undefined) {
-        const stopBalance = config.initialBalance - config.allowableLoss;
-        if (accountInfo.balance <= stopBalance) {
-          console.log(`[AutoTrader] Allowable Loss limit reached. Balance: $${accountInfo.balance.toFixed(2)}, Stop Balance: $${stopBalance.toFixed(2)} (Initial: $${config.initialBalance.toFixed(2)}, Allowable Loss: $${config.allowableLoss.toFixed(2)}). Disabling bot.`);
-          toast.error(`Allowable Loss limit reached! Current Balance: $${accountInfo.balance.toFixed(2)} is at/below the limit of $${stopBalance.toFixed(2)}. Disabling bot.`);
+      if (config.allowableLoss !== undefined && config.allowableLoss > 0 && accountInfo?.balance !== undefined) {
+        const startBal = startBalanceRef.current ?? accountInfo.balance;
+        const stopBalance = startBal - config.allowableLoss;
+        const isLossBySession = sessionPL <= -config.allowableLoss;
+        const isLossByBalance = accountInfo.balance <= stopBalance;
+
+        if (isLossBySession || isLossByBalance) {
+          console.log(`[AutoTrader] Allowed Loss limit reached. Balance: $${accountInfo.balance.toFixed(2)}, Stop Balance: $${stopBalance.toFixed(2)} (Start Balance: $${startBal.toFixed(2)}, Allowed Loss: $${config.allowableLoss.toFixed(2)}). Disabling bot.`);
+          toast.error(`Allowed Loss limit reached! Current Balance: $${accountInfo.balance.toFixed(2)} is at/below the limit of $${stopBalance.toFixed(2)}. Disabling bot.`);
           stableSetConfig(prev => ({ ...prev, enabled: false }));
         }
       }
