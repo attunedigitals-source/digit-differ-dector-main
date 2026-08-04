@@ -282,7 +282,7 @@ const Landing = () => {
                 <ul className="space-y-2 text-sm text-muted-foreground">
                                     <li><Link to="/documentation" className="hover:text-primary transition-colors">Documentation</Link></li>
                   <li><a href="#" className="hover:text-primary transition-colors">System Status</a></li>
-                                    <li><a href="https://t.me/Blade234" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">Contact</a></li>
+                                    <li><a href="https://chat.whatsapp.com/B5QnMkxnHMeEXnW7HUfIPS" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">Contact Admin (WhatsApp)</a></li>
                 </ul>
               </div>
               <div>

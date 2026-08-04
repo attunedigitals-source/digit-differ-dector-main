@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Sparkles, ShieldCheck, Zap, Copy, ExternalLink, MessageSquare } from "lucide-react";
+import { Check, Loader2, Sparkles, ShieldCheck, Zap, Copy, ExternalLink, MessageSquare, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Checkbox } from "@/components/ui/checkbox";
+import { WHATSAPP_GROUP_URL } from "@/lib/leads";
 
 const PLANS = [
   {
@@ -37,7 +38,7 @@ const PLANS = [
 ];
 
 const USDT_ADDRESS = "TEtFRiJ3Ar1jvLbu54ZkGLkswFrUc5VesD";
-const ADMIN_TELEGRAM = "https://t.me/Blade234";
+const ADMIN_WHATSAPP = WHATSAPP_GROUP_URL || "https://chat.whatsapp.com/B5QnMkxnHMeEXnW7HUfIPS";
 
 interface SubscriptionPaywallProps {
   onClose?: () => void;
@@ -50,46 +51,55 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
   const [showPayment, setShowPayment] = useState(false);
   const [hasConfirmed, setHasConfirmed] = useState(false);
 
-  const handleSubscribe = async (planId: string) => {
-    if (!user) return;
-    setLoading(true);
+  // Step 1 -> Step 2: User selects plan (DOES NOT touch DB or set pending status yet)
+  const handleSelectPlan = (planId: string) => {
     setSelectedPlanId(planId);
-
-    try {
-      const plan = PLANS.find((p) => p.id === planId);
-      if (!plan) throw new Error("Invalid plan");
-
-      // Create a pending payment record
-      const { error } = await supabase.from("payments").insert({
-        user_id: user.id,
-        amount: plan.price,
-        plan_type: planId,
-        status: "pending",
-      });
-
-      if (error) throw error;
-
-      // Update profile status to pending
-      await supabase.from("profiles").update({
-        subscription_status: "pending",
-      }).eq("id", user.id);
-
-      if (refreshProfile) await refreshProfile();
-      setShowPayment(true);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to initiate subscription");
-    } finally {
-      setLoading(false);
-    }
+    setShowPayment(true);
+    setHasConfirmed(false);
   };
 
-  const handlePaymentConfirmed = () => {
+  // Step 2: User explicitly checks "I have sent..." and clicks "I have made the transfer"
+  const handlePaymentConfirmed = async () => {
+    if (!user) return;
     if (!hasConfirmed) {
       toast.error("Please check the box to confirm your transfer.");
       return;
     }
-    toast.success("Thank you! Your account will be activated once the admin verifies the transfer.");
-    if (onClose) onClose();
+
+    const plan = PLANS.find((p) => p.id === selectedPlanId);
+    if (!plan) {
+      toast.error("Please select a valid subscription plan.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Create a pending payment record ONLY when user submits transfer confirmation
+      const { error: paymentError } = await supabase.from("payments").insert({
+        user_id: user.id,
+        amount: plan.price,
+        plan_type: plan.id,
+        status: "pending",
+      });
+
+      if (paymentError) throw paymentError;
+
+      // 2. Update profile status to pending ONLY when user confirms transfer
+      const { error: profileError } = await supabase.from("profiles").update({
+        subscription_status: "pending",
+      }).eq("id", user.id);
+
+      if (profileError) throw profileError;
+
+      if (refreshProfile) await refreshProfile();
+      toast.success("Thank you! Your payment verification request has been submitted to admin.");
+      if (onClose) onClose();
+    } catch (error: any) {
+      console.error("[Paywall Error]:", error);
+      toast.error(error.message || "Failed to submit payment confirmation.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -104,8 +114,16 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
         <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary" />
         <CardHeader className="space-y-1">
           <div className="flex justify-between items-center mb-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPayment(false)}
+              className="h-7 text-xs font-semibold gap-1 text-muted-foreground hover:text-foreground px-2"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to Plans
+            </Button>
             <Badge variant="secondary" className="bg-primary/10 text-primary border-none">Step 2: Payment</Badge>
-            <span className="text-xs text-muted-foreground">Order: #{Math.random().toString(36).substring(7).toUpperCase()}</span>
           </div>
           <CardTitle className="text-2xl font-bold flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-primary" />
@@ -169,20 +187,21 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
               <Button 
                 className="w-full h-12 text-lg font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90" 
                 onClick={handlePaymentConfirmed}
-                disabled={!hasConfirmed}
+                disabled={!hasConfirmed || loading}
               >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                 I have made the transfer
               </Button>
               
               <a 
-                href={ADMIN_TELEGRAM} 
+                href={ADMIN_WHATSAPP} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-full"
               >
                 <Button variant="ghost" className="w-full text-muted-foreground hover:text-primary transition-colors flex items-center justify-center gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  Contact Admin on Telegram
+                  <MessageSquare className="w-4 h-4 text-emerald-500" />
+                  Contact Admin on WhatsApp
                 </Button>
               </a>
             </div>
@@ -211,14 +230,14 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
           <div className="w-full flex flex-col gap-3">
             <Button variant="outline" className="w-full" onClick={onClose}>Close</Button>
             <a 
-              href={ADMIN_TELEGRAM} 
+              href={ADMIN_WHATSAPP} 
               target="_blank" 
               rel="noopener noreferrer"
               className="w-full"
             >
-              <Button variant="ghost" className="w-full text-xs text-muted-foreground flex items-center justify-center gap-2">
-                <MessageSquare className="w-3.5 h-3.5" />
-                Contact Admin
+              <Button variant="ghost" className="w-full text-xs text-muted-foreground hover:text-emerald-400 flex items-center justify-center gap-2">
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
+                Contact Admin on WhatsApp
               </Button>
             </a>
           </div>
@@ -266,12 +285,8 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
             <Button 
               className="w-full font-semibold" 
               variant={plan.popular ? "default" : "outline"}
-              onClick={() => handleSubscribe(plan.id)}
-              disabled={loading}
+              onClick={() => handleSelectPlan(plan.id)}
             >
-              {loading && selectedPlanId === plan.id ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : null}
               Select Plan
             </Button>
           </CardFooter>
