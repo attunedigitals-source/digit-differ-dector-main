@@ -45,7 +45,7 @@ describe("Lead Generation, Client Portal & Deriv Association", () => {
 
     const nameInput = screen.getByPlaceholderText(/Enter your full name/i);
     const emailInput = screen.getByPlaceholderText(/you@example.com/i);
-    const phoneInput = screen.getByPlaceholderText(/\+2348012345678/i);
+    const phoneInput = screen.getByPlaceholderText(/8012345678/i);
     const passInput = screen.getByPlaceholderText(/Create a password/i);
     const confirmPassInput = screen.getByPlaceholderText(/Confirm your password/i);
     const submitBtn = screen.getByRole("button", { name: /Join WhatsApp & Continue/i });
