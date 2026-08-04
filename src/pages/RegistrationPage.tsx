@@ -3,9 +3,10 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Zap, UserPlus, CheckCircle2, ArrowRight, Shield } from "lucide-react";
+import { Zap, UserPlus, CheckCircle2, ArrowRight } from "lucide-react";
 import { submitLead } from "@/lib/leads";
 import { toast } from "sonner";
+import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
 
 export const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,10 +17,47 @@ export const RegistrationPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Real-time Name sanitizer: allow only letters, spaces, hyphens, and apostrophes
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sanitized = e.target.value.replace(/[^a-zA-Z\s'-]/g, "");
+    setName(sanitized);
+  };
+
+  // Real-time Email sanitizer: disallow whitespace, force lowercase
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sanitized = e.target.value.replace(/\s/g, "").toLowerCase();
+    setEmail(sanitized);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !phone || !password || !confirmPassword) {
-      toast.error("Please fill in email, WhatsApp phone, and create/confirm your password.");
+
+    // 1. Full Name Validation
+    const trimmedName = name.trim();
+    const nameRegex = /^[a-zA-Z\s'-]{2,}$/;
+    if (!trimmedName || !nameRegex.test(trimmedName)) {
+      toast.error("Full Name should only contain letters and spaces (minimum 2 characters).");
+      return;
+    }
+
+    // 2. Email Validation
+    const trimmedEmail = email.trim();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address (e.g. name@example.com).");
+      return;
+    }
+
+    // 3. WhatsApp Phone Validation (must include country code and valid digit count)
+    const digitsOnly = phone.replace(/\D/g, "");
+    if (!phone || !phone.startsWith("+") || digitsOnly.length < 8 || digitsOnly.length > 15) {
+      toast.error("Please enter a valid WhatsApp phone number including country code.");
+      return;
+    }
+
+    // 4. Password Validation
+    if (!password || !confirmPassword) {
+      toast.error("Please create and confirm your password.");
       return;
     }
 
@@ -31,9 +69,9 @@ export const RegistrationPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await submitLead({
-        email,
+        email: trimmedEmail,
         phone,
-        name,
+        name: trimmedName,
         password,
         source: "organic_direct",
         whatsappOptIn: true,
@@ -96,7 +134,7 @@ export const RegistrationPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="w-full md:w-[400px]">
+        <div className="w-full md:w-[420px]">
           <Card className="border border-border/60 bg-card/90 backdrop-blur-xl shadow-2xl">
             <CardHeader className="space-y-1 text-left pb-4">
               <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2 border border-primary/20">
@@ -109,43 +147,56 @@ export const RegistrationPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4 text-left">
+                {/* Full Name */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground/80">Full Name <span className="text-red-400">*</span></label>
+                  <label className="text-xs font-semibold text-foreground/80 flex items-center justify-between">
+                    <span>Full Name <span className="text-red-400">*</span></span>
+                    <span className="text-[10px] text-muted-foreground font-normal">Letters only</span>
+                  </label>
                   <Input
                     type="text"
                     required
                     placeholder="Enter your full name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={handleNameChange}
                     className="bg-background/60 border-border/60 focus:border-primary"
                   />
                 </div>
 
+                {/* Email Address */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground/80">Email Address <span className="text-red-400">*</span></label>
+                  <label className="text-xs font-semibold text-foreground/80 flex items-center justify-between">
+                    <span>Email Address <span className="text-red-400">*</span></span>
+                    <span className="text-[10px] text-muted-foreground font-normal">Valid email format</span>
+                  </label>
                   <Input
                     type="email"
                     required
                     placeholder="you@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={handleEmailChange}
                     className="bg-background/60 border-border/60 focus:border-primary"
                   />
                 </div>
 
+                {/* WhatsApp Phone Number with Flag Helper & Search */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground/80">WhatsApp Phone Number <span className="text-red-400">*</span></label>
-                  <Input
-                    type="tel"
-                    required
-                    placeholder="+2348012345678"
+                  <label className="text-xs font-semibold text-foreground/80 flex items-center justify-between">
+                    <span>WhatsApp Phone Number <span className="text-red-400">*</span></span>
+                    <span className="text-[10px] text-muted-foreground font-normal">Select flag helper</span>
+                  </label>
+                  <PhoneInputWithCountry
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="bg-background/60 border-border/60 focus:border-primary"
+                    onChange={setPhone}
+                    required
+                    placeholder="8012345678"
                   />
-                  <span className="text-[10px] text-muted-foreground">Include country code</span>
+                  <span className="text-[10px] text-muted-foreground block pt-0.5">
+                    Click the flag button to search your country name or code.
+                  </span>
                 </div>
 
+                {/* Create Password */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-foreground/80">Create Password <span className="text-red-400">*</span></label>
                   <Input
@@ -158,6 +209,7 @@ export const RegistrationPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Confirm Password */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-foreground/80">Confirm Password <span className="text-red-400">*</span></label>
                   <Input
