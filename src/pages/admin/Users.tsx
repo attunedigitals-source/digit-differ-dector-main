@@ -376,8 +376,8 @@ export default function UserManagement() {
 
   // Exclude Admin account (amusco2@yahoo.com) from User Management display
   const ADMIN_EMAIL = "amusco2@yahoo.com";
-  const clientUsers = users?.filter(u => u.email?.toLowerCase() !== ADMIN_EMAIL) || [];
-  const filteredUsers = clientUsers.filter(u => u.email.toLowerCase().includes(search.toLowerCase()));
+  const clientUsers = users?.filter(u => u && u.email && u.email.toLowerCase() !== ADMIN_EMAIL) || [];
+  const filteredUsers = clientUsers.filter(u => (u.email || "").toLowerCase().includes((search || "").toLowerCase()));
 
   return (
     <AdminLayout title="User Management">
