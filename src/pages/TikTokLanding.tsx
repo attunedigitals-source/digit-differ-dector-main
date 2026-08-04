@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Zap, MessageSquare, CheckCircle2, ArrowRight, Shield, Award, Sparkles } from "lucide-react";
+import { Zap, MessageSquare, CheckCircle2, ArrowRight, Award, Sparkles } from "lucide-react";
 import { submitLead } from "@/lib/leads";
 import { toast } from "sonner";
 import { PhoneInputWithCountry } from "@/components/PhoneInputWithCountry";
@@ -49,8 +49,9 @@ export const TikTokLanding: React.FC = () => {
     }
 
     // 3. WhatsApp Phone Validation (must include country code and valid digit count)
-    const digitsOnly = phone.replace(/\D/g, "");
-    if (!phone || !phone.startsWith("+") || digitsOnly.length < 8 || digitsOnly.length > 15) {
+    const formattedPhone = phone.startsWith("+") ? phone : `+${phone.replace(/\D/g, "")}`;
+    const digitsOnly = formattedPhone.replace(/\D/g, "");
+    if (!phone || digitsOnly.length < 7 || digitsOnly.length > 15) {
       toast.error("Please enter a valid WhatsApp phone number including country code.");
       return;
     }
@@ -70,7 +71,7 @@ export const TikTokLanding: React.FC = () => {
     try {
       await submitLead({
         email: trimmedEmail,
-        phone,
+        phone: formattedPhone,
         name: trimmedName,
         password,
         source: "tiktok_paid",

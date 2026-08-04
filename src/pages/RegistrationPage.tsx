@@ -49,8 +49,9 @@ export const RegistrationPage: React.FC = () => {
     }
 
     // 3. WhatsApp Phone Validation (must include country code and valid digit count)
-    const digitsOnly = phone.replace(/\D/g, "");
-    if (!phone || !phone.startsWith("+") || digitsOnly.length < 8 || digitsOnly.length > 15) {
+    const formattedPhone = phone.startsWith("+") ? phone : `+${phone.replace(/\D/g, "")}`;
+    const digitsOnly = formattedPhone.replace(/\D/g, "");
+    if (!phone || digitsOnly.length < 7 || digitsOnly.length > 15) {
       toast.error("Please enter a valid WhatsApp phone number including country code.");
       return;
     }
@@ -70,7 +71,7 @@ export const RegistrationPage: React.FC = () => {
     try {
       await submitLead({
         email: trimmedEmail,
-        phone,
+        phone: formattedPhone,
         name: trimmedName,
         password,
         source: "organic_direct",
