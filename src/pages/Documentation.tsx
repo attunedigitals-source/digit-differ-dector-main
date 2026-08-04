@@ -417,7 +417,6 @@ const Documentation = () => {
                       arrowTargetY: 26,
                     },
                     {
-                    {
                       badge: 2,
                       title: "Auto Generate Parameters",
                       description: "Click 'Auto Generate' to automatically calculate risk parameters from active account balance.",
