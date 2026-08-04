@@ -107,7 +107,6 @@ export function TradingPanel({
   const [localStakeP, setLocalStakeP] = useState((config.strategyPBaseStake ?? config.baseStake).toString());
   const [localStakeR, setLocalStakeR] = useState((config.strategyRBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
-  const [localInitialBalance, setLocalInitialBalance] = useState(config.initialBalance?.toString() || "");
   const [localAllowableLoss, setLocalAllowableLoss] = useState(config.allowableLoss?.toString() || "");
   const [localTargetProfit, setLocalTargetProfit] = useState(config.targetProfit?.toString() || "");
   const [autoGenMode, setAutoGenMode] = useState(false);
@@ -156,28 +155,12 @@ export function TradingPanel({
   }, [config.maxMartingaleSteps]);
 
   useEffect(() => {
-    setLocalInitialBalance(config.initialBalance?.toString() || "");
-  }, [config.initialBalance]);
-
-  useEffect(() => {
     setLocalAllowableLoss(config.allowableLoss?.toString() || "");
   }, [config.allowableLoss]);
 
   useEffect(() => {
     setLocalTargetProfit(config.targetProfit?.toString() || "");
   }, [config.targetProfit]);
-
-  useEffect(() => {
-    if (balance !== undefined && !config.initialBalance && localInitialBalance === "") {
-      setLocalInitialBalance(balance.toString());
-      onConfigChange({ ...config, initialBalance: balance });
-    }
-  }, [balance, config.initialBalance]);
-
-  const handleInitialBalanceBlur = () => {
-    const val = parseFloat(localInitialBalance);
-    onConfigChange({ ...config, initialBalance: isNaN(val) ? undefined : val });
-  };
 
   const handleAllowableLossBlur = () => {
     const val = parseFloat(localAllowableLoss);
@@ -190,14 +173,15 @@ export function TradingPanel({
   };
 
   /**
-   * Auto-generates BASE STAKE, ALLOW LOSS and TARGET PROFIT from INIT BALANCE.
-   * Rule 1: initBalance 500–1000  => baseStake=1.0, allowLoss=200, targetProfit=120
-   * Rule 2: initBalance >1000     => allowLoss=initBalance/5, baseStake=allowLoss/285.714, targetProfit=allowLoss*0.6
+   * Auto-generates BASE STAKE, ALLOWED LOSS and TARGET PROFIT from the trading account Balance.
+   * Rule 1: balance 500–1000  => baseStake=1.0, allowLoss=200, targetProfit=120
+   * Rule 2: balance >1000     => allowLoss=balance/5, baseStake=allowLoss/285.714, targetProfit=allowLoss*0.6
+   * Rule 3: balance <500      => allowLoss=balance*0.5, baseStake=max(0.35, balance*0.005), targetProfit=balance*0.3
    */
   const handleAutoGenerate = () => {
-    const initBal = parseFloat(localInitialBalance);
-    if (isNaN(initBal) || initBal < 500) {
-      toast.error("Please enter a valid Init Balance of at least $500 before auto-generating.");
+    const acctBal = balance !== undefined && !isNaN(balance) ? balance : undefined;
+    if (acctBal === undefined || acctBal <= 0) {
+      toast.error("Please connect or select a trading account with a valid balance to auto-generate parameters.");
       return;
     }
 
@@ -205,16 +189,21 @@ export function TradingPanel({
     let newAllowLoss: number;
     let newTargetProfit: number;
 
-    if (initBal >= 500 && initBal <= 1000) {
+    if (acctBal >= 500 && acctBal <= 1000) {
       // Rule 1
       newBaseStake = 1.0;
       newAllowLoss = 200;
       newTargetProfit = 120;
-    } else {
-      // Rule 2: initBal > 1000
-      newAllowLoss = parseFloat((initBal / 5).toFixed(2));
+    } else if (acctBal > 1000) {
+      // Rule 2: balance > 1000
+      newAllowLoss = parseFloat((acctBal / 5).toFixed(2));
       newBaseStake = parseFloat((newAllowLoss / 285.714).toFixed(2));
       newTargetProfit = parseFloat((newAllowLoss * 0.6).toFixed(2));
+    } else {
+      // Rule 3: balance < 500
+      newAllowLoss = parseFloat((acctBal * 0.5).toFixed(2));
+      newBaseStake = Math.max(0.35, parseFloat((acctBal * 0.005).toFixed(2)));
+      newTargetProfit = parseFloat((acctBal * 0.3).toFixed(2));
     }
 
     setLocalStake(newBaseStake.toString());
@@ -228,7 +217,6 @@ export function TradingPanel({
 
     onConfigChange({
       ...config,
-      initialBalance: initBal,
       baseStake: newBaseStake,
       strategyLBaseStake: newBaseStake,
       strategyMBaseStake: newBaseStake,
@@ -241,7 +229,7 @@ export function TradingPanel({
 
     setAutoGenMode(true);
     toast.success(
-      `Auto-generated ✓  Base Stake: $${newBaseStake} | Allow Loss: $${newAllowLoss} | Target Profit: $${newTargetProfit}`,
+      `Auto-generated ✓  Base Stake: $${newBaseStake} | Allowed Loss: $${newAllowLoss} | Target Profit: $${newTargetProfit}`,
       { duration: 5000 }
     );
   };
@@ -402,24 +390,16 @@ export function TradingPanel({
         </p>
       )}
 
-      {/* 1. Init Balance + Auto Generate Section */}
+      {/* 1. Risk & Profit Auto Generate Header Section */}
       <div className="space-y-2 border-b border-border/20 pb-3">
-        <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <DollarSign className="w-3 h-3 text-emerald-400" /> Init Balance
-            </label>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              disabled={config.enabled}
-              value={localInitialBalance}
-              onChange={(e) => { setLocalInitialBalance(e.target.value); setAutoGenMode(false); }}
-              onBlur={handleInitialBalanceBlur}
-              className="bg-muted border-border font-mono text-sm h-8"
-              placeholder="e.g. 500"
-            />
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <Wand2 className="w-3.5 h-3.5 text-primary" /> Risk & Profit Parameters
+            </span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Auto-generate parameters from active trading account balance or set manually.
+            </p>
           </div>
           {!config.enabled && (
             <Button
@@ -445,12 +425,12 @@ export function TradingPanel({
         {/* Auto-gen hint */}
         {!autoGenMode && !config.enabled && (
           <p className="text-[9px] text-muted-foreground italic">
-            Enter Init Balance then click <span className="text-primary font-semibold">Auto Generate</span> — or set parameters manually.
+            Click <span className="text-primary font-semibold">Auto Generate</span> to calculate from Account Balance — or set parameters manually.
           </p>
         )}
         {autoGenMode && (
           <p className="text-[9px] text-amber-400 font-semibold animate-in fade-in">
-            ✓ Values auto-generated. Click <span className="underline font-bold">Manual</span> to edit Base Stake, Allow Loss, & Target Profit freely.
+            ✓ Values auto-generated from Account Balance. Click <span className="underline font-bold">Manual</span> to edit Base Stake, Allowed Loss, & Target Profit freely.
           </p>
         )}
       </div>
@@ -524,11 +504,11 @@ export function TradingPanel({
         )}
       </div>
 
-      {/* 3. Allow Loss & Target Profit Limits */}
+      {/* 3. Allowed Loss & Target Profit Limits */}
       <div className="grid grid-cols-2 gap-3 border-t border-border/20 pt-3">
         <div className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-rose-400" /> Allow Loss
+            <DollarSign className="w-3 h-3 text-rose-400" /> Allowed Loss
           </label>
           <Input
             type="number"
@@ -536,7 +516,7 @@ export function TradingPanel({
             step={1}
             disabled={config.enabled || autoGenMode}
             value={localAllowableLoss}
-            onChange={(e) => setLocalAllowableLoss(e.target.value)}
+            onChange={(e) => { setLocalAllowableLoss(e.target.value); setAutoGenMode(false); }}
             onBlur={handleAllowableLossBlur}
             className={`bg-muted border-border font-mono text-sm h-8 ${
               autoGenMode ? "opacity-70 cursor-not-allowed" : ""
@@ -554,7 +534,7 @@ export function TradingPanel({
             step={1}
             disabled={config.enabled || autoGenMode}
             value={localTargetProfit}
-            onChange={(e) => setLocalTargetProfit(e.target.value)}
+            onChange={(e) => { setLocalTargetProfit(e.target.value); setAutoGenMode(false); }}
             onBlur={handleTargetProfitBlur}
             className={`bg-muted border-border font-mono text-sm h-8 ${
               autoGenMode ? "opacity-70 cursor-not-allowed" : ""

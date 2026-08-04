@@ -50,7 +50,7 @@ const highlights = [
   },
   {
     title: "Auto Generate Risk Rules",
-    description: "Instantly auto-calculate optimal Base Stake, Allow Loss, and Target Profit based on live account balance.",
+    description: "Instantly auto-calculate optimal Base Stake, Allowed Loss, and Target Profit based on live account balance.",
     icon: Calculator,
   },
 ];
@@ -417,9 +417,10 @@ const Documentation = () => {
                       arrowTargetY: 26,
                     },
                     {
+                    {
                       badge: 2,
-                      title: "Init Balance & Auto Generate",
-                      description: "Type your initial capital and click 'Auto Generate' to automatically set risk parameters.",
+                      title: "Auto Generate Parameters",
+                      description: "Click 'Auto Generate' to automatically calculate risk parameters from active account balance.",
                       xPercent: 75,
                       yPercent: 51,
                       arrowTargetX: 75,
@@ -436,7 +437,7 @@ const Documentation = () => {
                     },
                     {
                       badge: 4,
-                      title: "Allow Loss & Target Profit",
+                      title: "Allowed Loss & Target Profit",
                       description: "Risk boundaries to automatically stop trading upon reaching limits.",
                       xPercent: 50,
                       yPercent: 73,
@@ -495,7 +496,7 @@ const Documentation = () => {
                     {
                       badge: 3,
                       title: "Auto Generate Button",
-                      description: "Populates Base Stake, Allow Loss, & Target Profit according to mathematical rules.",
+                      description: "Populates Base Stake, Allowed Loss, & Target Profit according to mathematical rules.",
                       xPercent: 75,
                       yPercent: 70,
                       arrowTargetX: 75,
@@ -521,7 +522,7 @@ const Documentation = () => {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-foreground">Auto Generate Calculation Rules</h3>
-                      <p className="text-xs text-muted-foreground">Standardized mathematical risk management formulas</p>
+                      <p className="text-xs text-muted-foreground">Standardized mathematical risk management formulas from Account Balance</p>
                     </div>
                   </div>
 
@@ -529,7 +530,7 @@ const Documentation = () => {
                     {/* Rule 1 */}
                     <div className="p-5 bg-background/80 rounded-2xl border border-border shadow-sm space-y-3">
                       <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1 font-bold">
-                        Condition 1: Init Balance between $500 and $1,000
+                        Condition 1: Account Balance between $500 and $1,000
                       </Badge>
                       <ul className="space-y-2 text-sm text-muted-foreground pt-1">
                         <li className="flex justify-between border-b border-border/40 pb-1.5">
@@ -537,7 +538,7 @@ const Documentation = () => {
                           <span className="font-mono text-primary font-bold">$1.00</span>
                         </li>
                         <li className="flex justify-between border-b border-border/40 pb-1.5">
-                          <span className="font-semibold text-foreground">ALLOW LOSS:</span>
+                          <span className="font-semibold text-foreground">ALLOWED LOSS:</span>
                           <span className="font-mono text-rose-400 font-bold">$200.00</span>
                         </li>
                         <li className="flex justify-between">
@@ -550,20 +551,20 @@ const Documentation = () => {
                     {/* Rule 2 */}
                     <div className="p-5 bg-background/80 rounded-2xl border border-border shadow-sm space-y-3">
                       <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 px-3 py-1 font-bold">
-                        Condition 2: Init Balance greater than $1,000
+                        Condition 2: Account Balance greater than $1,000
                       </Badge>
                       <ul className="space-y-2 text-sm text-muted-foreground pt-1">
                         <li className="flex justify-between border-b border-border/40 pb-1.5">
-                          <span className="font-semibold text-foreground">ALLOW LOSS:</span>
-                          <span className="font-mono text-rose-400 font-bold">INIT BALANCE / 5</span>
+                          <span className="font-semibold text-foreground">ALLOWED LOSS:</span>
+                          <span className="font-mono text-rose-400 font-bold">ACCOUNT BALANCE / 5</span>
                         </li>
                         <li className="flex justify-between border-b border-border/40 pb-1.5">
                           <span className="font-semibold text-foreground">BASE STAKE:</span>
-                          <span className="font-mono text-primary font-bold">ALLOW LOSS / 285.714</span>
+                          <span className="font-mono text-primary font-bold">ALLOWED LOSS / 285.714</span>
                         </li>
                         <li className="flex justify-between">
                           <span className="font-semibold text-foreground">TARGET PROFIT:</span>
-                          <span className="font-mono text-emerald-400 font-bold">ALLOW LOSS * 0.6</span>
+                          <span className="font-mono text-emerald-400 font-bold">ALLOWED LOSS * 0.6</span>
                         </li>
                       </ul>
                     </div>
