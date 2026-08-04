@@ -105,8 +105,8 @@ export default function UserManagement() {
   // Real-time Subscriptions for Admin Sync (with enhanced debugging)
   
 
-  // Fetch Users
-  const { data: users, isLoading: usersLoading } = useQuery({
+  // Fetch Users safely with fallback if performance view fails
+  const { data: users, isLoading: usersLoading, error: usersError } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
       console.log("[AdminUsers] Fetching all users and performance stats...");
@@ -115,8 +115,16 @@ export default function UserManagement() {
         .select('*, performance:admin_user_performance(*)')
         .order('created_at', { ascending: false });
       
-      if (perfError) throw perfError;
-      return profiles;
+      if (perfError) {
+        console.warn("[AdminUsers] Performance view join failed, falling back to profiles query:", perfError);
+        const { data: fallbackProfiles, error: fallbackErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (fallbackErr) throw fallbackErr;
+        return fallbackProfiles || [];
+      }
+      return profiles || [];
     },
     refetchInterval: 30000, // Auto-refresh every 30s to catch the 60s bot reports
   });
@@ -425,116 +433,143 @@ export default function UserManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((u) => (
-                    <TableRow key={u.id} className="border-border/50 group hover:bg-muted/20 transition-colors">
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-xs text-foreground">{u.full_name || u.name || (u.email ? u.email.split("@")[0] : "Client")}</span>
-                          <Link 
-                            to={`/admin/users/${u.id}`}
-                            className="font-mono text-xs flex items-center gap-1 hover:text-primary transition-colors text-primary font-medium"
-                          >
-                             {u.email}
-                             <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </Link>
-                          {u.phone && (
-                            <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
-                              <Phone className="w-2.5 h-2.5 text-green-500" /> {u.phone}
-                            </span>
-                          )}
-                          <span className="text-[9px] text-muted-foreground font-mono truncate max-w-[150px]">{u.user_id || u.id}</span>
-                        </div>
+                  {usersLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs font-medium">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-primary" />
+                        Loading user directory...
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`text-[10px] font-bold uppercase transition-colors ${
-                          u.subscription_status === 'active' ? "bg-green-500/10 text-green-500 border-green-500/30" :
-                          u.subscription_status === 'pending' ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/30" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
-                          {u.subscription_status}
-                        </Badge>
+                    </TableRow>
+                  ) : usersError ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-destructive text-xs font-medium">
+                        Failed to load user directory. Please try refreshing.
                       </TableCell>
-                      <TableCell>
-                        {u.subscription_status === 'free' && u.trial_started_at ? (
-                          (() => {
-                            const startTime = new Date(u.trial_started_at).getTime();
-                            const durationMs = u.trial_duration_days * 24 * 60 * 60 * 1000;
-                            const expiryTime = startTime + durationMs;
-                            const now = new Date().getTime();
-                            const diff = expiryTime - now;
-                            
-                            if (diff <= 0) return <span className="text-[10px] text-destructive font-bold uppercase">Expired</span>;
-                            
-                            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                            return (
-                              <div className="flex flex-col">
-                                <span className="text-xs font-mono font-medium text-blue-400">{days}d {hours}h left</span>
-                                <div className="w-16 h-1 bg-muted rounded-full mt-1 overflow-hidden">
-                                  <div 
-                                    className="h-full bg-blue-500" 
-                                    style={{ width: `${Math.max(0, Math.min(100, (diff / durationMs) * 100))}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })()
-                        ) : u.subscription_status === 'active' ? (
-                          <Badge variant="outline" className="text-[9px] bg-green-500/5 text-green-500 border-green-500/20">UNLIMITED</Badge>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground italic">N/A</span>
-                        )}
+                    </TableRow>
+                  ) : filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs italic">
+                        No registered users found
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          {(() => {
-                            // Aggregate stats across all accounts (old and new logins)
-                            const perf = u.performance || [];
-                            const totalTrades = perf.reduce((sum: number, p: any) => sum + (p.total_trades || 0), 0);
-                            const netProfit = perf.reduce((sum: number, p: any) => sum + (Number(p.net_profit) || 0), 0);
-                            const todayProfit = perf.reduce((sum: number, p: any) => sum + (Number(p.today_profit) || 0), 0);
-                            const isActive = perf.some((p: any) => p.is_active_now);
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((u) => {
+                      if (!u || !u.id) return null;
+                      const userEmail = u.email || "No Email";
+                      const displayName = u.full_name || u.name || (u.email ? u.email.split("@")[0] : "Client");
+                      const userRole = u.role || "user";
+                      const subStatus = u.subscription_status || "free";
+                      const trialDays = typeof u.trial_duration_days === 'number' ? u.trial_duration_days : 7;
 
-                            return (
-                              <>
-                                <div className="flex items-center gap-2 text-[10px]">
-                                  <Activity className={`w-3 h-3 ${isActive ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
-                                  <span className="font-medium">{totalTrades} Trades</span>
-                                  {perf.length > 1 && (
-                                    <Badge variant="outline" className="text-[8px] h-3.5 px-1 py-0 bg-primary/5 text-primary border-primary/20">
-                                      {perf.length} Accounts
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px]">
-                                  { netProfit >= 0 ? (
-                                    <TrendingUp className="w-3 h-3 text-green-500" />
-                                  ) : (
-                                    <TrendingDown className="w-3 h-3 text-destructive" />
-                                  )}
-                                  <span className={`font-bold ${netProfit >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                                    ${netProfit.toFixed(2)}
-                                  </span>
-                                  {todayProfit !== 0 && (
-                                    <span className={`text-[9px] font-medium ${todayProfit > 0 ? 'text-green-400' : 'text-orange-400'}`}>
-                                      ({todayProfit > 0 ? '+' : ''}{todayProfit.toFixed(1)})
-                                    </span>
-                                  )}
-                                </div>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Calendar className="w-3 h-3" />
-                          {u.subscription_expiry ? new Date(u.subscription_expiry).toLocaleDateString() : 'Lifetime Free'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-[10px] uppercase">{u.role}</Badge>
-                      </TableCell>
+                      return (
+                        <TableRow key={u.id} className="border-border/50 group hover:bg-muted/20 transition-colors">
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-xs text-foreground">{displayName}</span>
+                              <Link 
+                                to={`/admin/users/${u.id}`}
+                                className="font-mono text-xs flex items-center gap-1 hover:text-primary transition-colors text-primary font-medium"
+                              >
+                                 {userEmail}
+                                 <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </Link>
+                              {u.phone && (
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
+                                  <Phone className="w-2.5 h-2.5 text-green-500" /> {u.phone}
+                                </span>
+                              )}
+                              <span className="text-[9px] text-muted-foreground font-mono truncate max-w-[150px]">{u.user_id || u.id}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] font-bold uppercase transition-colors ${
+                              subStatus === 'active' ? "bg-green-500/10 text-green-500 border-green-500/30" :
+                              subStatus === 'pending' ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/30" :
+                              "bg-muted text-muted-foreground"
+                            }`}>
+                              {subStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {subStatus === 'free' && u.trial_started_at ? (
+                              (() => {
+                                const startTime = new Date(u.trial_started_at).getTime();
+                                const durationMs = trialDays * 24 * 60 * 60 * 1000;
+                                const expiryTime = startTime + durationMs;
+                                const now = new Date().getTime();
+                                const diff = expiryTime - now;
+                                
+                                if (isNaN(diff) || diff <= 0) return <span className="text-[10px] text-destructive font-bold uppercase">Expired</span>;
+                                
+                                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                return (
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-mono font-medium text-blue-400">{days}d {hours}h left</span>
+                                    <div className="w-16 h-1 bg-muted rounded-full mt-1 overflow-hidden">
+                                      <div 
+                                        className="h-full bg-blue-500" 
+                                        style={{ width: `${Math.max(0, Math.min(100, (diff / durationMs) * 100))}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })()
+                            ) : subStatus === 'active' ? (
+                              <Badge variant="outline" className="text-[9px] bg-green-500/5 text-green-500 border-green-500/20">UNLIMITED</Badge>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">N/A</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              {(() => {
+                                const perf = Array.isArray(u.performance) ? u.performance : [];
+                                const totalTrades = perf.reduce((sum: number, p: any) => sum + (Number(p?.total_trades) || 0), 0);
+                                const netProfit = perf.reduce((sum: number, p: any) => sum + (Number(p?.net_profit) || 0), 0);
+                                const todayProfit = perf.reduce((sum: number, p: any) => sum + (Number(p?.today_profit) || 0), 0);
+                                const isActive = perf.some((p: any) => p?.is_active_now);
+
+                                return (
+                                  <>
+                                    <div className="flex items-center gap-2 text-[10px]">
+                                      <Activity className={`w-3 h-3 ${isActive ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
+                                      <span className="font-medium">{totalTrades} Trades</span>
+                                      {perf.length > 1 && (
+                                        <Badge variant="outline" className="text-[8px] h-3.5 px-1 py-0 bg-primary/5 text-primary border-primary/20">
+                                          {perf.length} Accounts
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px]">
+                                      { netProfit >= 0 ? (
+                                        <TrendingUp className="w-3 h-3 text-green-500" />
+                                      ) : (
+                                        <TrendingDown className="w-3 h-3 text-destructive" />
+                                      )}
+                                      <span className={`font-bold ${netProfit >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                                        ${netProfit.toFixed(2)}
+                                      </span>
+                                      {todayProfit !== 0 && (
+                                        <span className={`text-[9px] font-medium ${todayProfit > 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                                          ({todayProfit > 0 ? '+' : ''}{todayProfit.toFixed(1)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Calendar className="w-3 h-3" />
+                              {u.subscription_expiry ? new Date(u.subscription_expiry).toLocaleDateString() : 'Lifetime Free'}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-[10px] uppercase">{userRole}</Badge>
+                          </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
