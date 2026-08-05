@@ -408,6 +408,14 @@ export function useAutoTrader(
         rModeCount = parsed;
       }
     }
+    const savedRLosses = localStorage.getItem('strategyRConsecutiveLosses');
+    let rConsecutiveLosses = 0;
+    if (savedRLosses) {
+      const parsed = parseInt(savedRLosses, 10);
+      if (!isNaN(parsed)) {
+        rConsecutiveLosses = parsed;
+      }
+    }
     const savedQActiveSub = localStorage.getItem('strategyQActiveSub') as "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d" | null;
     const savedQRemainingRuns = localStorage.getItem('strategyQRemainingRuns');
     let qRemainingRuns: number | undefined = undefined;
@@ -583,6 +591,7 @@ export function useAutoTrader(
       strategyRAccumulatedLoss: savedRAccumLoss ? parseFloat(savedRAccumLoss) : undefined,
       strategyRMode: savedRMode || undefined,
       strategyRModeCount: rModeCount,
+      strategyRConsecutiveLosses: rConsecutiveLosses,
       strategyQActiveSub: savedQActiveSub || undefined,
       strategyQRemainingRuns: qRemainingRuns,
       strategyQLastSub: savedQLastSub || undefined,
@@ -2118,9 +2127,25 @@ export function useAutoTrader(
     });
 
     const newStatus = isWin ? "WIN" : "LOSS";
-    let ticksToWaitNext = (activeStrategy === "strategy_l" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p" || activeStrategy === "strategy_r")
-      ? Math.floor(Math.random() * 4) + 5
-      : randomTradeCooldownTicks(isWin);
+
+    // Strategy R dynamic loss delay scaling:
+    // 0 losses (Initial / after WIN): 5 to 8 ticks (lower=5, upper=8)
+    // 1st loss (1 consecutive loss): 10 to 13 ticks (lower=10, upper=13)
+    // 2nd loss (2 consecutive losses): 15 to 18 ticks (lower=15, upper=18)
+    // Nth loss: (5 + 5 * N) to (8 + 5 * N) ticks
+    const prevRLosses = activeStrategy === "strategy_r" ? (state.strategyRConsecutiveLosses || 0) : 0;
+    const nextRLosses = isWin ? 0 : (prevRLosses + 1);
+
+    let ticksToWaitNext: number;
+    if (activeStrategy === "strategy_r") {
+      const lowerLimit = 5 + (5 * nextRLosses);
+      ticksToWaitNext = lowerLimit + Math.floor(Math.random() * 4);
+      console.log(`[Strategy R Cooldown] Consecutive Losses: ${nextRLosses}. Delay set to ${ticksToWaitNext} ticks (Range: ${lowerLimit} - ${lowerLimit + 3} ticks).`);
+    } else if (activeStrategy === "strategy_l" || activeStrategy === "strategy_o" || activeStrategy === "strategy_p") {
+      ticksToWaitNext = Math.floor(Math.random() * 4) + 5;
+    } else {
+      ticksToWaitNext = randomTradeCooldownTicks(isWin);
+    }
     let nextAction = isWin
       ? `P_CD_${ticksToWaitNext}T`
       : `L_CD_${ticksToWaitNext}T`;
@@ -2628,6 +2653,7 @@ export function useAutoTrader(
       strategyPAccumulatedLoss: isWin ? undefined : state.strategyPAccumulatedLoss,
       strategyRSequenceBaseStake: isWin ? undefined : state.strategyRSequenceBaseStake,
       strategyRAccumulatedLoss: isWin ? undefined : state.strategyRAccumulatedLoss,
+      strategyRConsecutiveLosses: nextRLosses,
       strategyQActiveSub: nextQActiveSub,
       strategyQRemainingRuns: nextQRemainingRuns,
       strategyQLastSub: nextQLastSub,
@@ -3003,6 +3029,7 @@ export function useAutoTrader(
     } else {
       localStorage.removeItem('strategyRModeCount');
     }
+    localStorage.setItem('strategyRConsecutiveLosses', String(sessionState.strategyRConsecutiveLosses ?? 0));
     if (sessionState.strategyQActiveSub) {
       localStorage.setItem('strategyQActiveSub', sessionState.strategyQActiveSub);
     } else {
