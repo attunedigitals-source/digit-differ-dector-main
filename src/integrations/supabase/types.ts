@@ -127,6 +127,7 @@ export type Database = {
           enable_logs: boolean
           trial_started_at: string | null
           trial_duration_days: number
+          has_ever_paid?: boolean
         }
         Insert: {
           id: string
@@ -145,6 +146,7 @@ export type Database = {
           enable_logs?: boolean
           trial_started_at?: string | null
           trial_duration_days?: number
+          has_ever_paid?: boolean
         }
         Update: {
           id?: string
@@ -163,6 +165,7 @@ export type Database = {
           enable_logs?: boolean
           trial_started_at?: string | null
           trial_duration_days?: number
+          has_ever_paid?: boolean
         }
         Relationships: [
           {

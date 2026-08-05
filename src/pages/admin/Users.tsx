@@ -32,11 +32,23 @@ import {
   MessageSquare,
   Link2,
   Trash2,
-  Zap
+  Zap,
+  Tag,
+  Plus,
+  Percent,
+  Clock
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getCapturedLeads, manuallyLinkLeadDerivAccount, deleteLeadRecord, LeadData } from "@/lib/leads";
 import { syncAllLeadsToBrevo } from "@/lib/brevo";
+import {
+  getAdminPromoCodes,
+  createAdminPromoCode,
+  toggleAdminPromoCode,
+  deleteAdminPromoCode,
+  PromoCode,
+  PromoScope
+} from "@/lib/promo";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -191,6 +203,86 @@ export default function UserManagement() {
     refetchInterval: 15000,
   });
 
+  // Paid Users Filter state
+  const [paidSubFilter, setPaidSubFilter] = useState<"all" | "subscribed" | "unsubscribed">("all");
+
+  // Promo Code Modal & Form State
+  const [isCreatePromoOpen, setIsCreatePromoOpen] = useState(false);
+  const [newPromoCode, setNewPromoCode] = useState("");
+  const [newPromoDiscount, setNewPromoDiscount] = useState("20");
+  const [newPromoScope, setNewPromoScope] = useState<PromoScope>("trial_only");
+  const [newPromoEmail, setNewPromoEmail] = useState("");
+  const [newPromoExpiry, setNewPromoExpiry] = useState("");
+  const [newPromoMaxUses, setNewPromoMaxUses] = useState("");
+
+  // Fetch Promo Codes
+  const { data: promoCodes, isLoading: promoLoading } = useQuery({
+    queryKey: ["admin-promo-codes"],
+    queryFn: getAdminPromoCodes,
+  });
+
+  // Create Promo Code Mutation
+  const createPromoMutation = useMutation({
+    mutationFn: async () => {
+      if (!newPromoCode.trim()) throw new Error("Please enter a promo code string.");
+      const discount = Number(newPromoDiscount);
+      if (isNaN(discount) || discount <= 0 || discount > 100) {
+        throw new Error("Discount percentage must be between 1 and 100.");
+      }
+
+      return createAdminPromoCode({
+        code: newPromoCode,
+        discount_percent: discount,
+        scope: newPromoScope,
+        specific_user_email: newPromoScope === "specific_user" ? newPromoEmail : null,
+        expires_at: newPromoExpiry ? new Date(newPromoExpiry).toISOString() : null,
+        max_uses: newPromoMaxUses ? Number(newPromoMaxUses) : null,
+      });
+    },
+    onSuccess: (data) => {
+      toast.success(`Discount code "${data.code}" (${data.discount_percent}% OFF) generated!`);
+      queryClient.invalidateQueries({ queryKey: ["admin-promo-codes"] });
+      setIsCreatePromoOpen(false);
+      setNewPromoCode("");
+      setNewPromoDiscount("20");
+      setNewPromoScope("trial_only");
+      setNewPromoEmail("");
+      setNewPromoExpiry("");
+      setNewPromoMaxUses("");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to create discount code.");
+    }
+  });
+
+  // Toggle Promo Active State
+  const togglePromoMutation = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      await toggleAdminPromoCode(id, is_active);
+    },
+    onSuccess: () => {
+      toast.success("Promo code status updated.");
+      queryClient.invalidateQueries({ queryKey: ["admin-promo-codes"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to update status.");
+    }
+  });
+
+  // Delete Promo Code
+  const deletePromoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await deleteAdminPromoCode(id);
+    },
+    onSuccess: () => {
+      toast.success("Promo code deleted.");
+      queryClient.invalidateQueries({ queryKey: ["admin-promo-codes"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to delete promo code.");
+    }
+  });
+
   const exportLeadsCSV = (leadsList?: LeadData[]) => {
     if (!leadsList || leadsList.length === 0) {
       toast.error("No lead records available to export.");
@@ -233,8 +325,9 @@ export default function UserManagement() {
       // 3. Update profile
       await supabase.from('profiles').update({
         subscription_status: 'active',
-        subscription_expiry: expiry.toISOString()
-      }).eq('id', userId);
+        subscription_expiry: expiry.toISOString(),
+        has_ever_paid: true,
+      } as any).eq('id', userId);
 
       // 4. Create subscription record
       await supabase.from('subscriptions').insert({
@@ -311,8 +404,9 @@ export default function UserManagement() {
 
         const { error: profileError } = await supabase.from('profiles').update({
           subscription_status: 'active',
-          subscription_expiry: expiry.toISOString()
-        }).eq('id', userId);
+          subscription_expiry: expiry.toISOString(),
+          has_ever_paid: true,
+        } as any).eq('id', userId);
         
         if (profileError) throw profileError;
 
@@ -371,6 +465,19 @@ export default function UserManagement() {
   const clientUsers = users?.filter(u => u.email?.toLowerCase() !== ADMIN_EMAIL) || [];
   const filteredUsers = clientUsers.filter(u => u.email.toLowerCase().includes(search.toLowerCase()));
 
+  // Categorize Paid Users (Once a trial member has paid once, they permanently remain in paidUsers)
+  const paidUsers = clientUsers.filter(u => Boolean(u.has_ever_paid || u.subscription_status === 'active'));
+  const subscribedPaidUsers = paidUsers.filter(u => u.subscription_status === 'active');
+  const unsubscribedPaidUsers = paidUsers.filter(u => u.subscription_status !== 'active');
+
+  const filteredPaidUsers = paidUsers.filter(u => {
+    const matchesSearch = u.email.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (paidSubFilter === "subscribed") return u.subscription_status === "active";
+    if (paidSubFilter === "unsubscribed") return u.subscription_status !== "active";
+    return true;
+  });
+
   return (
     <AdminLayout title="User Management">
       <div className="space-y-6">
@@ -378,6 +485,9 @@ export default function UserManagement() {
           <div className="flex items-center justify-between mb-2">
             <TabsList className="bg-card/50">
               <TabsTrigger value="all-users" className="text-xs">All Users ({clientUsers.length})</TabsTrigger>
+              <TabsTrigger value="paid-users" className="text-xs font-semibold text-emerald-400">
+                Paid Users ({paidUsers.length})
+              </TabsTrigger>
               <TabsTrigger value="pending-payments" className="text-xs">
                 Pending Payments 
                 {payments && payments.length > 0 && (
@@ -388,6 +498,10 @@ export default function UserManagement() {
               </TabsTrigger>
               <TabsTrigger value="captured-leads" className="text-xs font-semibold text-primary">
                 Captured Leads ({capturedLeads?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="discount-codes" className="text-xs font-semibold text-purple-400">
+                <Tag className="w-3.5 h-3.5 mr-1" />
+                Discount Codes ({promoCodes?.length || 0})
               </TabsTrigger>
             </TabsList>
             
@@ -832,8 +946,391 @@ export default function UserManagement() {
               </Table>
             </Card>
           </TabsContent>
+
+          {/* Paid Users Categorized Tab */}
+          <TabsContent value="paid-users">
+            <Card className="border-border bg-card/40 p-4 space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                    Categorized Paid Users Directory
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-bold">
+                      {paidUsers.length} Total Ever Paid
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Directory of users who have converted to paid subscriptions. Includes active subscribers and past paid members.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={paidSubFilter === "all" ? "default" : "outline"}
+                    onClick={() => setPaidSubFilter("all")}
+                    className="text-xs h-8"
+                  >
+                    All Paid ({paidUsers.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={paidSubFilter === "subscribed" ? "default" : "outline"}
+                    onClick={() => setPaidSubFilter("subscribed")}
+                    className="text-xs h-8 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10"
+                  >
+                    Subscribed ({subscribedPaidUsers.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={paidSubFilter === "unsubscribed" ? "default" : "outline"}
+                    onClick={() => setPaidSubFilter("unsubscribed")}
+                    className="text-xs h-8 text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+                  >
+                    Not Subscribed ({unsubscribedPaidUsers.length})
+                  </Button>
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-border">
+                    <TableHead className="text-xs">User</TableHead>
+                    <TableHead className="text-xs">Paid Status</TableHead>
+                    <TableHead className="text-xs">Plan Expiry</TableHead>
+                    <TableHead className="text-xs">Lifetime Perf</TableHead>
+                    <TableHead className="text-xs">Role</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPaidUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs italic">
+                        No paid users found matching current filter
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredPaidUsers.map((u) => {
+                      const isSubscribed = u.subscription_status === 'active';
+                      return (
+                        <TableRow key={u.id} className="border-border/50 hover:bg-muted/20">
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-xs text-foreground">{u.full_name || u.name || u.email.split("@")[0]}</span>
+                              <Link to={`/admin/users/${u.id}`} className="font-mono text-xs text-primary flex items-center gap-1 hover:underline">
+                                {u.email} <ArrowUpRight className="w-3 h-3" />
+                              </Link>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {isSubscribed ? (
+                              <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-bold text-[10px] uppercase">
+                                ● Subscribed (Active)
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-amber-500/15 text-amber-400 border-amber-500/30 font-bold text-[10px] uppercase">
+                                ○ Not Subscribed (Expired)
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">
+                            {u.subscription_expiry ? new Date(u.subscription_expiry).toLocaleDateString() : 'Expired'}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {(() => {
+                              const perf = u.performance || [];
+                              const netProfit = perf.reduce((sum: number, p: any) => sum + (Number(p.net_profit) || 0), 0);
+                              return (
+                                <span className={`font-bold ${netProfit >= 0 ? 'text-green-500' : 'text-destructive'}`}>
+                                  ${netProfit.toFixed(2)}
+                                </span>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-[10px] uppercase">{u.role}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56 bg-card border-border">
+                                <DropdownMenuLabel>User Controls</DropdownMenuLabel>
+                                {!isSubscribed ? (
+                                  <DropdownMenuItem 
+                                    className="text-xs gap-2 cursor-pointer"
+                                    onClick={() => {
+                                      setSelectedUser(u);
+                                      setSelectedPlan("1_month");
+                                      setIsUpgradeOpen(true);
+                                    }}
+                                  >
+                                    <UserCheck className="w-3.5 h-3.5 text-green-500" /> Renew / Upgrade Paid
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem 
+                                    className="text-xs gap-2 cursor-pointer"
+                                    onClick={() => {
+                                      setSelectedUser(u);
+                                      setIsDowngradeOpen(true);
+                                    }}
+                                  >
+                                    <UserX className="w-3.5 h-3.5 text-destructive" /> Downgrade to Free
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+
+          {/* Discount Codes Management Tab */}
+          <TabsContent value="discount-codes">
+            <Card className="border-border bg-card/40 p-4 space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-purple-400" />
+                    Discount & Promo Code Generator
+                    <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-xs">
+                      {promoCodes?.length || 0} Codes Configured
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Generate percentage discount codes e.g. <span className="font-mono font-bold text-primary">PRO20</span> (20% off for first-time trial users) or custom targeted promo codes with expiration periods.
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={() => setIsCreatePromoOpen(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs gap-1.5 shadow-sm font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Generate Discount Code
+                </Button>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-border">
+                    <TableHead className="text-xs font-mono font-bold text-purple-400">Promo Code</TableHead>
+                    <TableHead className="text-xs font-semibold">Discount %</TableHead>
+                    <TableHead className="text-xs font-semibold">Target Audience Scope</TableHead>
+                    <TableHead className="text-xs font-semibold">Expiration</TableHead>
+                    <TableHead className="text-xs font-semibold">Usage</TableHead>
+                    <TableHead className="text-xs font-semibold">Status</TableHead>
+                    <TableHead className="text-xs text-right font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {promoLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
+                        Loading promo codes...
+                      </TableCell>
+                    </TableRow>
+                  ) : promoCodes?.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs italic">
+                        No discount codes generated yet. Click "Generate Discount Code" to create one.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    promoCodes?.map((pc) => {
+                      const isExpired = pc.expires_at ? new Date(pc.expires_at).getTime() < Date.now() : false;
+
+                      return (
+                        <TableRow key={pc.id} className="border-border/50 hover:bg-muted/20">
+                          <TableCell className="font-mono text-sm font-bold text-purple-400 tracking-wider">
+                            {pc.code}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-bold text-xs">
+                              {pc.discount_percent}% OFF
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {pc.scope === "trial_only" ? (
+                              <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">
+                                First-Time Trial Users Only
+                              </Badge>
+                            ) : pc.scope === "paid_only" ? (
+                              <Badge variant="secondary" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">
+                                Paid Users Only
+                              </Badge>
+                            ) : pc.scope === "specific_user" ? (
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                User: {pc.specific_user_email}
+                              </span>
+                            ) : (
+                              <Badge variant="secondary" className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]">
+                                All Users
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {pc.expires_at ? (
+                              <span className={isExpired ? "text-destructive font-bold" : "text-foreground"}>
+                                {new Date(pc.expires_at).toLocaleString()} {isExpired && "(Expired)"}
+                              </span>
+                            ) : (
+                              <span className="italic text-muted-foreground">No Expiration</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {pc.times_used} uses {pc.max_uses ? `/ Max ${pc.max_uses}` : "(Unlimited)"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant="outline" 
+                              className={`cursor-pointer text-[10px] uppercase font-bold transition-colors ${
+                                pc.is_active && !isExpired
+                                  ? "bg-green-500/10 text-green-500 border-green-500/30" 
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                              onClick={() => togglePromoMutation.mutate({ id: pc.id, is_active: !pc.is_active })}
+                            >
+                              {pc.is_active && !isExpired ? "Active" : "Inactive"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Delete promo code"
+                              onClick={() => {
+                                if (window.confirm(`Delete promo code "${pc.code}"?`)) {
+                                  deletePromoMutation.mutate(pc.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Create Promo Code Dialog */}
+      <Dialog open={isCreatePromoOpen} onOpenChange={setIsCreatePromoOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="w-5 h-5 text-purple-400" /> Generate New Discount Code
+            </DialogTitle>
+            <DialogDescription>
+              Create a promo code with percentage discount, scope, and optional expiration period.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Promo Code String</Label>
+              <Input 
+                placeholder="e.g. PRO20, SUMMER30, VIP50"
+                value={newPromoCode}
+                onChange={(e) => setNewPromoCode(e.target.value.toUpperCase())}
+                className="font-mono uppercase text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Discount Percentage (%)</Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  type="number"
+                  min="1"
+                  max="100"
+                  placeholder="20"
+                  value={newPromoDiscount}
+                  onChange={(e) => setNewPromoDiscount(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <span className="text-sm font-bold text-emerald-400">% OFF</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Target Audience Scope</Label>
+              <Select value={newPromoScope} onValueChange={(val: PromoScope) => setNewPromoScope(val)}>
+                <SelectTrigger className="text-xs bg-background">
+                  <SelectValue placeholder="Select target scope" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="trial_only">First-Time Trial Users Only (Restricted from Paid Users)</SelectItem>
+                  <SelectItem value="paid_only">Paid / Existing Subscribers Only</SelectItem>
+                  <SelectItem value="all">All Users (Trial + Paid)</SelectItem>
+                  <SelectItem value="specific_user">Specific Individual User</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {newPromoScope === "specific_user" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">User Email Address</Label>
+                <Input 
+                  placeholder="e.g. client@example.com"
+                  value={newPromoEmail}
+                  onChange={(e) => setNewPromoEmail(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Expiration Date (Optional)</Label>
+                <Input 
+                  type="datetime-local"
+                  value={newPromoExpiry}
+                  onChange={(e) => setNewPromoExpiry(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Max Uses Limit (Optional)</Label>
+                <Input 
+                  type="number"
+                  placeholder="Unlimited"
+                  value={newPromoMaxUses}
+                  onChange={(e) => setNewPromoMaxUses(e.target.value)}
+                  className="text-xs font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsCreatePromoOpen(false)}>Cancel</Button>
+            <Button 
+              size="sm" 
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+              disabled={createPromoMutation.isPending || !newPromoCode.trim()}
+              onClick={() => createPromoMutation.mutate()}
+            >
+              {createPromoMutation.isPending ? "Generating..." : "Generate Code"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Manual Upgrade Dialog */}
       <Dialog open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen}>

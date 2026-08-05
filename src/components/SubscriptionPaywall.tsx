@@ -37,6 +37,10 @@ const PLANS = [
   },
 ];
 
+import { validatePromoCode, incrementPromoCodeUses } from "@/lib/promo";
+import { Tag, CheckCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+
 const USDT_ADDRESS = "TEtFRiJ3Ar1jvLbu54ZkGLkswFrUc5VesD";
 const ADMIN_WHATSAPP = WHATSAPP_GROUP_URL || "https://chat.whatsapp.com/B5QnMkxnHMeEXnW7HUfIPS";
 
@@ -51,11 +55,46 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
   const [showPayment, setShowPayment] = useState(false);
   const [hasConfirmed, setHasConfirmed] = useState(false);
 
+  // Promo Code State
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [validatingPromo, setValidatingPromo] = useState(false);
+
   // Step 1 -> Step 2: User selects plan (DOES NOT touch DB or set pending status yet)
   const handleSelectPlan = (planId: string) => {
     setSelectedPlanId(planId);
     setShowPayment(true);
     setHasConfirmed(false);
+    setPromoInput("");
+    setAppliedPromo(null);
+  };
+
+  const handleApplyPromoCode = async () => {
+    if (!promoInput.trim()) {
+      toast.error("Please enter a discount code.");
+      return;
+    }
+    setValidatingPromo(true);
+    try {
+      const result = await validatePromoCode(promoInput, user, profile);
+      if (result.valid && result.discountPercent && result.code) {
+        setAppliedPromo({ code: result.code, discountPercent: result.discountPercent });
+        toast.success(result.message || `${result.discountPercent}% discount applied!`);
+      } else {
+        setAppliedPromo(null);
+        toast.error(result.message || "Invalid or ineligible discount code.");
+      }
+    } catch (err: any) {
+      toast.error("Failed to validate discount code.");
+    } finally {
+      setValidatingPromo(false);
+    }
+  };
+
+  const handleRemovePromoCode = () => {
+    setAppliedPromo(null);
+    setPromoInput("");
+    toast.info("Discount code removed.");
   };
 
   // Step 2: User explicitly checks "I have sent..." and clicks "I have made the transfer"
@@ -72,17 +111,27 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
       return;
     }
 
+    const originalPrice = plan.price;
+    const discountAmount = appliedPromo ? (originalPrice * appliedPromo.discountPercent) / 100 : 0;
+    const finalPrice = Math.max(0, originalPrice - discountAmount);
+
     setLoading(true);
     try {
       // 1. Create a pending payment record ONLY when user submits transfer confirmation
       const { error: paymentError } = await supabase.from("payments").insert({
         user_id: user.id,
-        amount: plan.price,
+        amount: finalPrice,
         plan_type: plan.id,
         status: "pending",
-      });
+        discount_code: appliedPromo?.code || null,
+        discount_amount: discountAmount,
+      } as any);
 
       if (paymentError) throw paymentError;
+
+      if (appliedPromo?.code) {
+        incrementPromoCodeUses(appliedPromo.code).catch(console.warn);
+      }
 
       // 2. Update profile status to pending ONLY when user confirms transfer
       const { error: profileError } = await supabase.from("profiles").update({
@@ -109,6 +158,10 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
 
   if (showPayment && selectedPlanId) {
     const plan = PLANS.find(p => p.id === selectedPlanId);
+    const originalPrice = plan?.price || 0;
+    const discountAmount = appliedPromo ? (originalPrice * appliedPromo.discountPercent) / 100 : 0;
+    const finalPrice = Math.max(0, originalPrice - discountAmount);
+
     return (
       <Card className="max-w-xl mx-auto border-primary/20 shadow-2xl bg-card overflow-hidden">
         <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary" />
@@ -129,11 +182,69 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
             <Sparkles className="w-6 h-6 text-primary" />
             Complete Your Subscription
           </CardTitle>
-          <CardDescription className="text-base">
-            You've selected the <span className="font-bold text-foreground">{plan?.name}</span> plan for <span className="font-bold text-foreground">${plan?.price}</span>.
+          <CardDescription className="text-base flex items-center gap-2 flex-wrap">
+            You've selected the <span className="font-bold text-foreground">{plan?.name}</span> plan for{" "}
+            {appliedPromo ? (
+              <>
+                <span className="line-through text-muted-foreground text-sm">${originalPrice}</span>
+                <span className="font-bold text-emerald-400 text-lg">${finalPrice} USDT</span>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs">
+                  {appliedPromo.discountPercent}% OFF
+                </Badge>
+              </>
+            ) : (
+              <span className="font-bold text-foreground">${plan?.price} USDT</span>
+            )}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
+          {/* Promo Code Input Section */}
+          <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-foreground">
+                <Tag className="w-3.5 h-3.5 text-primary" /> Have a Discount / Promo Code?
+              </span>
+              <span className="text-[10px] text-muted-foreground">Try code <span className="font-mono text-primary font-bold">PRO20</span> for 20% off</span>
+            </label>
+            
+            {appliedPromo ? (
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs">
+                <div className="flex items-center gap-2 font-medium">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <span>Code <span className="font-mono font-bold uppercase">{appliedPromo.code}</span> applied: <strong>{appliedPromo.discountPercent}% OFF</strong> (Saved ${discountAmount})</span>
+                </div>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleRemovePromoCode}
+                  className="h-6 text-[10px] text-destructive hover:bg-destructive/10 px-2"
+                >
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter promo code (e.g. PRO20)"
+                  value={promoInput}
+                  onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                  className="h-9 text-xs font-mono bg-background border-border"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleApplyPromoCode}
+                  disabled={validatingPromo || !promoInput.trim()}
+                  className="h-9 text-xs font-semibold px-4 shrink-0 border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  {validatingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply Code"}
+                </Button>
+              </div>
+            )}
+          </div>
+
           <div className="p-5 rounded-xl bg-muted/50 border border-border space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -179,7 +290,7 @@ export function SubscriptionPaywall({ onClose }: SubscriptionPaywallProps) {
                 htmlFor="confirm-transfer" 
                 className="text-sm font-medium leading-relaxed cursor-pointer select-none"
               >
-                I have sent exactly <span className="font-bold">${plan?.price} USDT</span> to the address above via the TRC20 network.
+                I have sent exactly <span className="font-bold text-emerald-400">${finalPrice} USDT</span> to the address above via the TRC20 network.
               </label>
             </div>
 
