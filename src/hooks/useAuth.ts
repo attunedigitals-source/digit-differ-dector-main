@@ -180,6 +180,10 @@ export function useAuth() {
               filter: `id=eq.${currentUser.id}` 
             },
             (payload) => {
+              if (payload.new) {
+                const updated = payload.new as UserProfile;
+                setProfile(prev => prev ? { ...prev, ...updated } : updated);
+              }
               const serverDeviceId = payload.new.device_id;
               const localDeviceId = localStorage.getItem('bt_device_id');
               

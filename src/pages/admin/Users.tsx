@@ -145,6 +145,16 @@ export default function UserManagement() {
       )
       .on(
         'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
+        () => {
+          console.log("[AdminUsers] Payments change detected. Refreshing...");
+          queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+        }
+      )
+      .on(
+        'postgres_changes',
         { event: '*', schema: 'public', table: 'leads' },
         () => {
           console.log("[AdminUsers] Leads change/deletion detected. Refreshing...");
@@ -255,6 +265,37 @@ export default function UserManagement() {
       toast.success("Payment approved and subscription activated");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+    }
+  });
+
+  // Mutation to Reject Payment
+  const rejectPayment = useMutation({
+    mutationFn: async ({ paymentId, userId }: { paymentId: string; userId: string }) => {
+      // 1. Update payment status to 'rejected'
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .update({ status: 'rejected' })
+        .eq('id', paymentId);
+      
+      if (paymentError) throw paymentError;
+
+      // 2. Revert user profile subscription_status from 'pending' back to 'free' so they can retry payment
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ subscription_status: 'free' })
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+    },
+    onSuccess: () => {
+      toast.success("Payment request rejected. User can now retry payment.");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to reject payment");
     }
   });
 
@@ -569,16 +610,18 @@ export default function UserManagement() {
                           size="sm" 
                           variant="ghost" 
                           className="h-8 text-destructive hover:bg-destructive/10"
+                          onClick={() => rejectPayment.mutate({ paymentId: p.id, userId: p.user_id })}
+                          disabled={rejectPayment.isPending || approvePayment.isPending}
                         >
-                          <XCircle className="w-4 h-4 mr-1" /> Reject
+                          <XCircle className="w-4 h-4 mr-1" /> {rejectPayment.isPending ? "Rejecting..." : "Reject"}
                         </Button>
                         <Button 
                           size="sm" 
                           className="h-8 bg-green-500/20 text-green-500 hover:bg-green-500/30 border border-green-500/30"
                           onClick={() => approvePayment.mutate({ paymentId: p.id, userId: p.user_id, planType: p.plan_type })}
-                          disabled={approvePayment.isPending}
+                          disabled={approvePayment.isPending || rejectPayment.isPending}
                         >
-                          <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
+                          <CheckCircle2 className="w-4 h-4 mr-1" /> {approvePayment.isPending ? "Approving..." : "Approve"}
                         </Button>
                       </TableCell>
                     </TableRow>
