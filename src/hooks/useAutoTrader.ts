@@ -340,9 +340,7 @@ export function useAutoTrader(
     localStorage.setItem('sessionPL', String(sessionPL));
   }, [sessionPL]);
 
-  const resetSessionPL = useCallback(() => {
-    setSessionPL(0);
-  }, []);
+
   const [dailyStats, setDailyStats] = useState({ total_trades: 0, wins: 0 });
   const [ticksToWait, setTicksToWait] = useState(0);
   const [config, setConfig] = useState<AutoTraderConfig>(() => {
@@ -3456,6 +3454,89 @@ export function useAutoTrader(
       }
     }
   }, [config.enabled, config.targetProfit, config.initialBalance, config.allowableLoss, sessionPL, accountInfo?.balance, sessionState.status, stableSetConfig]);
+
+  const resetSessionPL = useCallback(() => {
+    setSessionPL(0);
+    startBalanceRef.current = null;
+
+    let activeStrategy = config.strategy;
+    if (config.strategy === "strategy_n") {
+      activeStrategy = sessionStateRef.current.strategyNActiveSub || "strategy_l";
+    } else if (config.strategy === "strategy_q") {
+      activeStrategy = sessionStateRef.current.strategyQActiveSub || "strategy_a";
+    }
+
+    const baseStakeToUse = activeStrategy === "strategy_l"
+      ? (config.strategyLBaseStake ?? config.baseStake)
+      : (activeStrategy === "strategy_m"
+        ? (config.strategyMBaseStake ?? config.baseStake)
+        : (activeStrategy === "strategy_o"
+          ? (config.strategyOBaseStake ?? config.baseStake)
+          : (activeStrategy === "strategy_p"
+            ? (config.strategyPBaseStake ?? config.baseStake)
+            : (activeStrategy === "strategy_r"
+              ? (config.strategyRBaseStake ?? config.baseStake)
+              : config.baseStake))));
+
+    setSessionState(prev => {
+      const resetState = {
+        ...prev,
+        currentStake: baseStakeToUse,
+        martingaleStep: 0,
+        sequenceStep: 0,
+        status: "IDLE" as const,
+        nextAction: "IDLE_RDY",
+        currentSymbolLosses: 0,
+        forceSwapSymbol: false,
+        currentLossSequence: [],
+        strategyOSequenceBaseStake: undefined,
+        strategyPSequenceBaseStake: undefined,
+        strategyPAccumulatedLoss: undefined,
+        strategyRSequenceBaseStake: undefined,
+        strategyRAccumulatedLoss: undefined,
+        strategyRConsecutiveLosses: 0,
+        strategyLMode: undefined,
+        strategyLNoneStickyCount: undefined,
+        strategyRMode: undefined,
+        strategyRModeCount: undefined,
+      };
+      sessionStateRef.current = resetState;
+      return resetState;
+    });
+
+    setVolatilityTracking(() => {
+      const initial: Record<string, VolatilityTracking> = {};
+      const symbols = [
+        "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+        "R_10", "R_25", "R_50", "R_75", "R_100",
+      ];
+      symbols.forEach(s => {
+        initial[s] = { consecutiveLosses: 0, pendingSuspension: false, suspendedUntil: null, pureConsecutiveLosses: 0 };
+      });
+      return initial;
+    });
+
+    // Clear stale items from localStorage
+    localStorage.setItem('currentStake', String(baseStakeToUse));
+    localStorage.setItem('martingaleStep', '0');
+    localStorage.setItem('sequenceStep', '0');
+    localStorage.setItem('sessionStatus', 'IDLE');
+    localStorage.setItem('currentSymbolLosses', '0');
+    localStorage.setItem('forceSwapSymbol', 'false');
+    localStorage.setItem('currentLossSequence', JSON.stringify([]));
+    localStorage.setItem('strategyRConsecutiveLosses', '0');
+    localStorage.removeItem('strategyOSequenceBaseStake');
+    localStorage.removeItem('strategyPSequenceBaseStake');
+    localStorage.removeItem('strategyPAccumulatedLoss');
+    localStorage.removeItem('strategyRSequenceBaseStake');
+    localStorage.removeItem('strategyRAccumulatedLoss');
+    localStorage.removeItem('strategyLMode');
+    localStorage.removeItem('strategyLNoneStickyCount');
+    localStorage.removeItem('strategyRMode');
+    localStorage.removeItem('strategyRModeCount');
+
+    toast.success(`Session P/L & stake reset to base stake ($${baseStakeToUse.toFixed(2)})`);
+  }, [config]);
 
   return {
     config,
