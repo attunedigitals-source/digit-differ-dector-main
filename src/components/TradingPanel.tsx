@@ -184,9 +184,8 @@ export function TradingPanel({
 
   /**
    * Auto-generates BASE STAKE, ALLOWED LOSS and TARGET PROFIT from the Init Balance (or active account balance).
-   * Rule 1: initBal 500–1000  => baseStake=1.0, allowLoss=200, targetProfit=120
-   * Rule 2: initBal >1000     => allowLoss=initBal/5, baseStake=allowLoss/285.714, targetProfit=allowLoss*0.6
-   * Rule 3: initBal <500      => allowLoss=initBal*0.5, baseStake=max(0.35, initBal*0.005), targetProfit=initBal*0.3
+   * Rule 1: initBal <= 1435  => baseStake=1.0, allowLoss=200, targetProfit=120
+   * Rule 2: initBal > 1435   => allowLoss=initBal/5, baseStake=allowLoss/285.714, targetProfit=allowLoss*0.6
    */
   const handleAutoGenerate = () => {
     let targetBal = parseFloat(localInitBalance);
@@ -207,21 +206,16 @@ export function TradingPanel({
     let newAllowLoss: number;
     let newTargetProfit: number;
 
-    if (targetBal >= 500 && targetBal <= 1000) {
-      // Rule 1
+    if (targetBal <= 1435) {
+      // Rule 1: Capital <= 1435 uses Base stake $1.00, Allowed Loss $200.00, Target Profit $120.00
       newBaseStake = 1.0;
-      newAllowLoss = 200;
-      newTargetProfit = 120;
-    } else if (targetBal > 1000) {
-      // Rule 2: balance > 1000
+      newAllowLoss = 200.0;
+      newTargetProfit = 120.0;
+    } else {
+      // Rule 2: Capital > 1435
       newAllowLoss = parseFloat((targetBal / 5).toFixed(2));
       newBaseStake = parseFloat((newAllowLoss / 285.714).toFixed(2));
       newTargetProfit = parseFloat((newAllowLoss * 0.6).toFixed(2));
-    } else {
-      // Rule 3: balance < 500
-      newAllowLoss = parseFloat((targetBal * 0.5).toFixed(2));
-      newBaseStake = Math.max(0.35, parseFloat((targetBal * 0.005).toFixed(2)));
-      newTargetProfit = parseFloat((targetBal * 0.3).toFixed(2));
     }
 
     setLocalInitBalance(targetBal.toString());

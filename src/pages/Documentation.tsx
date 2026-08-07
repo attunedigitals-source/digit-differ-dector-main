@@ -529,7 +529,7 @@ const Documentation = () => {
                     {/* Rule 1 */}
                     <div className="p-5 bg-background/80 rounded-2xl border border-border shadow-sm space-y-3">
                       <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1 font-bold">
-                        Condition 1: Account Balance between $500 and $1,000
+                        Condition 1: Init / Account Balance of $1,435 or below
                       </Badge>
                       <ul className="space-y-2 text-sm text-muted-foreground pt-1">
                         <li className="flex justify-between border-b border-border/40 pb-1.5">
@@ -550,7 +550,7 @@ const Documentation = () => {
                     {/* Rule 2 */}
                     <div className="p-5 bg-background/80 rounded-2xl border border-border shadow-sm space-y-3">
                       <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 px-3 py-1 font-bold">
-                        Condition 2: Account Balance greater than $1,000
+                        Condition 2: Init / Account Balance greater than $1,435
                       </Badge>
                       <ul className="space-y-2 text-sm text-muted-foreground pt-1">
                         <li className="flex justify-between border-b border-border/40 pb-1.5">
