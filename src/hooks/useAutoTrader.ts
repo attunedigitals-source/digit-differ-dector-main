@@ -747,12 +747,14 @@ export function useAutoTrader(
   useEffect(() => {
     if (config.enabled && accountInfo?.balance !== undefined) {
       if (startBalanceRef.current === null) {
-        startBalanceRef.current = accountInfo.balance;
+        startBalanceRef.current = config.initialBalance && config.initialBalance > 0
+          ? config.initialBalance
+          : accountInfo.balance;
       }
     } else if (!config.enabled) {
       startBalanceRef.current = null;
     }
-  }, [config.enabled, accountInfo?.balance]);
+  }, [config.enabled, config.initialBalance, accountInfo?.balance]);
   // Stores per-proposal timeout handles so they can be cancelled when a response arrives
   const proposalTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 

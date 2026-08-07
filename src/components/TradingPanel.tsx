@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil } from "lucide-react";
+import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking } from "@/hooks/useAutoTrader";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
@@ -107,6 +107,7 @@ export function TradingPanel({
   const [localStakeP, setLocalStakeP] = useState((config.strategyPBaseStake ?? config.baseStake).toString());
   const [localStakeR, setLocalStakeR] = useState((config.strategyRBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
+  const [localInitBalance, setLocalInitBalance] = useState(config.initialBalance?.toString() || "");
   const [localAllowableLoss, setLocalAllowableLoss] = useState(config.allowableLoss?.toString() || "");
   const [localTargetProfit, setLocalTargetProfit] = useState(config.targetProfit?.toString() || "");
   const [autoGenMode, setAutoGenMode] = useState(false);
@@ -126,6 +127,10 @@ export function TradingPanel({
   }, []);
 
   // Sync local state when config changes from outside (e.g. sync from cloud)
+  useEffect(() => {
+    setLocalInitBalance(config.initialBalance?.toString() || "");
+  }, [config.initialBalance]);
+
   useEffect(() => {
     setLocalStake(config.baseStake.toString());
   }, [config.baseStake]);
@@ -162,6 +167,11 @@ export function TradingPanel({
     setLocalTargetProfit(config.targetProfit?.toString() || "");
   }, [config.targetProfit]);
 
+  const handleInitBalanceBlur = () => {
+    const val = parseFloat(localInitBalance);
+    onConfigChange({ ...config, initialBalance: isNaN(val) || val <= 0 ? undefined : val });
+  };
+
   const handleAllowableLossBlur = () => {
     const val = parseFloat(localAllowableLoss);
     onConfigChange({ ...config, allowableLoss: isNaN(val) ? undefined : val });
@@ -173,15 +183,23 @@ export function TradingPanel({
   };
 
   /**
-   * Auto-generates BASE STAKE, ALLOWED LOSS and TARGET PROFIT from the trading account Balance.
-   * Rule 1: balance 500–1000  => baseStake=1.0, allowLoss=200, targetProfit=120
-   * Rule 2: balance >1000     => allowLoss=balance/5, baseStake=allowLoss/285.714, targetProfit=allowLoss*0.6
-   * Rule 3: balance <500      => allowLoss=balance*0.5, baseStake=max(0.35, balance*0.005), targetProfit=balance*0.3
+   * Auto-generates BASE STAKE, ALLOWED LOSS and TARGET PROFIT from the Init Balance (or active account balance).
+   * Rule 1: initBal 500–1000  => baseStake=1.0, allowLoss=200, targetProfit=120
+   * Rule 2: initBal >1000     => allowLoss=initBal/5, baseStake=allowLoss/285.714, targetProfit=allowLoss*0.6
+   * Rule 3: initBal <500      => allowLoss=initBal*0.5, baseStake=max(0.35, initBal*0.005), targetProfit=initBal*0.3
    */
   const handleAutoGenerate = () => {
-    const acctBal = balance !== undefined && !isNaN(balance) ? balance : undefined;
-    if (acctBal === undefined || acctBal <= 0) {
-      toast.error("Please connect or select a trading account with a valid balance to auto-generate parameters.");
+    let targetBal = parseFloat(localInitBalance);
+
+    // If no custom Init Balance entered, default to active account balance
+    if (isNaN(targetBal) || targetBal <= 0) {
+      if (balance !== undefined && !isNaN(balance) && balance > 0) {
+        targetBal = balance;
+      }
+    }
+
+    if (isNaN(targetBal) || targetBal <= 0) {
+      toast.error("Please connect an account with a balance or enter an Init Balance to auto-generate parameters.");
       return;
     }
 
@@ -189,23 +207,24 @@ export function TradingPanel({
     let newAllowLoss: number;
     let newTargetProfit: number;
 
-    if (acctBal >= 500 && acctBal <= 1000) {
+    if (targetBal >= 500 && targetBal <= 1000) {
       // Rule 1
       newBaseStake = 1.0;
       newAllowLoss = 200;
       newTargetProfit = 120;
-    } else if (acctBal > 1000) {
+    } else if (targetBal > 1000) {
       // Rule 2: balance > 1000
-      newAllowLoss = parseFloat((acctBal / 5).toFixed(2));
+      newAllowLoss = parseFloat((targetBal / 5).toFixed(2));
       newBaseStake = parseFloat((newAllowLoss / 285.714).toFixed(2));
       newTargetProfit = parseFloat((newAllowLoss * 0.6).toFixed(2));
     } else {
       // Rule 3: balance < 500
-      newAllowLoss = parseFloat((acctBal * 0.5).toFixed(2));
-      newBaseStake = Math.max(0.35, parseFloat((acctBal * 0.005).toFixed(2)));
-      newTargetProfit = parseFloat((acctBal * 0.3).toFixed(2));
+      newAllowLoss = parseFloat((targetBal * 0.5).toFixed(2));
+      newBaseStake = Math.max(0.35, parseFloat((targetBal * 0.005).toFixed(2)));
+      newTargetProfit = parseFloat((targetBal * 0.3).toFixed(2));
     }
 
+    setLocalInitBalance(targetBal.toString());
     setLocalStake(newBaseStake.toString());
     setLocalStakeL(newBaseStake.toString());
     setLocalStakeM(newBaseStake.toString());
@@ -217,6 +236,7 @@ export function TradingPanel({
 
     onConfigChange({
       ...config,
+      initialBalance: targetBal,
       baseStake: newBaseStake,
       strategyLBaseStake: newBaseStake,
       strategyMBaseStake: newBaseStake,
@@ -229,7 +249,7 @@ export function TradingPanel({
 
     setAutoGenMode(true);
     toast.success(
-      `Auto-generated ✓  Base Stake: $${newBaseStake} | Allowed Loss: $${newAllowLoss} | Target Profit: $${newTargetProfit}`,
+      `Auto-generated ✓ (Init Balance: $${targetBal}) Base Stake: $${newBaseStake} | Allowed Loss: $${newAllowLoss} | Target Profit: $${newTargetProfit}`,
       { duration: 5000 }
     );
   };
@@ -430,12 +450,55 @@ export function TradingPanel({
         )}
         {autoGenMode && (
           <p className="text-[9px] text-amber-400 font-semibold animate-in fade-in">
-            ✓ Values auto-generated from Account Balance. Click <span className="underline font-bold">Manual</span> to edit Base Stake, Allowed Loss, & Target Profit freely.
+            ✓ Values auto-generated from Init Balance. Click <span className="underline font-bold">Manual</span> to edit Base Stake, Allowed Loss, & Target Profit freely.
           </p>
         )}
       </div>
 
-      {/* 2. Base Stake Section */}
+      {/* 2. Init Balance Field */}
+      <div className="space-y-1.5 bg-muted/20 p-3 rounded-md border border-border/50">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1 font-bold">
+            <Wallet className="w-3.5 h-3.5 text-emerald-400" /> Init Balance ($)
+          </label>
+          {balance !== undefined && balance > 0 && !config.enabled && (
+            <button
+              type="button"
+              onClick={() => {
+                const balStr = balance.toString();
+                setLocalInitBalance(balStr);
+                onConfigChange({ ...config, initialBalance: balance });
+                toast.info(`Init Balance set to active account balance ($${balance.toFixed(2)})`);
+              }}
+              className="text-[9px] text-primary hover:underline font-mono font-semibold"
+              title="Click to copy full account balance"
+            >
+              Auto-Fill Full Balance (${balance.toFixed(2)})
+            </button>
+          )}
+        </div>
+        <Input
+          type="number"
+          min={0}
+          step={10}
+          disabled={config.enabled || autoGenMode}
+          value={localInitBalance}
+          onChange={(e) => {
+            setLocalInitBalance(e.target.value);
+            setAutoGenMode(false);
+          }}
+          onBlur={handleInitBalanceBlur}
+          className={`bg-muted border-border font-mono text-sm h-8 ${
+            autoGenMode ? "opacity-70 cursor-not-allowed" : ""
+          }`}
+          placeholder={balance ? `e.g. ${balance} (or enter custom portion)` : "e.g. 1000"}
+        />
+        <p className="text-[9px] text-muted-foreground italic">
+          Target trading capital. Auto-calculate parameters from this Init Balance or enter custom portion.
+        </p>
+      </div>
+
+      {/* 3. Base Stake Section */}
       <div className={`grid ${config.strategy === "strategy_n" ? "grid-cols-2" : "grid-cols-1"} gap-4`}>
         {config.strategy === "strategy_n" ? (
           <>
