@@ -648,6 +648,8 @@ export function useAutoTrader(
     return true;
   }, [wsRef]);
 
+  const handleResultRef = useRef<((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => void) | null>(null);
+
   // Watchdog: monitor and resolve stuck execution
   useEffect(() => {
     const interval = setInterval(() => {
@@ -667,14 +669,14 @@ export function useAutoTrader(
           pendingBuys.current.size === 0 && 
           openContracts.current.size === 0 && 
           now - executionStartedAtRef.current > 45000) {
-        console.warn("[AutoTrader] Watchdog triggered: Resetting empty stuck execution lock");
-        isExecutingRef.current = false;
-        setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
-        setSessionState(prev => ({
-          ...prev,
-          status: "LOSS",
-          nextAction: "WDT_RST"
-        }));
+        console.warn("[AutoTrader] Watchdog triggered: Resolving stuck execution lock via handle_result");
+        const sym = sessionStateRef.current.currentSymbol || "R_100";
+        const currentStake = sessionStateRef.current.currentStake || 0.35;
+        if (handleResultRef.current) {
+          handleResultRef.current(false, sym, -currentStake);
+        } else {
+          isExecutingRef.current = false;
+        }
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -1918,16 +1920,17 @@ export function useAutoTrader(
         timestamp: new Date().toISOString()
       }, null, 2));
 
-      // Fix 2: Per-proposal 15s timeout — if Deriv never responds, self-heal
+      // Fix 2: Per-proposal 15s timeout — if Deriv never responds, resolve loss via handle_result
       const proposalTimeout = setTimeout(() => {
         if (pendingProposals.current.has(String(reqId))) {
-          console.warn(`[AutoTrader] Proposal ${reqId} timed out — clearing execution lock`);
+          console.warn(`[AutoTrader] Proposal ${reqId} timed out — resolving loss via handle_result`);
+          const pendingEntry = pendingProposals.current.get(String(reqId));
           pendingProposals.current.delete(String(reqId));
           proposalTimeouts.current.delete(String(reqId));
-          isExecutingRef.current = false;
-          setTradeLog(prev => prev.filter(t => !t.id.startsWith("pending-")));
-          setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "PRP_TMO" }));
-          setTicksToWait(30);
+
+          const sym = pendingEntry?.symbol || sessionStateRef.current.currentSymbol || "R_100";
+          const currentStake = pendingEntry?.stake || sessionStateRef.current.currentStake || 0.35;
+          handle_result(false, sym, -currentStake, pendingEntry?.supabaseId);
         }
       }, 15000);
       proposalTimeouts.current.set(String(reqId), proposalTimeout);
@@ -1962,6 +1965,7 @@ export function useAutoTrader(
   }, [config, wsRef, accountInfo, select_random_active_symbol]);
 
   const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
+    handleResultRef.current = handle_result;
     const state = sessionStateRef.current;
     
     let activeStrategy = config.strategy;
@@ -2828,26 +2832,30 @@ export function useAutoTrader(
       const reqId = String(data.req_id);
       console.error(`[AutoTrader] API Error (req_id: ${reqId}):`, data.error);
 
-      // Reset execution lock if this error belongs to a pending trade attempt
+      // Reset execution lock & record loss if this error belongs to a pending trade attempt
       if (pendingProposals.current.has(reqId) || Array.from(pendingBuys.current.keys()).includes(reqId)) {
         toast.error(`Trade error: ${data.error.message}`);
-        setSessionState(prev => ({ ...prev, status: "LOSS", nextAction: "ERR_RTY" }));
-        setTicksToWait(30);
-        isExecutingRef.current = false;
-        
+        const pendingEntry = pendingProposals.current.get(reqId);
         pendingProposals.current.delete(reqId);
-        // Clear buy if match
         const buyReq = Array.from(pendingBuys.current.keys()).find(k => k === reqId);
-        if (buyReq) pendingBuys.current.delete(buyReq);
+        let buyData;
+        if (buyReq) {
+          buyData = pendingBuys.current.get(buyReq);
+          pendingBuys.current.delete(buyReq);
+        }
+
+        const sym = pendingEntry?.symbol || buyData?.symbol || sessionStateRef.current.currentSymbol || "R_100";
+        const currentStake = pendingEntry?.stake || sessionStateRef.current.currentStake || 0.35;
+        handle_result(false, sym, -currentStake, pendingEntry?.supabaseId || buyData?.supabaseId);
       }
 
-      // If it's a contract status error and we have it in openContracts, clear it
+      // If it's a contract status error and we have it in openContracts, clear it & resolve loss via handle_result
       if (data.msg_type === "proposal_open_contract" && data.error.code === "ContractNotFound") {
-        // We don't have the contract ID directly in the error top-level usually, 
-        // but we can check our open contracts if the watchdog just polled.
-        console.warn("[AutoTrader] Contract not found on Deriv. Clearing stale references.");
-        openContracts.current.clear(); // Nuclear option if we hit this, or we could be more specific
-        isExecutingRef.current = false;
+        console.warn("[AutoTrader] Contract not found on Deriv. Resolving stale contract reference via handle_result.");
+        openContracts.current.clear();
+        const sym = sessionStateRef.current.currentSymbol || "R_100";
+        const currentStake = sessionStateRef.current.currentStake || 0.35;
+        handle_result(false, sym, -currentStake);
       }
     }
   }, [config.enabled, wsRef, handle_result, execute_trade]);
