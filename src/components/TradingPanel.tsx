@@ -410,52 +410,7 @@ export function TradingPanel({
         </p>
       )}
 
-      {/* 1. Risk & Profit Auto Generate Header Section */}
-      <div className="space-y-2 border-b border-border/20 pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Wand2 className="w-3.5 h-3.5 text-primary" /> Risk & Profit Parameters
-            </span>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Auto-generate parameters from active trading account balance or set manually.
-            </p>
-          </div>
-          {!config.enabled && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={autoGenMode ? () => setAutoGenMode(false) : handleAutoGenerate}
-              className={`h-8 text-[10px] font-bold px-3 gap-1.5 shrink-0 transition-all ${
-                autoGenMode
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
-                  : "bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30"
-              }`}
-              variant="ghost"
-            >
-              {autoGenMode ? (
-                <><Pencil className="w-3 h-3" /> Manual</>
-              ) : (
-                <><Wand2 className="w-3 h-3" /> Auto Generate</>
-              )}
-            </Button>
-          )}
-        </div>
-
-        {/* Auto-gen hint */}
-        {!autoGenMode && !config.enabled && (
-          <p className="text-[9px] text-muted-foreground italic">
-            Click <span className="text-primary font-semibold">Auto Generate</span> to calculate from Account Balance — or set parameters manually.
-          </p>
-        )}
-        {autoGenMode && (
-          <p className="text-[9px] text-amber-400 font-semibold animate-in fade-in">
-            ✓ Values auto-generated from Init Balance. Click <span className="underline font-bold">Manual</span> to edit Base Stake, Allowed Loss, & Target Profit freely.
-          </p>
-        )}
-      </div>
-
-      {/* 2. Init Balance Field */}
+      {/* 1. Init Balance Field */}
       <div className="space-y-1.5 bg-muted/20 p-3 rounded-md border border-border/50">
         <div className="flex items-center justify-between">
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1 font-bold">
@@ -494,8 +449,53 @@ export function TradingPanel({
           placeholder={balance ? `e.g. ${balance} (or enter custom portion)` : "e.g. 1000"}
         />
         <p className="text-[9px] text-muted-foreground italic">
-          Target trading capital. Auto-calculate parameters from this Init Balance or enter custom portion.
+          Target trading capital. Auto-calculate parameters below from this Init Balance or enter custom portion.
         </p>
+      </div>
+
+      {/* 2. Risk & Profit Auto Generate Header Section */}
+      <div className="space-y-2 border-b border-border/20 pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <Wand2 className="w-3.5 h-3.5 text-primary" /> Risk & Profit Parameters
+            </span>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Auto-generate parameters from Init Balance above or set manually.
+            </p>
+          </div>
+          {!config.enabled && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={autoGenMode ? () => setAutoGenMode(false) : handleAutoGenerate}
+              className={`h-8 text-[10px] font-bold px-3 gap-1.5 shrink-0 transition-all ${
+                autoGenMode
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                  : "bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30"
+              }`}
+              variant="ghost"
+            >
+              {autoGenMode ? (
+                <><Pencil className="w-3 h-3" /> Manual</>
+              ) : (
+                <><Wand2 className="w-3 h-3" /> Auto Generate</>
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Auto-gen hint */}
+        {!autoGenMode && !config.enabled && (
+          <p className="text-[9px] text-muted-foreground italic">
+            Click <span className="text-primary font-semibold">Auto Generate</span> to calculate from Init Balance above — or set parameters manually.
+          </p>
+        )}
+        {autoGenMode && (
+          <p className="text-[9px] text-amber-400 font-semibold animate-in fade-in">
+            ✓ Values auto-generated from Init Balance. Click <span className="underline font-bold">Manual</span> to edit Base Stake, Allowed Loss, & Target Profit freely.
+          </p>
+        )}
       </div>
 
       {/* 3. Base Stake Section */}
