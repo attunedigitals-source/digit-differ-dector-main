@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking } from "@/hooks/useAutoTrader";
+import { type SymbolState } from "@/lib/signal-engine";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -81,6 +82,7 @@ interface TradingPanelProps {
   profile?: UserProfile | null;
   volatilityTracking?: Record<string, VolatilityTracking>;
   onClearBlacklist?: () => void;
+  getSymbolState?: (symbol: string) => SymbolState | undefined;
 }
 
 export function TradingPanel({
@@ -99,6 +101,7 @@ export function TradingPanel({
   profile,
   volatilityTracking,
   onClearBlacklist,
+  getSymbolState,
 }: TradingPanelProps) {
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
   const [localStakeL, setLocalStakeL] = useState((config.strategyLBaseStake ?? config.baseStake).toString());
@@ -1503,24 +1506,97 @@ export function TradingPanel({
               })}
             </div>
 
-            {/* Strategy R 0 or 1 Last-Digit Scanner Monitor */}
-            <div className="bg-muted/40 p-2 rounded border border-violet-500/20 space-y-1.5">
-              <div className="flex items-center justify-between text-[9px]">
-                <span className="font-bold text-violet-300 flex items-center gap-1">
-                  <Target className="w-3 h-3 text-violet-400 animate-pulse" /> WIN / Idle 0 or 1 Volatility Filter
-                </span>
-                <span className="text-[8px] font-mono">
-                  {sessionState.nextAction === "WAIT_01_DIGIT" ? (
-                    <span className="text-amber-400 font-bold animate-pulse">WAITING FOR 0 OR 1 TICK</span>
+            {/* Strategy R 0 or 1 Last-Digit Live Scanner Monitor */}
+            {(() => {
+              const allVolatilitySymbols = [
+                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+                "R_10", "R_25", "R_50", "R_75", "R_100"
+              ];
+              const symbolDetails = allVolatilitySymbols.map(sym => {
+                const state = getSymbolState?.(sym);
+                const digits = state?.digits || [];
+                const lastDigit = digits.length > 0 ? digits[digits.length - 1] : undefined;
+                const isMatch = lastDigit === 0 || lastDigit === 1;
+                return { symbol: sym, lastDigit, isMatch };
+              });
+              const matchedList = symbolDetails.filter(s => s.isMatch);
+              const selectedSymbol = sessionState.currentSymbol;
+
+              return (
+                <div className="bg-muted/40 p-2.5 rounded-md border border-violet-500/30 space-y-2 relative">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
+                    <span className="text-[10px] font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-violet-400 animate-pulse" /> WIN / Idle 0 or 1 Volatility Scanner
+                    </span>
+                    <Badge variant="outline" className="text-[8px] font-mono font-bold px-1.5 py-0.5 border-violet-500/30 text-violet-300 bg-violet-500/10">
+                      LIVE TICKS
+                    </Badge>
+                  </div>
+
+                  {/* Candidate Status Banner */}
+                  {matchedList.length === 0 ? (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded p-2 text-[9px] text-amber-300 space-y-1">
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5 text-amber-400 animate-pulse" /> 0 Volatilities Matched</span>
+                        <Badge variant="outline" className="text-amber-400 border-amber-500/40 bg-amber-500/10 text-[8px]">WAITING FOR 0 OR 1 TICK</Badge>
+                      </div>
+                      <p className="text-[8px] text-amber-300/80">No volatility currently shows a last digit of 0 or 1. AutoTrader is paused & scanning live ticks to auto-resume once found.</p>
+                    </div>
+                  ) : matchedList.length === 1 ? (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-2 text-[9px] text-emerald-300 space-y-1">
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5 text-emerald-400" /> 1 Volatility Matched</span>
+                        <Badge variant="outline" className="text-emerald-400 border-emerald-500/40 bg-emerald-500/10 text-[8px]">SINGLE MATCH</Badge>
+                      </div>
+                      <p className="text-[8px] text-emerald-200/90 font-mono">
+                        Matched: <span className="font-bold text-emerald-400">{matchedList[0].symbol}</span> (Last Digit: <span className="font-bold">{matchedList[0].lastDigit}</span>) → Directly Selected for Trade
+                      </p>
+                    </div>
                   ) : (
-                    <span className="text-emerald-400 font-bold">ACTIVE SCANNER</span>
+                    <div className="bg-violet-500/10 border border-violet-500/30 rounded p-2 text-[9px] text-violet-300 space-y-1">
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="flex items-center gap-1"><Shuffle className="w-3.5 h-3.5 text-violet-400" /> {matchedList.length} Volatilities Matched</span>
+                        <Badge variant="outline" className="text-violet-400 border-violet-500/40 bg-violet-500/10 text-[8px]">MULTIPLE MATCHES</Badge>
+                      </div>
+                      <div className="text-[8px] text-violet-200 font-mono space-y-0.5">
+                        <div>Matched Candidates: <span className="font-bold text-violet-300">{matchedList.map(c => `${c.symbol} [Digit: ${c.lastDigit}]`).join(", ")}</span></div>
+                        <div>Randomly Selected Target: <span className="font-bold text-emerald-400">{selectedSymbol || matchedList[0].symbol}</span></div>
+                      </div>
+                    </div>
                   )}
-                </span>
-              </div>
-              <p className="text-[8px] text-muted-foreground leading-tight">
-                WIN / Idle state checks all volatilities' latest tick last digit. Trades are placed ONLY on volatilities ending in 0 or 1.
-              </p>
-            </div>
+
+                  {/* 10 Volatilities Real-Time Last-Digit Grid */}
+                  <div>
+                    <span className="text-[8px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Live Volatility Ticks Monitor (All 10 Symbols):</span>
+                    <div className="grid grid-cols-5 gap-1.5 text-[8px]">
+                      {symbolDetails.map(item => {
+                        const isSelected = selectedSymbol === item.symbol;
+                        return (
+                          <div
+                            key={item.symbol}
+                            className={`p-1.5 rounded border flex flex-col items-center justify-center transition-all ${
+                              item.isMatch
+                                ? "bg-emerald-950/40 border-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.2)]"
+                                : "bg-muted/30 border-border/40 opacity-70"
+                            } ${isSelected ? "ring-1 ring-emerald-400" : ""}`}
+                          >
+                            <span className="font-bold text-[8px] text-foreground">{item.symbol}</span>
+                            <span className={`font-mono text-[9px] font-black mt-0.5 ${
+                              item.isMatch ? "text-emerald-400" : "text-muted-foreground"
+                            }`}>
+                              {item.lastDigit !== undefined ? `Digit: ${item.lastDigit}` : "-"}
+                            </span>
+                            {item.isMatch && (
+                              <span className="text-[7px] text-emerald-300 font-bold mt-0.5">🎯 MATCH</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             
             <div className="grid grid-cols-2 gap-2 text-[10px] mt-1">
               <div className="bg-muted/50 rounded p-1.5 border border-border/50">

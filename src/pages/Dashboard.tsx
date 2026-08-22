@@ -193,6 +193,7 @@ export default function Dashboard() {
               profile={profile}
               volatilityTracking={volatilityTracking}
               onClearBlacklist={clearBlacklist}
+              getSymbolState={getSymbolState}
             />
           </div>
 
