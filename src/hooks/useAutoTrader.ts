@@ -1205,63 +1205,120 @@ export function useAutoTrader(
           symbol = state.currentSymbol;
           console.log(`[Strategy ${stratLabel} Volatility] Sticky symbol ${symbol}. Mode: ${nextLMode}`);
         }
-      } else if (activeStrategy === "strategy_r" && config.strategyRStickyEnabled) {
-        const isFirstTrade = state.status === "IDLE";
-        let shouldSwitchSymbol = false;
-        const rModes: Array<"win_sticky" | "none_sticky" | "loss_sticky"> = ["win_sticky", "none_sticky", "loss_sticky"];
-        const getRandomRMode = (excludeMode?: "win_sticky" | "none_sticky" | "loss_sticky") => {
-          const filtered = excludeMode ? rModes.filter(m => m !== excludeMode) : rModes;
-          return filtered[Math.floor(Math.random() * filtered.length)];
-        };
-        const getRandomRCount = (mode?: "win_sticky" | "none_sticky" | "loss_sticky") => {
-          if (mode === "win_sticky") {
-            return Math.floor(Math.random() * 4) + 5; // 5 - 8 runs
-          }
-          if (mode === "loss_sticky") {
-            return Math.floor(Math.random() * 2) + 1; // 1 - 2 runs (max 2)
-          }
-          return Math.floor(Math.random() * 3) + 3; // 3 - 5 runs (none_sticky)
-        };
+      } else if (activeStrategy === "strategy_r") {
+        if (state.status === "WIN" || state.status === "IDLE") {
+          const allRVolatilitySymbols = [
+            "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+            "R_10", "R_25", "R_50", "R_75", "R_100",
+          ];
 
-        if (isFirstTrade || !state.currentSymbol || !state.strategyRMode || state.strategyRModeCount === undefined || state.strategyRModeCount <= 0) {
-          shouldSwitchSymbol = true;
-          nextRMode = getRandomRMode(state.strategyRMode || undefined);
-          nextRModeCount = getRandomRCount(nextRMode);
-          console.log(`[Strategy R Volatility] Sticky initialized: Mode = ${nextRMode}, Count = ${nextRModeCount}`);
-        } else {
-          if (
-            (state.strategyRMode === "win_sticky" && state.status === "LOSS") ||
-            (state.strategyRMode === "loss_sticky" && (state.status === "WIN" || state.status === "IDLE"))
-          ) {
+          const candidate01Symbols = allRVolatilitySymbols.filter(sym => {
+            const tracking = volatilityTracking[sym];
+            if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
+              return false;
+            }
+            const symbolState = getSymbolState(sym);
+            if (!symbolState || !symbolState.digits || symbolState.digits.length === 0) {
+              return false;
+            }
+            if (symbolState.updatedAt && (Date.now() - symbolState.updatedAt > MAX_TICK_AGE_MS)) {
+              return false;
+            }
+            const lastDigit = symbolState.digits[symbolState.digits.length - 1];
+            return lastDigit === 0 || lastDigit === 1;
+          });
+
+          if (candidate01Symbols.length === 0) {
+            console.warn("[Strategy R Volatility] Trade paused: No volatility currently shows last digit 0 or 1");
+            setSessionState(prev => ({
+              ...prev,
+              nextAction: "WAIT_01_DIGIT",
+            }));
+            setTicksToWait(1);
+            isExecutingRef.current = false;
+            return;
+          }
+
+          const chosen = candidate01Symbols[Math.floor(Math.random() * candidate01Symbols.length)];
+          symbol = chosen;
+          const chosenState = getSymbolState(chosen);
+          const chosenLastDigit = chosenState?.digits?.[chosenState.digits.length - 1];
+          console.log(`[Strategy R Volatility 0/1 Filter] Fresh 0/1 candidates: [${candidate01Symbols.join(", ")}]. Selected: ${symbol} (Last Digit: ${chosenLastDigit})`);
+        } else if (config.strategyRStickyEnabled) {
+          const isFirstTrade = state.status === "IDLE";
+          let shouldSwitchSymbol = false;
+          const rModes: Array<"win_sticky" | "none_sticky" | "loss_sticky"> = ["win_sticky", "none_sticky", "loss_sticky"];
+          const getRandomRMode = (excludeMode?: "win_sticky" | "none_sticky" | "loss_sticky") => {
+            const filtered = excludeMode ? rModes.filter(m => m !== excludeMode) : rModes;
+            return filtered[Math.floor(Math.random() * filtered.length)];
+          };
+          const getRandomRCount = (mode?: "win_sticky" | "none_sticky" | "loss_sticky") => {
+            if (mode === "win_sticky") {
+              return Math.floor(Math.random() * 4) + 5; // 5 - 8 runs
+            }
+            if (mode === "loss_sticky") {
+              return Math.floor(Math.random() * 2) + 1; // 1 - 2 runs (max 2)
+            }
+            return Math.floor(Math.random() * 3) + 3; // 3 - 5 runs (none_sticky)
+          };
+
+          if (isFirstTrade || !state.currentSymbol || !state.strategyRMode || state.strategyRModeCount === undefined || state.strategyRModeCount <= 0) {
             shouldSwitchSymbol = true;
             nextRMode = getRandomRMode(state.strategyRMode || undefined);
             nextRModeCount = getRandomRCount(nextRMode);
-            console.log(`[Strategy R Volatility] ${state.strategyRMode === "win_sticky" ? "Win" : "Loss"} Sticky early transition. Re-selecting sticky mode: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+            console.log(`[Strategy R Volatility] Sticky initialized: Mode = ${nextRMode}, Count = ${nextRModeCount}`);
           } else {
-            const currentCount = state.strategyRModeCount;
-            if (currentCount > 1) {
-              nextRModeCount = currentCount - 1;
-              if (nextRMode === "none_sticky") {
-                shouldSwitchSymbol = true;
-                console.log(`[Strategy R Volatility] Continuing None Sticky. Trades remaining: ${nextRModeCount}`);
-              } else if (nextRMode === "win_sticky") {
-                shouldSwitchSymbol = false;
-                console.log(`[Strategy R Volatility] Win Sticky (Win/Idle detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
-              } else {
-                // loss_sticky
-                shouldSwitchSymbol = false;
-                console.log(`[Strategy R Volatility] Loss Sticky (Loss detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
-              }
-            } else {
+            if (
+              (state.strategyRMode === "win_sticky" && state.status === "LOSS") ||
+              (state.strategyRMode === "loss_sticky" && (state.status === "WIN" || state.status === "IDLE"))
+            ) {
               shouldSwitchSymbol = true;
               nextRMode = getRandomRMode(state.strategyRMode || undefined);
               nextRModeCount = getRandomRCount(nextRMode);
-              console.log(`[Strategy R Volatility] Sticky transition (Count expired): New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+              console.log(`[Strategy R Volatility] ${state.strategyRMode === "win_sticky" ? "Win" : "Loss"} Sticky early transition. Re-selecting sticky mode: New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+            } else {
+              const currentCount = state.strategyRModeCount;
+              if (currentCount > 1) {
+                nextRModeCount = currentCount - 1;
+                if (nextRMode === "none_sticky") {
+                  shouldSwitchSymbol = true;
+                  console.log(`[Strategy R Volatility] Continuing None Sticky. Trades remaining: ${nextRModeCount}`);
+                } else if (nextRMode === "win_sticky") {
+                  shouldSwitchSymbol = false;
+                  console.log(`[Strategy R Volatility] Win Sticky (Win/Idle detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
+                } else {
+                  // loss_sticky
+                  shouldSwitchSymbol = false;
+                  console.log(`[Strategy R Volatility] Loss Sticky (Loss detected). Staying on symbol. Trades remaining: ${nextRModeCount}`);
+                }
+              } else {
+                shouldSwitchSymbol = true;
+                nextRMode = getRandomRMode(state.strategyRMode || undefined);
+                nextRModeCount = getRandomRCount(nextRMode);
+                console.log(`[Strategy R Volatility] Sticky transition (Count expired): New Mode = ${nextRMode}, Count = ${nextRModeCount}`);
+              }
             }
           }
-        }
 
-        if (shouldSwitchSymbol) {
+          if (shouldSwitchSymbol) {
+            const selectedSymbol = select_random_active_symbol();
+            if (!selectedSymbol) {
+              console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
+              setSessionState(prev => ({
+                ...prev,
+                nextAction: "SKP_STALE",
+              }));
+              setTicksToWait(3);
+              isExecutingRef.current = false;
+              return;
+            }
+            symbol = selectedSymbol.symbol;
+            console.log(`[Strategy R Volatility] Switched symbol to ${symbol}. Chosen mode: ${nextRMode}`);
+          } else {
+            symbol = state.currentSymbol;
+            console.log(`[Strategy R Volatility] Sticky symbol ${symbol}. Mode: ${nextRMode}`);
+          }
+        } else {
           const selectedSymbol = select_random_active_symbol();
           if (!selectedSymbol) {
             console.warn("[AutoTrader] Trade skipped: no fresh symbol available");
@@ -1274,10 +1331,6 @@ export function useAutoTrader(
             return;
           }
           symbol = selectedSymbol.symbol;
-          console.log(`[Strategy R Volatility] Switched symbol to ${symbol}. Chosen mode: ${nextRMode}`);
-        } else {
-          symbol = state.currentSymbol;
-          console.log(`[Strategy R Volatility] Sticky symbol ${symbol}. Mode: ${nextRMode}`);
         }
       } else if (shouldKeep) {
         symbol = state.currentSymbol;

@@ -1438,8 +1438,8 @@ export function TradingPanel({
         </div>
       )}
 
-      {/* Strategy R monitoring panel — hidden from client UI to protect intellectual property */}
-      {false && config.strategy === "strategy_r" && (
+      {/* Strategy R monitoring panel — revealed for user monitoring */}
+      {config.strategy === "strategy_r" && (
         <div className="bg-gradient-to-br from-violet-500/15 via-card to-fuchsia-500/15 border border-violet-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -1501,6 +1501,25 @@ export function TradingPanel({
                   </div>
                 );
               })}
+            </div>
+
+            {/* Strategy R 0 or 1 Last-Digit Scanner Monitor */}
+            <div className="bg-muted/40 p-2 rounded border border-violet-500/20 space-y-1.5">
+              <div className="flex items-center justify-between text-[9px]">
+                <span className="font-bold text-violet-300 flex items-center gap-1">
+                  <Target className="w-3 h-3 text-violet-400 animate-pulse" /> WIN / Idle 0 or 1 Volatility Filter
+                </span>
+                <span className="text-[8px] font-mono">
+                  {sessionState.nextAction === "WAIT_01_DIGIT" ? (
+                    <span className="text-amber-400 font-bold animate-pulse">WAITING FOR 0 OR 1 TICK</span>
+                  ) : (
+                    <span className="text-emerald-400 font-bold">ACTIVE SCANNER</span>
+                  )}
+                </span>
+              </div>
+              <p className="text-[8px] text-muted-foreground leading-tight">
+                WIN / Idle state checks all volatilities' latest tick last digit. Trades are placed ONLY on volatilities ending in 0 or 1.
+              </p>
             </div>
             
             <div className="grid grid-cols-2 gap-2 text-[10px] mt-1">
