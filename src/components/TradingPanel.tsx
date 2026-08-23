@@ -1607,7 +1607,7 @@ export function TradingPanel({
 
               const evaluatedList: StrategyREvenOddEvaluation[] = [];
               for (const sym of allRVolatilitySymbols) {
-                const st = allStates[sym];
+                const st = getSymbolState ? getSymbolState(sym) : undefined;
                 if (st && st.digits && st.digits.length >= 100) {
                   const evalRes = evaluateStrategyREvenOddCandidate(sym, st.digits);
                   if (evalRes) {
