@@ -21,10 +21,36 @@ export function createSymbolState(symbol: string): SymbolState {
   return { symbol, digits: [], tickCount: 0, lastSignalTick: -10, updatedAt: Date.now() };
 }
 
-export function extractLastDigit(quote: number | string): number {
-  const str = String(quote);
+export function getSymbolDefaultPipSize(symbol: string): number {
+  if (symbol.startsWith("1HZ")) return 2; // 1HZ10V, 1HZ25V, 1HZ50V, 1HZ75V, 1HZ100V
+  if (symbol === "R_10" || symbol === "R_25") return 3;
+  if (symbol === "R_50" || symbol === "R_75") return 4;
+  if (symbol === "R_100") return 2;
+  return 2;
+}
+
+export function extractLastDigit(quote: number | string, pipSize?: number): number {
+  let str: string;
+  if (typeof quote === "number") {
+    if (pipSize !== undefined && pipSize >= 0) {
+      str = quote.toFixed(pipSize);
+    } else {
+      str = String(quote);
+    }
+  } else {
+    str = String(quote).trim();
+  }
+
+  if (pipSize !== undefined && pipSize >= 0 && !isNaN(Number(quote))) {
+    const num = Number(quote);
+    if (!isNaN(num)) {
+      str = num.toFixed(pipSize);
+    }
+  }
+
   const lastChar = str[str.length - 1];
-  return parseInt(lastChar, 10) || 0;
+  const parsed = parseInt(lastChar, 10);
+  return isNaN(parsed) ? 0 : parsed;
 }
 
 export function addTick(state: SymbolState, digit: number): SymbolState {

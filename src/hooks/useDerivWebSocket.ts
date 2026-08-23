@@ -7,6 +7,7 @@ import {
   addTick,
   createSymbolState,
   extractLastDigit,
+  getSymbolDefaultPipSize,
   generateSignal,
 } from "@/lib/signal-engine";
 import { supabase } from "@/integrations/supabase/client";
@@ -357,7 +358,8 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
       const prices = history.prices;
       const state = statesRef.current.get(symbol);
       if (state) {
-        const historicalDigits = prices.map((p) => extractLastDigit(p as number | string));
+        const defaultPip = getSymbolDefaultPipSize(symbol);
+        const historicalDigits = prices.map((p) => extractLastDigit(p as number | string, defaultPip));
         state.digits = historicalDigits.slice(-1000);
         state.tickCount = historicalDigits.length;
         state.updatedAt = Date.now();
@@ -376,7 +378,8 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
     const quote = typeof tick?.quote === "number" || typeof tick?.quote === "string" ? tick.quote : undefined;
     if (!symbol || quote === undefined) return;
 
-    const digit = extractLastDigit(quote);
+    const pipSize = typeof tick?.pip_size === "number" ? tick.pip_size : getSymbolDefaultPipSize(symbol);
+    const digit = extractLastDigit(quote, pipSize);
     let state = statesRef.current.get(symbol);
     if (!state) return;
 
