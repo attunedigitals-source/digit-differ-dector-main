@@ -124,3 +124,150 @@ export function generateSignal(state: SymbolState): Signal | null {
     timestamp: new Date(),
   };
 }
+
+export interface StrategyREvenOddEvaluation {
+  symbol: string;
+  pattern: "EVEN_EVEN" | "ODD_ODD";
+  targetContract: "even" | "odd";
+  d1: number;
+  p1: number;
+  d2: number;
+  p2: number;
+  d3: number;
+  p3: number;
+  triggerDigit: number; // D10
+  p10: number;
+  triggerAppeared: boolean;
+  triggerTickIndex?: number;
+  nextTickDigit?: number;
+  isValidated: boolean; // Criterion E fulfilled
+  isInvalidated: boolean; // Criterion E failed
+}
+
+export function evaluateStrategyREvenOddCandidate(
+  symbol: string,
+  digits: number[]
+): StrategyREvenOddEvaluation | null {
+  if (!digits || digits.length < 100) {
+    return null;
+  }
+
+  // Use up to last 1000 digits
+  const sample = digits.slice(-1000);
+  const total = sample.length;
+  if (total === 0) return null;
+
+  // Compute counts for digits 0-9
+  const counts: Record<number, number> = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0 };
+  for (const d of sample) {
+    if (d >= 0 && d <= 9) {
+      counts[d] = (counts[d] || 0) + 1;
+    }
+  }
+
+  // Map to array & sort by percentage descending
+  const stats = Object.keys(counts).map(k => {
+    const digit = parseInt(k, 10);
+    const count = counts[digit];
+    const percentage = Number(((count / total) * 100).toFixed(2));
+    return { digit, percentage };
+  }).sort((a, b) => b.percentage - a.percentage || b.digit - a.digit);
+
+  const d1Info = stats[0];
+  const d2Info = stats[1];
+  const d3Info = stats[2];
+  const d10Info = stats[9]; // Least highest digit (lowest percentage)
+
+  const isD1Even = d1Info.digit % 2 === 0;
+  const isD2Even = d2Info.digit % 2 === 0;
+
+  // Criterion A: D1 and D2 must both be EVEN or both be ODD
+  if (isD1Even !== isD2Even) {
+    return null;
+  }
+
+  const pattern: "EVEN_EVEN" | "ODD_ODD" = isD1Even ? "EVEN_EVEN" : "ODD_ODD";
+  const targetContract: "even" | "odd" = isD1Even ? "even" : "odd";
+
+  // Criterion B: P1 >= 11.0% AND P2 >= 11.0%
+  if (d1Info.percentage < 11.0 || d2Info.percentage < 11.0) {
+    return null;
+  }
+
+  // Criterion C: P3 <= 9.5%
+  if (d3Info.percentage > 9.5) {
+    return null;
+  }
+
+  // Criterion D: D10 (trigger digit) must have OPPOSITE parity
+  // For EVEN_EVEN -> D10 must be ODD (d10 % 2 !== 0)
+  // For ODD_ODD -> D10 must be EVEN (d10 % 2 === 0)
+  const isD10Even = d10Info.digit % 2 === 0;
+  if (pattern === "EVEN_EVEN" && isD10Even) {
+    return null; // D10 must be ODD
+  }
+  if (pattern === "ODD_ODD" && !isD10Even) {
+    return null; // D10 must be EVEN
+  }
+
+  const triggerDigit = d10Info.digit;
+
+  // Criterion E: Check live tick pattern sequence
+  // Find the last occurrence of triggerDigit in digits
+  let triggerTickIndex = -1;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    if (digits[i] === triggerDigit) {
+      triggerTickIndex = i;
+      break;
+    }
+  }
+
+  let triggerAppeared = false;
+  let nextTickDigit: number | undefined = undefined;
+  let isValidated = false;
+  let isInvalidated = false;
+
+  if (triggerTickIndex >= 0) {
+    triggerAppeared = true;
+    // Check if there is a tick immediately following the trigger digit
+    if (triggerTickIndex < digits.length - 1) {
+      nextTickDigit = digits[triggerTickIndex + 1];
+      const isNextEven = nextTickDigit % 2 === 0;
+
+      if (pattern === "EVEN_EVEN") {
+        // Trigger is ODD. If next digit is EVEN -> VALIDATED!
+        if (isNextEven) {
+          isValidated = true;
+        } else {
+          isInvalidated = true;
+        }
+      } else {
+        // Pattern is ODD_ODD. Trigger is EVEN. If next digit is ODD -> VALIDATED!
+        if (!isNextEven) {
+          isValidated = true;
+        } else {
+          isInvalidated = true;
+        }
+      }
+    }
+  }
+
+  return {
+    symbol,
+    pattern,
+    targetContract,
+    d1: d1Info.digit,
+    p1: d1Info.percentage,
+    d2: d2Info.digit,
+    p2: d2Info.percentage,
+    d3: d3Info.digit,
+    p3: d3Info.percentage,
+    triggerDigit,
+    p10: d10Info.percentage,
+    triggerAppeared,
+    triggerTickIndex,
+    nextTickDigit,
+    isValidated,
+    isInvalidated,
+  };
+}

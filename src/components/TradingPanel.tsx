@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking } from "@/hooks/useAutoTrader";
-import { type SymbolState } from "@/lib/signal-engine";
+import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -1594,6 +1594,101 @@ export function TradingPanel({
                       })}
                     </div>
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* Strategy R Recovery EVEN/ODD Statistical & Tick Trigger Monitor */}
+            {(() => {
+              const allRVolatilitySymbols = [
+                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+                "R_10", "R_25", "R_50", "R_75", "R_100",
+              ];
+
+              const evaluatedList: StrategyREvenOddEvaluation[] = [];
+              for (const sym of allRVolatilitySymbols) {
+                const st = allStates[sym];
+                if (st && st.digits && st.digits.length >= 100) {
+                  const evalRes = evaluateStrategyREvenOddCandidate(sym, st.digits);
+                  if (evalRes) {
+                    evaluatedList.push(evalRes);
+                  }
+                }
+              }
+
+              const validatedList = evaluatedList.filter(e => e.isValidated);
+
+              return (
+                <div className="bg-muted/40 p-2.5 rounded-md border border-cyan-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-[9px]">
+                    <span className="font-bold text-cyan-300 flex items-center gap-1.5">
+                      <Wand2 className="w-3.5 h-3.5 text-cyan-400" /> EVEN/ODD 1000-Digit Recovery Scanner
+                    </span>
+                    <Badge variant="outline" className={`text-[8px] font-mono font-bold px-1.5 py-0.5 ${
+                      validatedList.length > 0
+                        ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10 animate-pulse"
+                        : evaluatedList.length > 0
+                        ? "border-cyan-500/40 text-cyan-400 bg-cyan-500/10"
+                        : "border-muted text-muted-foreground"
+                    }`}>
+                      {validatedList.length > 0
+                        ? `${validatedList.length} QUALIFIED (READY)`
+                        : evaluatedList.length > 0
+                        ? `${evaluatedList.length} CANDIDATE(S) WATCHING`
+                        : "NO CANDIDATES (A-D)"}
+                    </Badge>
+                  </div>
+
+                  {evaluatedList.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {evaluatedList.map(cand => (
+                        <div
+                          key={cand.symbol}
+                          className={`p-2 rounded border text-[8.5px] font-mono space-y-1 ${
+                            cand.isValidated
+                              ? "bg-emerald-950/30 border-emerald-500/50 text-emerald-200"
+                              : cand.isInvalidated
+                              ? "bg-rose-950/20 border-rose-500/30 text-rose-300 opacity-60"
+                              : "bg-cyan-950/30 border-cyan-500/40 text-cyan-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold">
+                            <span>{cand.symbol} ({cand.pattern} → {cand.targetContract.toUpperCase()})</span>
+                            <Badge variant="outline" className={`text-[7.5px] px-1 py-0 ${
+                              cand.isValidated
+                                ? "border-emerald-500 text-emerald-400 bg-emerald-500/20"
+                                : cand.isInvalidated
+                                ? "border-rose-500 text-rose-400 bg-rose-500/20"
+                                : "border-cyan-500 text-cyan-300 bg-cyan-500/20"
+                            }`}>
+                              {cand.isValidated
+                                ? "🎯 TRIGGER CONFIRMED"
+                                : cand.isInvalidated
+                                ? "❌ INVALIDATED"
+                                : cand.triggerAppeared
+                                ? "👀 TRIGGER FIRED - WATCHING NEXT"
+                                : "⏳ WATCHING TRIGGER DIGIT"}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1 text-[7.5px]">
+                            <div>D1: <span className="font-bold text-foreground">{cand.d1} ({cand.p1}%)</span></div>
+                            <div>D2: <span className="font-bold text-foreground">{cand.d2} ({cand.p2}%)</span></div>
+                            <div>D3: <span className="font-bold text-foreground">{cand.d3} ({cand.p3}%)</span></div>
+                            <div>Trigger D10: <span className="font-bold text-amber-300">{cand.triggerDigit} ({cand.p10}%)</span></div>
+                          </div>
+                        </div>
+                      ))}
+                      {validatedList.length > 1 && (
+                        <p className="text-[7.5px] text-violet-300 italic">
+                          Multiple candidates passed all criteria A-E. One will be randomly selected for the recovery trade.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[8px] text-muted-foreground leading-tight">
+                      Evaluating last 1000 digits across all 10 volatilities (Criteria A: Top 2 parity match, B: ≥11%, C: 3rd ≤9.5%, D: D10 opposite parity trigger).
+                    </p>
+                  )}
                 </div>
               );
             })()}

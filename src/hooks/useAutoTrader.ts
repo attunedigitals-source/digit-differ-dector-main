@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
-import { type SymbolState, generateSignal } from "@/lib/signal-engine";
+import { type SymbolState, generateSignal, evaluateStrategyREvenOddCandidate, getSymbolDefaultPipSize, extractLastDigit, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
 import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails, getPermutationIndex, getRandomSequenceWithPrefix, isPrefixBlacklisted } from "../lib/arrangement-brain";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
@@ -1525,24 +1525,72 @@ export function useAutoTrader(
 
           if (currentStatus === "WIN" || currentStatus === "IDLE") {
             pool = ["over1", "under8"];
+            const tradeDir = pool[Math.floor(Math.random() * pool.length)];
+            trade = tradeDir;
+            chosenGroup = getCategoryGroup(trade);
+            nextStep = 0;
           } else {
+            // LOSS state: Recovery Trade Selection
             pool = ["even", "odd", "rise", "fall"];
             if (state.currentCategory) {
               pool = pool.filter(c => c !== state.currentCategory);
             }
-          }
 
-          const tradeDir = pool[Math.floor(Math.random() * pool.length)];
-          trade = tradeDir;
-          chosenGroup = getCategoryGroup(trade);
+            const candidateTradeDir = pool[Math.floor(Math.random() * pool.length)];
 
-          console.log(`[Strategy R Execution] Step: ${currentStatus === "LOSS" ? currentMartingaleStep + 1 : 0}, Selected direction: ${tradeDir}`);
+            if (candidateTradeDir === "even" || candidateTradeDir === "odd") {
+              const allRVolatilitySymbols = [
+                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+                "R_10", "R_25", "R_50", "R_75", "R_100",
+              ];
 
-          if (currentStatus === "WIN" || currentStatus === "IDLE") {
-            nextStep = 0;
-          } else if (currentStatus === "LOSS") {
-            nextStep = currentMartingaleStep + 1;
-            stepIndexRef.current += 1;
+              // Evaluate all 10 volatilities against Criteria A, B, C, D and E
+              const evaluatedCandidates: StrategyREvenOddEvaluation[] = [];
+              for (const sym of allRVolatilitySymbols) {
+                const tracking = volatilityTracking[sym];
+                if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
+                  continue;
+                }
+                const symbolState = getSymbolState(sym);
+                if (symbolState && symbolState.digits && symbolState.digits.length >= 100) {
+                  const evalResult = evaluateStrategyREvenOddCandidate(sym, symbolState.digits);
+                  if (evalResult) {
+                    evaluatedCandidates.push(evalResult);
+                  }
+                }
+              }
+
+              // Filter candidates meeting Criteria A, B, C, D AND validated by Criterion E (isValidated === true)
+              const validatedCandidates = evaluatedCandidates.filter(item => item.isValidated);
+
+              if (validatedCandidates.length > 0) {
+                // If MULTIPLE volatilities meet all criteria (A-E), select ONE AT RANDOM
+                const selectedEval = validatedCandidates[Math.floor(Math.random() * validatedCandidates.length)];
+                symbol = selectedEval.symbol;
+                trade = selectedEval.targetContract;
+                chosenGroup = getCategoryGroup(trade);
+                nextStep = currentMartingaleStep + 1;
+                stepIndexRef.current += 1;
+
+                console.log(`[Strategy R EVEN/ODD Recovery] ${validatedCandidates.length} candidate(s) passed all criteria A-E. Randomly selected: ${symbol} (Contract: ${trade}, Top pair: D${selectedEval.d1}=${selectedEval.p1}%, D${selectedEval.d2}=${selectedEval.p2}%, D3=${selectedEval.d3}%, Trigger D10=${selectedEval.triggerDigit}=${selectedEval.p10}%)`);
+              } else {
+                // No candidate has passed Criterion E yet
+                console.warn("[Strategy R EVEN/ODD Recovery] Watching trigger digits for candidates meeting Criteria A-D...");
+                setSessionState(prev => ({
+                  ...prev,
+                  nextAction: "WAIT_EVEN_ODD_TRIG",
+                }));
+                setTicksToWait(1);
+                isExecutingRef.current = false;
+                return;
+              }
+            } else {
+              // Rise or Fall recovery trade
+              trade = candidateTradeDir;
+              chosenGroup = getCategoryGroup(trade);
+              nextStep = currentMartingaleStep + 1;
+              stepIndexRef.current += 1;
+            }
           }
         } else {
           let currentArr = state.currentArrangement || [];
@@ -3178,20 +3226,32 @@ export function useAutoTrader(
     return () => clearTimeout(timer);
   }, [config, user?.id]);
 
-  // Main Auto-Trading Loop
+  // Main Auto-Trading Loop & Heartbeat Execution Interval
   useEffect(() => {
-    if (!config.enabled) return;
+    if (!config.enabled || !connected) return;
 
-    // Check if we should trigger a trade
-    const shouldTrade = 
-      (sessionState.status === "IDLE") || 
-      (ticksToWait === 0 && (sessionState.status === "WIN" || sessionState.status === "LOSS"));
+    const runTradingLoop = () => {
+      const state = sessionStateRef.current;
+      const shouldTrade = 
+        (state.status === "IDLE") || 
+        (state.nextAction === "WAIT_01_DIGIT") ||
+        (state.nextAction === "WAIT_EVEN_ODD_TRIG") ||
+        (state.nextAction === "W8_TCK") ||
+        (ticksToWait === 0 && (state.status === "WIN" || state.status === "LOSS"));
 
-    if (shouldTrade && !isExecutingRef.current && sessionState.status !== "PENDING" && openContracts.current.size === 0) {
-      console.log("[AutoTrader] Loop trigger: executing trade");
-      execute_trade();
-    }
-  }, [config.enabled, sessionState.status, ticksToWait, execute_trade]);
+      if (shouldTrade && !isExecutingRef.current && state.status !== "PENDING" && openContracts.current.size === 0) {
+        console.log("[AutoTrader] Loop trigger: executing trade");
+        execute_trade();
+      }
+    };
+
+    // Immediate execution attempt on enable / connection
+    runTradingLoop();
+
+    // 1-second interval while enabled to recover from any WS delays, W8_TCK, WAIT_01_DIGIT or WAIT_EVEN_ODD_TRIG states
+    const interval = setInterval(runTradingLoop, 1000);
+    return () => clearInterval(interval);
+  }, [config.enabled, connected, sessionState.status, ticksToWait, execute_trade]);
 
   // Monitor balance changes and disable bot if balance is lower than stake
   useEffect(() => {
