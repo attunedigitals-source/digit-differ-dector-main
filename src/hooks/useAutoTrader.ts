@@ -1090,6 +1090,7 @@ export function useAutoTrader(
       let nextNoneStickyCount: number | undefined = state.strategyLNoneStickyCount;
       let nextRMode: "win_sticky" | "none_sticky" | "loss_sticky" | undefined = state.strategyRMode;
       let nextRModeCount: number | undefined = state.strategyRModeCount;
+      let nextRRecoveryPair: "EVEN_ODD" | "PUTE_CALLE" | undefined = state.strategyRRecoveryPair;
 
       if (activeStrategy === "strategy_h") {
         let k = state.fibonacciIndex ?? -1;
@@ -1529,10 +1530,14 @@ export function useAutoTrader(
             trade = tradeDir;
             chosenGroup = getCategoryGroup(trade);
             nextStep = 0;
+            nextRRecoveryPair = undefined;
           } else {
             // LOSS state: Recovery Trade Selection
-            // Randomly decide pair for every recovery trade: EVEN/ODD (50%) or PUTE/CALLE (50%)
-            const selectedPair = Math.random() < 0.5 ? "EVEN_ODD" : "PUTE_CALLE";
+            // Persist recovery pair selection for the duration of this recovery trade step
+            if (!nextRRecoveryPair) {
+              nextRRecoveryPair = Math.random() < 0.5 ? "EVEN_ODD" : "PUTE_CALLE";
+            }
+            const selectedPair = nextRRecoveryPair;
 
             if (selectedPair === "EVEN_ODD") {
               const allRVolatilitySymbols = [
@@ -1548,7 +1553,7 @@ export function useAutoTrader(
                   continue;
                 }
                 const symbolState = getSymbolState(sym);
-                if (symbolState && symbolState.digits && symbolState.digits.length >= 100) {
+                if (symbolState && symbolState.digits && symbolState.digits.length >= 30) {
                   const evalResult = evaluateStrategyREvenOddCandidate(sym, symbolState.digits);
                   if (evalResult) {
                     evaluatedCandidates.push(evalResult);
@@ -1574,6 +1579,7 @@ export function useAutoTrader(
                 console.warn("[Strategy R EVEN/ODD Recovery] Watching trigger digits for candidates meeting Criteria A-F...");
                 setSessionState(prev => ({
                   ...prev,
+                  strategyRRecoveryPair: nextRRecoveryPair,
                   nextAction: "WAIT_EVEN_ODD_TRIG",
                 }));
                 setTicksToWait(1);
@@ -1954,6 +1960,7 @@ export function useAutoTrader(
         strategyRAccumulatedLoss: nextRAccumLoss,
         strategyRMode: nextRMode,
         strategyRModeCount: nextRModeCount,
+        strategyRRecoveryPair: undefined,
         strategyQActiveSub: nextQActiveSub,
         strategyQRemainingRuns: nextQRemainingRuns,
         strategyQLastSub: nextQLastSub,

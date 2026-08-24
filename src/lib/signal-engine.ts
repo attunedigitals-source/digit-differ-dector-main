@@ -148,7 +148,7 @@ export function evaluateStrategyREvenOddCandidate(
   symbol: string,
   digits: number[]
 ): StrategyREvenOddEvaluation | null {
-  if (!digits || digits.length < 100) {
+  if (!digits || digits.length < 30) {
     return null;
   }
 
@@ -197,13 +197,13 @@ export function evaluateStrategyREvenOddCandidate(
     targetContract = chooseEven ? "even" : "odd";
   }
 
-  // Criterion B: P1 >= 11.0% AND P2 >= 11.0%
-  if (d1Info.percentage < 11.0 || d2Info.percentage < 11.0) {
+  // Criterion B: P1 >= 10.5% AND P2 >= 10.5%
+  if (d1Info.percentage < 10.5 || d2Info.percentage < 10.5) {
     return null;
   }
 
-  // Criterion C: P3 <= 9.5%
-  if (d3Info.percentage > 9.5) {
+  // Criterion C: P3 <= 10.0%
+  if (d3Info.percentage > 10.0) {
     return null;
   }
 
@@ -220,10 +220,10 @@ export function evaluateStrategyREvenOddCandidate(
 
   const triggerDigit = d10Info.digit;
 
-  // Criterion E: Check live tick pattern sequence
-  // Find the last occurrence of triggerDigit in digits
+  // Criterion E: Check live tick pattern sequence in recent ticks (last 20)
   let triggerTickIndex = -1;
-  for (let i = digits.length - 1; i >= 0; i--) {
+  const searchStart = Math.max(0, digits.length - 20);
+  for (let i = digits.length - 1; i >= searchStart; i--) {
     if (digits[i] === triggerDigit) {
       triggerTickIndex = i;
       break;
@@ -257,6 +257,9 @@ export function evaluateStrategyREvenOddCandidate(
           isInvalidated = true;
         }
       }
+    } else {
+      // Trigger digit D10 appeared on the latest tick (Trigger event!)
+      isValidated = true;
     }
   }
 
