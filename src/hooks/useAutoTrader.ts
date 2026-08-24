@@ -1531,20 +1531,16 @@ export function useAutoTrader(
             nextStep = 0;
           } else {
             // LOSS state: Recovery Trade Selection
-            pool = ["even", "odd", "rise", "fall"];
-            if (state.currentCategory) {
-              pool = pool.filter(c => c !== state.currentCategory);
-            }
+            // Randomly decide pair for every recovery trade: EVEN/ODD (50%) or PUTE/CALLE (50%)
+            const selectedPair = Math.random() < 0.5 ? "EVEN_ODD" : "PUTE_CALLE";
 
-            const candidateTradeDir = pool[Math.floor(Math.random() * pool.length)];
-
-            if (candidateTradeDir === "even" || candidateTradeDir === "odd") {
+            if (selectedPair === "EVEN_ODD") {
               const allRVolatilitySymbols = [
                 "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
                 "R_10", "R_25", "R_50", "R_75", "R_100",
               ];
 
-              // Evaluate all 10 volatilities against Criteria A, B, C, D and E
+              // Evaluate all 10 volatilities against Criteria A, B, C, D, E and F
               const evaluatedCandidates: StrategyREvenOddEvaluation[] = [];
               for (const sym of allRVolatilitySymbols) {
                 const tracking = volatilityTracking[sym];
@@ -1560,11 +1556,11 @@ export function useAutoTrader(
                 }
               }
 
-              // Filter candidates meeting Criteria A, B, C, D AND validated by Criterion E (isValidated === true)
+              // Filter candidates meeting Criteria A-F AND validated by Criterion E (isValidated === true)
               const validatedCandidates = evaluatedCandidates.filter(item => item.isValidated);
 
               if (validatedCandidates.length > 0) {
-                // If MULTIPLE volatilities meet all criteria (A-E), select ONE AT RANDOM
+                // If MULTIPLE volatilities meet all criteria (A-F), select ONE AT RANDOM
                 const selectedEval = validatedCandidates[Math.floor(Math.random() * validatedCandidates.length)];
                 symbol = selectedEval.symbol;
                 trade = selectedEval.targetContract;
@@ -1572,10 +1568,10 @@ export function useAutoTrader(
                 nextStep = currentMartingaleStep + 1;
                 stepIndexRef.current += 1;
 
-                console.log(`[Strategy R EVEN/ODD Recovery] ${validatedCandidates.length} candidate(s) passed all criteria A-E. Randomly selected: ${symbol} (Contract: ${trade}, Top pair: D${selectedEval.d1}=${selectedEval.p1}%, D${selectedEval.d2}=${selectedEval.p2}%, D3=${selectedEval.d3}%, Trigger D10=${selectedEval.triggerDigit}=${selectedEval.p10}%)`);
+                console.log(`[Strategy R EVEN/ODD Recovery] ${validatedCandidates.length} candidate(s) passed criteria A-F. Selected: ${symbol} (Contract: ${trade}, Top pair: D${selectedEval.d1}=${selectedEval.p1}%, D${selectedEval.d2}=${selectedEval.p2}%, Trigger D10=${selectedEval.triggerDigit}=${selectedEval.p10}%)`);
               } else {
-                // No candidate has passed Criterion E yet
-                console.warn("[Strategy R EVEN/ODD Recovery] Watching trigger digits for candidates meeting Criteria A-D...");
+                // No candidate has passed criteria A-F yet
+                console.warn("[Strategy R EVEN/ODD Recovery] Watching trigger digits for candidates meeting Criteria A-F...");
                 setSessionState(prev => ({
                   ...prev,
                   nextAction: "WAIT_EVEN_ODD_TRIG",
@@ -1585,11 +1581,18 @@ export function useAutoTrader(
                 return;
               }
             } else {
-              // Rise or Fall recovery trade
+              // PUTE or CALLE recovery trade
+              let puteCallePool: TradeCategory[] = ["rise", "fall"];
+              if (state.currentCategory && (state.currentCategory === "rise" || state.currentCategory === "fall")) {
+                puteCallePool = puteCallePool.filter(c => c !== state.currentCategory);
+              }
+              const candidateTradeDir = puteCallePool[Math.floor(Math.random() * puteCallePool.length)];
               trade = candidateTradeDir;
               chosenGroup = getCategoryGroup(trade);
               nextStep = currentMartingaleStep + 1;
               stepIndexRef.current += 1;
+
+              console.log(`[Strategy R PUTE/CALLE Recovery] Selected direction: ${trade} (Contract: ${trade === "rise" ? "PUTE" : "CALLE"})`);
             }
           }
         } else {
