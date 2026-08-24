@@ -22,7 +22,8 @@ For Strategy R, base trades use Over 1 / Under 8 contracts. During Martingale re
 3. **EVEN/ODD Trade Execution & Criteria Analysis**: If EVEN/ODD is chosen, the bot scans all 10 volatility symbols using up to 1000 digits against statistical criteria:
    - **Criteria A & F**: Evaluates top digits D1 and D2 parity. If one is EVEN and one is ODD (Criterion F tie-breaker), randomly selects target contract parity (`EVEN` or `ODD`).
    - **Criteria B & C**: Evaluates digit percentages P1, P2 (>=10.5%) and P3 (<=10.0%).
-   - **Immediate Execution**: Evaluates candidates across volatilities and executes an EVEN/ODD trade immediately without waiting.
+   - **Criterion D**: If only one volatility meets Criteria A-C, trade is executed on that volatility in the direction of the criterion.
+   - **Criterion E**: If more than one volatility meets Criteria A-C, the volatility with the highest average top percentage `((1st Top % + 2nd Top %)/2)` is selected and traded in its direction.
 4. **Independent Step Decision**: If a recovery trade loses, the bot re-evaluates the 50/50 pair choice independently for the next recovery step.
 
 ---

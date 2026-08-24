@@ -1561,17 +1561,27 @@ export function useAutoTrader(
                 }
               }
 
-              const candidatePool = validatedCandidates.length > 0 ? validatedCandidates : evaluatedCandidates;
+              let selectedEval: StrategyREvenOddEvaluation | undefined;
 
-              if (candidatePool.length > 0) {
-                const selectedEval = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+              if (evaluatedCandidates.length === 1) {
+                // Criterion D: If only one volatility meets Criterion A-C, trade is taken on it in its direction
+                selectedEval = evaluatedCandidates[0];
+                console.log(`[Strategy R Criterion D] Single qualifying volatility found: ${selectedEval.symbol} (Contract: ${selectedEval.targetContract}, Avg Top %: ${selectedEval.averageTopPercentage}%)`);
+              } else if (evaluatedCandidates.length > 1) {
+                // Criterion E: If more than one volatility meets Criterion A-C, select the volatility with highest average ((1st Top % + 2nd Top %)/2)
+                evaluatedCandidates.sort((a, b) => b.averageTopPercentage - a.averageTopPercentage);
+                const maxAvg = evaluatedCandidates[0].averageTopPercentage;
+                const topTied = evaluatedCandidates.filter(c => Math.abs(c.averageTopPercentage - maxAvg) < 0.001);
+                selectedEval = topTied[Math.floor(Math.random() * topTied.length)];
+                console.log(`[Strategy R Criterion E] ${evaluatedCandidates.length} qualifying volatilities found. Selected highest average: ${selectedEval.symbol} (Contract: ${selectedEval.targetContract}, Avg Top %: ${selectedEval.averageTopPercentage}%)`);
+              }
+
+              if (selectedEval) {
                 symbol = selectedEval.symbol;
                 trade = selectedEval.targetContract;
                 chosenGroup = getCategoryGroup(trade);
                 nextStep = currentMartingaleStep + 1;
                 stepIndexRef.current += 1;
-
-                console.log(`[Strategy R EVEN/ODD Recovery] ${candidatePool.length} candidate(s) available. Selected: ${symbol} (Contract: ${trade}, Top pair: D${selectedEval.d1}=${selectedEval.p1}%, D${selectedEval.d2}=${selectedEval.p2}%)`);
               } else {
                 const selectedSymbol = select_random_active_symbol();
                 symbol = selectedSymbol ? selectedSymbol.symbol : "1HZ10V";

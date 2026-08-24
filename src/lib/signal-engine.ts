@@ -133,6 +133,7 @@ export interface StrategyREvenOddEvaluation {
   p1: number;
   d2: number;
   p2: number;
+  averageTopPercentage: number; // ((1st Top % + 2nd Top %)/2)
   d3: number;
   p3: number;
   triggerDigit: number; // D10
@@ -140,8 +141,8 @@ export interface StrategyREvenOddEvaluation {
   triggerAppeared: boolean;
   triggerTickIndex?: number;
   nextTickDigit?: number;
-  isValidated: boolean; // Criterion E fulfilled
-  isInvalidated: boolean; // Criterion E failed
+  isValidated: boolean;
+  isInvalidated: boolean;
 }
 
 export function evaluateStrategyREvenOddCandidate(
@@ -208,7 +209,7 @@ export function evaluateStrategyREvenOddCandidate(
   }
 
   const triggerDigit = d10Info.digit;
-  const isValidated = true;
+  const averageTopPercentage = Number(((d1Info.percentage + d2Info.percentage) / 2).toFixed(2));
 
   return {
     symbol,
@@ -218,6 +219,7 @@ export function evaluateStrategyREvenOddCandidate(
     p1: d1Info.percentage,
     d2: d2Info.digit,
     p2: d2Info.percentage,
+    averageTopPercentage,
     d3: d3Info.digit,
     p3: d3Info.percentage,
     triggerDigit,
