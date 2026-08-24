@@ -18,13 +18,17 @@ The bot randomly selects a volatility index from the supported list for every tr
 ### Strategy R Recovery Trade Selection
 For Strategy R, base trades use Over 1 / Under 8 contracts. During Martingale recovery steps (following a loss), the bot manages recovery trades as follows:
 1. **50/50 Pair Decision**: For every recovery trade step, the bot randomly selects between **EVEN/ODD** pair (`even` / `odd`) and **PUTE/CALLE** pair (`rise` / `fall` -> PUTE / CALLE).
-2. **PUTE/CALLE Trade Execution**: If PUTE/CALLE is chosen, the bot selects `rise` or `fall` (alternating from previous trade if applicable) and executes the trade immediately.
+2. **PUTE/CALLE Trade Execution & Trend-Momentum Criteria**: If PUTE/CALLE is chosen, the bot evaluates all 10 volatility symbols using tick price trend and directional momentum:
+   - **Criterion A**: Evaluates EMA(5) vs EMA(15) trend and directional tick ratio (`"rise"` for bullish trend, `"fall"` for bearish trend).
+   - **Criteria B & C**: Evaluates Directional Momentum Strength (>=52.5%) and Flat Tick Ratio (<=25.0%).
+   - **Criterion D**: If only one volatility meets Criteria A-C, trade is executed on that volatility in its trend direction.
+   - **Criterion E**: If more than one volatility meets Criteria A-C, the volatility with the highest directional momentum strength is selected and traded in its trend direction.
 3. **EVEN/ODD Trade Execution & Criteria Analysis**: If EVEN/ODD is chosen, the bot scans all 10 volatility symbols using up to 1000 digits against statistical criteria:
    - **Criterion A**: Evaluates top digits D1 and D2 parity (both EVEN -> `"even"`, both ODD -> `"odd"`).
    - **Criteria B & C**: Evaluates digit percentages P1, P2 (>=10.5%) and P3 (<=10.0%).
    - **Criterion D**: If only one volatility meets Criteria A-C, trade is executed on that volatility in the direction of the criterion.
    - **Criterion E**: If more than one volatility meets Criteria A-C, the volatility with the highest average top percentage `((1st Top % + 2nd Top %)/2)` is selected and traded in its direction.
-4. **Independent Step Decision**: If a recovery trade loses, the bot re-evaluates the 50/50 pair choice independently for the next recovery step.
+4. **State Persistence & Independent Decision**: The bot holds the chosen recovery pair (`strategyRRecoveryPair`) while waiting for execution without flipping between pairs. If a recovery trade loses, the bot re-evaluates the 50/50 pair choice independently for the next recovery step.
 
 ---
 

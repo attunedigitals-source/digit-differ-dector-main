@@ -1,6 +1,7 @@
 export interface SymbolState {
   symbol: string;
   digits: number[];
+  prices?: number[];
   tickCount: number;
   lastSignalTick: number;
   updatedAt?: number;
@@ -18,7 +19,7 @@ export interface Signal {
 const MAX_HISTORY = 1000;
 
 export function createSymbolState(symbol: string): SymbolState {
-  return { symbol, digits: [], tickCount: 0, lastSignalTick: -10, updatedAt: Date.now() };
+  return { symbol, digits: [], prices: [], tickCount: 0, lastSignalTick: -10, updatedAt: Date.now() };
 }
 
 export function getSymbolDefaultPipSize(symbol: string): number {
@@ -53,10 +54,12 @@ export function extractLastDigit(quote: number | string, pipSize?: number): numb
   return isNaN(parsed) ? 0 : parsed;
 }
 
-export function addTick(state: SymbolState, digit: number): SymbolState {
+export function addTick(state: SymbolState, digit: number, price?: number): SymbolState {
   const digits = [...state.digits, digit];
   if (digits.length > MAX_HISTORY) digits.shift();
-  return { ...state, digits, tickCount: state.tickCount + 1, updatedAt: Date.now() };
+  const prices = price !== undefined ? [...(state.prices || []), price] : state.prices;
+  if (prices && prices.length > MAX_HISTORY) prices.shift();
+  return { ...state, digits, prices, tickCount: state.tickCount + 1, updatedAt: Date.now() };
 }
 
 export function getLeastFrequentDigits(digits: number[], count: number = 4): number[] {
@@ -221,5 +224,112 @@ export function evaluateStrategyREvenOddCandidate(
     nextTickDigit: undefined,
     isValidated: true,
     isInvalidated: false,
+  };
+}
+
+export interface StrategyRPuteCalleEvaluation {
+  symbol: string;
+  trend: "BULLISH" | "BEARISH";
+  targetContract: "rise" | "fall";
+  momentumStrength: number;
+  emaShort: number;
+  emaLong: number;
+  upCount: number;
+  downCount: number;
+  flatCount: number;
+  isValidated: boolean;
+}
+
+export function evaluateStrategyRPuteCalleCandidate(
+  symbol: string,
+  digits: number[],
+  prices?: number[]
+): StrategyRPuteCalleEvaluation | null {
+  if (!digits || digits.length < 30) {
+    return null;
+  }
+
+  let trend: "BULLISH" | "BEARISH" = "BULLISH";
+  let targetContract: "rise" | "fall" = "rise";
+  let momentumStrength = 50.0;
+  let emaShort = 0;
+  let emaLong = 0;
+  let upCount = 0;
+  let downCount = 0;
+  let flatCount = 0;
+
+  if (prices && prices.length >= 10) {
+    const window = prices.slice(-30);
+    const len = window.length;
+
+    // Calculate EMA(5) and EMA(15)
+    const k5 = 2 / (5 + 1);
+    const k15 = 2 / (15 + 1);
+    emaShort = window[0];
+    emaLong = window[0];
+    for (let i = 1; i < len; i++) {
+      emaShort = window[i] * k5 + emaShort * (1 - k5);
+      emaLong = window[i] * k15 + emaLong * (1 - k15);
+    }
+
+    for (let i = 1; i < len; i++) {
+      const diff = window[i] - window[i - 1];
+      if (diff > 0) upCount++;
+      else if (diff < 0) downCount++;
+      else flatCount++;
+    }
+
+    const nonFlat = Math.max(1, upCount + downCount);
+    if (emaShort >= emaLong || upCount >= downCount) {
+      trend = "BULLISH";
+      targetContract = "rise";
+      momentumStrength = Number(((upCount / nonFlat) * 100).toFixed(2));
+    } else {
+      trend = "BEARISH";
+      targetContract = "fall";
+      momentumStrength = Number(((downCount / nonFlat) * 100).toFixed(2));
+    }
+
+    // Criterion B: Momentum Strength >= 52.5%
+    if (momentumStrength < 52.5) {
+      return null;
+    }
+
+    // Criterion C: Flat tick ratio <= 25%
+    const flatRatio = (flatCount / len) * 100;
+    if (flatRatio > 25.0) {
+      return null;
+    }
+  } else {
+    // Digit-based trend evaluation fallback if prices array not populated yet
+    const window = digits.slice(-30);
+    const highDigits = window.filter(d => d >= 5).length;
+    const lowDigits = window.filter(d => d <= 4).length;
+    if (highDigits >= lowDigits) {
+      trend = "BULLISH";
+      targetContract = "rise";
+      momentumStrength = Number(((highDigits / window.length) * 100).toFixed(2));
+    } else {
+      trend = "BEARISH";
+      targetContract = "fall";
+      momentumStrength = Number(((lowDigits / window.length) * 100).toFixed(2));
+    }
+
+    if (momentumStrength < 52.5) {
+      return null;
+    }
+  }
+
+  return {
+    symbol,
+    trend,
+    targetContract,
+    momentumStrength,
+    emaShort: Number(emaShort.toFixed(4)),
+    emaLong: Number(emaLong.toFixed(4)),
+    upCount,
+    downCount,
+    flatCount,
+    isValidated: true,
   };
 }

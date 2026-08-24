@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { DerivAccount } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
-import { type SymbolState, generateSignal, evaluateStrategyREvenOddCandidate, getSymbolDefaultPipSize, extractLastDigit, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
+import { type SymbolState, generateSignal, evaluateStrategyREvenOddCandidate, evaluateStrategyRPuteCalleCandidate, getSymbolDefaultPipSize, extractLastDigit, type StrategyREvenOddEvaluation, type StrategyRPuteCalleEvaluation } from "@/lib/signal-engine";
 import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails, getPermutationIndex, getRandomSequenceWithPrefix, isPrefixBlacklisted } from "../lib/arrangement-brain";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
@@ -1593,18 +1593,63 @@ export function useAutoTrader(
                 console.log(`[Strategy R EVEN/ODD Fallback] Selected: ${symbol} (Contract: ${trade})`);
               }
             } else {
-              // PUTE or CALLE recovery trade
-              let puteCallePool: TradeCategory[] = ["rise", "fall"];
-              if (state.currentCategory && (state.currentCategory === "rise" || state.currentCategory === "fall")) {
-                puteCallePool = puteCallePool.filter(c => c !== state.currentCategory);
-              }
-              const candidateTradeDir = puteCallePool[Math.floor(Math.random() * puteCallePool.length)];
-              trade = candidateTradeDir;
-              chosenGroup = getCategoryGroup(trade);
-              nextStep = currentMartingaleStep + 1;
-              stepIndexRef.current += 1;
+              // PUTE or CALLE recovery trade - Evaluate via evaluateStrategyRPuteCalleCandidate (Criteria A-E)
+              const allRVolatilitySymbols = [
+                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+                "R_10", "R_25", "R_50", "R_75", "R_100",
+              ];
 
-              console.log(`[Strategy R PUTE/CALLE Recovery] Selected direction: ${trade} (Contract: ${trade === "rise" ? "PUTE" : "CALLE"})`);
+              const evaluatedPuteCalleCandidates: StrategyRPuteCalleEvaluation[] = [];
+              for (const sym of allRVolatilitySymbols) {
+                const tracking = volatilityTracking[sym];
+                if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
+                  continue;
+                }
+                const symbolState = getSymbolState(sym);
+                if (symbolState && symbolState.digits && symbolState.digits.length >= 30) {
+                  const evalResult = evaluateStrategyRPuteCalleCandidate(sym, symbolState.digits, symbolState.prices);
+                  if (evalResult) {
+                    evaluatedPuteCalleCandidates.push(evalResult);
+                  }
+                }
+              }
+
+              let selectedPuteCalleEval: StrategyRPuteCalleEvaluation | undefined;
+
+              if (evaluatedPuteCalleCandidates.length === 1) {
+                // Criterion D: Single qualifying volatility
+                selectedPuteCalleEval = evaluatedPuteCalleCandidates[0];
+                console.log(`[Strategy R PUTE/CALLE Criterion D] Single qualifying volatility found: ${selectedPuteCalleEval.symbol} (Contract: ${selectedPuteCalleEval.targetContract === "rise" ? "PUTE" : "CALLE"}, Momentum: ${selectedPuteCalleEval.momentumStrength}%)`);
+              } else if (evaluatedPuteCalleCandidates.length > 1) {
+                // Criterion E: Select volatility with highest momentum strength
+                evaluatedPuteCalleCandidates.sort((a, b) => b.momentumStrength - a.momentumStrength);
+                const maxMom = evaluatedPuteCalleCandidates[0].momentumStrength;
+                const topTied = evaluatedPuteCalleCandidates.filter(c => Math.abs(c.momentumStrength - maxMom) < 0.001);
+                selectedPuteCalleEval = topTied[Math.floor(Math.random() * topTied.length)];
+                console.log(`[Strategy R PUTE/CALLE Criterion E] ${evaluatedPuteCalleCandidates.length} qualifying volatilities found. Selected highest momentum: ${selectedPuteCalleEval.symbol} (Contract: ${selectedPuteCalleEval.targetContract === "rise" ? "PUTE" : "CALLE"}, Momentum: ${selectedPuteCalleEval.momentumStrength}%)`);
+              }
+
+              if (selectedPuteCalleEval) {
+                symbol = selectedPuteCalleEval.symbol;
+                trade = selectedPuteCalleEval.targetContract;
+                chosenGroup = getCategoryGroup(trade);
+                nextStep = currentMartingaleStep + 1;
+                stepIndexRef.current += 1;
+              } else {
+                let puteCallePool: TradeCategory[] = ["rise", "fall"];
+                if (state.currentCategory && (state.currentCategory === "rise" || state.currentCategory === "fall")) {
+                  puteCallePool = puteCallePool.filter(c => c !== state.currentCategory);
+                }
+                const candidateTradeDir = puteCallePool[Math.floor(Math.random() * puteCallePool.length)];
+                const selectedSymbol = select_random_active_symbol();
+                symbol = selectedSymbol ? selectedSymbol.symbol : "1HZ10V";
+                trade = candidateTradeDir;
+                chosenGroup = getCategoryGroup(trade);
+                nextStep = currentMartingaleStep + 1;
+                stepIndexRef.current += 1;
+
+                console.log(`[Strategy R PUTE/CALLE Fallback] Selected: ${symbol} (Contract: ${trade === "rise" ? "PUTE" : "CALLE"})`);
+              }
             }
           }
         } else {
