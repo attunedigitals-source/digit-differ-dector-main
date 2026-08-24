@@ -1561,30 +1561,26 @@ export function useAutoTrader(
                 }
               }
 
-              // Filter candidates meeting Criteria A-F AND validated by Criterion E (isValidated === true)
-              const validatedCandidates = evaluatedCandidates.filter(item => item.isValidated);
+              const candidatePool = validatedCandidates.length > 0 ? validatedCandidates : evaluatedCandidates;
 
-              if (validatedCandidates.length > 0) {
-                // If MULTIPLE volatilities meet all criteria (A-F), select ONE AT RANDOM
-                const selectedEval = validatedCandidates[Math.floor(Math.random() * validatedCandidates.length)];
+              if (candidatePool.length > 0) {
+                const selectedEval = candidatePool[Math.floor(Math.random() * candidatePool.length)];
                 symbol = selectedEval.symbol;
                 trade = selectedEval.targetContract;
                 chosenGroup = getCategoryGroup(trade);
                 nextStep = currentMartingaleStep + 1;
                 stepIndexRef.current += 1;
 
-                console.log(`[Strategy R EVEN/ODD Recovery] ${validatedCandidates.length} candidate(s) passed criteria A-F. Selected: ${symbol} (Contract: ${trade}, Top pair: D${selectedEval.d1}=${selectedEval.p1}%, D${selectedEval.d2}=${selectedEval.p2}%, Trigger D10=${selectedEval.triggerDigit}=${selectedEval.p10}%)`);
+                console.log(`[Strategy R EVEN/ODD Recovery] ${candidatePool.length} candidate(s) available. Selected: ${symbol} (Contract: ${trade}, Top pair: D${selectedEval.d1}=${selectedEval.p1}%, D${selectedEval.d2}=${selectedEval.p2}%)`);
               } else {
-                // No candidate has passed criteria A-F yet
-                console.warn("[Strategy R EVEN/ODD Recovery] Watching trigger digits for candidates meeting Criteria A-F...");
-                setSessionState(prev => ({
-                  ...prev,
-                  strategyRRecoveryPair: nextRRecoveryPair,
-                  nextAction: "WAIT_EVEN_ODD_TRIG",
-                }));
-                setTicksToWait(1);
-                isExecutingRef.current = false;
-                return;
+                const selectedSymbol = select_random_active_symbol();
+                symbol = selectedSymbol ? selectedSymbol.symbol : "1HZ10V";
+                trade = Math.random() < 0.5 ? "even" : "odd";
+                chosenGroup = getCategoryGroup(trade);
+                nextStep = currentMartingaleStep + 1;
+                stepIndexRef.current += 1;
+
+                console.log(`[Strategy R EVEN/ODD Fallback] Selected: ${symbol} (Contract: ${trade})`);
               }
             } else {
               // PUTE or CALLE recovery trade

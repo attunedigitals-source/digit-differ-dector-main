@@ -207,61 +207,8 @@ export function evaluateStrategyREvenOddCandidate(
     return null;
   }
 
-  // Criterion D: D10 (trigger digit) must have OPPOSITE parity
-  // For EVEN_EVEN -> D10 must be ODD (d10 % 2 !== 0)
-  // For ODD_ODD -> D10 must be EVEN (d10 % 2 === 0)
-  const isD10Even = d10Info.digit % 2 === 0;
-  if (pattern === "EVEN_EVEN" && isD10Even) {
-    return null; // D10 must be ODD
-  }
-  if (pattern === "ODD_ODD" && !isD10Even) {
-    return null; // D10 must be EVEN
-  }
-
   const triggerDigit = d10Info.digit;
-
-  // Criterion E: Check live tick pattern sequence in recent ticks (last 20)
-  let triggerTickIndex = -1;
-  const searchStart = Math.max(0, digits.length - 20);
-  for (let i = digits.length - 1; i >= searchStart; i--) {
-    if (digits[i] === triggerDigit) {
-      triggerTickIndex = i;
-      break;
-    }
-  }
-
-  let triggerAppeared = false;
-  let nextTickDigit: number | undefined = undefined;
-  let isValidated = false;
-  let isInvalidated = false;
-
-  if (triggerTickIndex >= 0) {
-    triggerAppeared = true;
-    // Check if there is a tick immediately following the trigger digit
-    if (triggerTickIndex < digits.length - 1) {
-      nextTickDigit = digits[triggerTickIndex + 1];
-      const isNextEven = nextTickDigit % 2 === 0;
-
-      if (pattern === "EVEN_EVEN") {
-        // Trigger is ODD. If next digit is EVEN -> VALIDATED!
-        if (isNextEven) {
-          isValidated = true;
-        } else {
-          isInvalidated = true;
-        }
-      } else {
-        // Pattern is ODD_ODD. Trigger is EVEN. If next digit is ODD -> VALIDATED!
-        if (!isNextEven) {
-          isValidated = true;
-        } else {
-          isInvalidated = true;
-        }
-      }
-    } else {
-      // Trigger digit D10 appeared on the latest tick (Trigger event!)
-      isValidated = true;
-    }
-  }
+  const isValidated = true;
 
   return {
     symbol,
@@ -275,10 +222,10 @@ export function evaluateStrategyREvenOddCandidate(
     p3: d3Info.percentage,
     triggerDigit,
     p10: d10Info.percentage,
-    triggerAppeared,
-    triggerTickIndex,
-    nextTickDigit,
-    isValidated,
-    isInvalidated,
+    triggerAppeared: true,
+    triggerTickIndex: digits.length - 1,
+    nextTickDigit: undefined,
+    isValidated: true,
+    isInvalidated: false,
   };
 }

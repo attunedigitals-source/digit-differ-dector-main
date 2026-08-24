@@ -19,11 +19,10 @@ The bot randomly selects a volatility index from the supported list for every tr
 For Strategy R, base trades use Over 1 / Under 8 contracts. During Martingale recovery steps (following a loss), the bot manages recovery trades as follows:
 1. **50/50 Pair Decision**: For every recovery trade step, the bot randomly selects between **EVEN/ODD** pair (`even` / `odd`) and **PUTE/CALLE** pair (`rise` / `fall` -> PUTE / CALLE).
 2. **PUTE/CALLE Trade Execution**: If PUTE/CALLE is chosen, the bot selects `rise` or `fall` (alternating from previous trade if applicable) and executes the trade immediately.
-3. **EVEN/ODD Trade Execution & Criteria A-F**: If EVEN/ODD is chosen, the bot scans all 10 volatility symbols using up to 1000 digits against **Criteria A-F**:
-   - **Criteria A-D**: Evaluates digit percentages P1, P2 (>=11%), P3 (<=9.5%), and trigger digit D10 parity.
-   - **Criterion E**: Live tick pattern sequence validation.
-   - **Criterion F (Tie-Breaker)**: If top digits D1 and D2 have different parities (one EVEN and one ODD), Criterion F randomly selects target parity (`EVEN` or `ODD`).
-   - **Validation & Waiting**: If one or more symbols qualify (`isValidated === true`), the trade is executed immediately. If no symbol currently qualifies, the bot waits (`WAIT_EVEN_ODD_TRIG`) and re-scans on subsequent ticks until execution.
+3. **EVEN/ODD Trade Execution & Criteria Analysis**: If EVEN/ODD is chosen, the bot scans all 10 volatility symbols using up to 1000 digits against statistical criteria:
+   - **Criteria A & F**: Evaluates top digits D1 and D2 parity. If one is EVEN and one is ODD (Criterion F tie-breaker), randomly selects target contract parity (`EVEN` or `ODD`).
+   - **Criteria B & C**: Evaluates digit percentages P1, P2 (>=10.5%) and P3 (<=10.0%).
+   - **Immediate Execution**: Evaluates candidates across volatilities and executes an EVEN/ODD trade immediately without waiting.
 4. **Independent Step Decision**: If a recovery trade loses, the bot re-evaluates the 50/50 pair choice independently for the next recovery step.
 
 ---
