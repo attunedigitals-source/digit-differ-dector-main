@@ -1229,22 +1229,34 @@ export function useAutoTrader(
             return lastDigit === 0 || lastDigit === 1;
           });
 
-          if (candidate01Symbols.length === 0) {
-            console.warn("[Strategy R Volatility] Trade paused: No volatility currently shows last digit 0 or 1");
+          let chosenSymbol: string | undefined;
+
+          if (candidate01Symbols.length > 0) {
+            chosenSymbol = candidate01Symbols[Math.floor(Math.random() * candidate01Symbols.length)];
+            const chosenState = getSymbolState(chosenSymbol);
+            const chosenLastDigit = chosenState?.digits?.[chosenState.digits.length - 1];
+            console.log(`[Strategy R Volatility 0/1 Filter] Fresh 0/1 candidates: [${candidate01Symbols.join(", ")}]. Selected: ${chosenSymbol} (Last Digit: ${chosenLastDigit})`);
+          } else {
+            // Fallback: select any fresh active volatility symbol so trade is never stuck
+            const selectedSymbol = select_random_active_symbol();
+            if (selectedSymbol) {
+              chosenSymbol = selectedSymbol.symbol;
+              console.log(`[Strategy R Volatility Fallback] No 0/1 candidate available. Selected active symbol: ${chosenSymbol}`);
+            }
+          }
+
+          if (!chosenSymbol) {
+            console.warn("[Strategy R Volatility] Trade paused: no fresh symbol available");
             setSessionState(prev => ({
               ...prev,
-              nextAction: "WAIT_01_DIGIT",
+              nextAction: "SKP_STALE",
             }));
             setTicksToWait(1);
             isExecutingRef.current = false;
             return;
           }
 
-          const chosen = candidate01Symbols[Math.floor(Math.random() * candidate01Symbols.length)];
-          symbol = chosen;
-          const chosenState = getSymbolState(chosen);
-          const chosenLastDigit = chosenState?.digits?.[chosenState.digits.length - 1];
-          console.log(`[Strategy R Volatility 0/1 Filter] Fresh 0/1 candidates: [${candidate01Symbols.join(", ")}]. Selected: ${symbol} (Last Digit: ${chosenLastDigit})`);
+          symbol = chosenSymbol;
         } else if (config.strategyRStickyEnabled) {
           const isFirstTrade = state.status === "IDLE";
           let shouldSwitchSymbol = false;
