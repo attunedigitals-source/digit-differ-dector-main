@@ -20,7 +20,7 @@ For Strategy R, base trades use Over 1 / Under 8 contracts. During Martingale re
 1. **50/50 Pair Decision**: For every recovery trade step, the bot randomly selects between **EVEN/ODD** pair (`even` / `odd`) and **PUTE/CALLE** pair (`rise` / `fall` -> PUTE / CALLE).
 2. **PUTE/CALLE Trade Execution**: If PUTE/CALLE is chosen, the bot selects `rise` or `fall` (alternating from previous trade if applicable) and executes the trade immediately.
 3. **EVEN/ODD Trade Execution & Criteria Analysis**: If EVEN/ODD is chosen, the bot scans all 10 volatility symbols using up to 1000 digits against statistical criteria:
-   - **Criteria A & F**: Evaluates top digits D1 and D2 parity. If one is EVEN and one is ODD (Criterion F tie-breaker), randomly selects target contract parity (`EVEN` or `ODD`).
+   - **Criterion A**: Evaluates top digits D1 and D2 parity (both EVEN -> `"even"`, both ODD -> `"odd"`).
    - **Criteria B & C**: Evaluates digit percentages P1, P2 (>=10.5%) and P3 (<=10.0%).
    - **Criterion D**: If only one volatility meets Criteria A-C, trade is executed on that volatility in the direction of the criterion.
    - **Criterion E**: If more than one volatility meets Criteria A-C, the volatility with the highest average top percentage `((1st Top % + 2nd Top %)/2)` is selected and traded in its direction.

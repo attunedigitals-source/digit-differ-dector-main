@@ -182,21 +182,13 @@ export function evaluateStrategyREvenOddCandidate(
   const isD1Even = d1Info.digit % 2 === 0;
   const isD2Even = d2Info.digit % 2 === 0;
 
-  // Criterion A & Criterion F (Tie-Breaker):
-  // If D1 and D2 have matching parity (both EVEN or both ODD), use that parity.
-  // Criterion F: If D1 and D2 have different parity (one EVEN, one ODD tie), randomly select target contract parity.
-  let pattern: "EVEN_EVEN" | "ODD_ODD";
-  let targetContract: "even" | "odd";
-
-  if (isD1Even === isD2Even) {
-    pattern = isD1Even ? "EVEN_EVEN" : "ODD_ODD";
-    targetContract = isD1Even ? "even" : "odd";
-  } else {
-    // Criterion F: Tie of EVEN and ODD -> randomly select target contract
-    const chooseEven = Math.random() < 0.5;
-    pattern = chooseEven ? "EVEN_EVEN" : "ODD_ODD";
-    targetContract = chooseEven ? "even" : "odd";
+  // Criterion A: D1 and D2 must both be EVEN or both be ODD
+  if (isD1Even !== isD2Even) {
+    return null;
   }
+
+  const pattern: "EVEN_EVEN" | "ODD_ODD" = isD1Even ? "EVEN_EVEN" : "ODD_ODD";
+  const targetContract: "even" | "odd" = isD1Even ? "even" : "odd";
 
   // Criterion B: P1 >= 10.5% AND P2 >= 10.5%
   if (d1Info.percentage < 10.5 || d2Info.percentage < 10.5) {
