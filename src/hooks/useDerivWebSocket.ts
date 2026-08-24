@@ -380,6 +380,9 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
 
     const pipSize = typeof tick?.pip_size === "number" ? tick.pip_size : getSymbolDefaultPipSize(symbol);
     const digit = extractLastDigit(quote, pipSize);
+    let state = statesRef.current.get(symbol);
+    if (!state) return;
+
     const numericPrice = typeof quote === "number" ? quote : parseFloat(String(quote));
     state = addTick(state, digit, isNaN(numericPrice) ? undefined : numericPrice);
     statesRef.current.set(symbol, state);
