@@ -133,27 +133,50 @@ export function TradingPanel({
     };
     window.addEventListener("storage", onStorageChange);
 
-    if (isAdmin) {
-      supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'enable_strategy_r_debug')
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data && data.value !== undefined) {
-            const isEnabled = data.value === true || data.value === 'true';
+    // 1. Fetch Global Preference for all users (clients & admins)
+    supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'enable_strategy_r_debug')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && data.value !== undefined) {
+          const isEnabled = data.value === true || data.value === 'true';
+          setShowStrategyRDebug(isEnabled);
+          try {
+            localStorage.setItem("admin_show_strategy_r_debug", String(isEnabled));
+          } catch {}
+        }
+      });
+
+    // 2. Real-time subscription to global Strategy R debug setting changes
+    const globalChannel = supabase
+      .channel('global-strategy-r-debug-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'system_settings',
+          filter: 'key=eq.enable_strategy_r_debug'
+        },
+        (payload: any) => {
+          if (payload.new && payload.new.value !== undefined) {
+            const isEnabled = payload.new.value === true || payload.new.value === 'true';
             setShowStrategyRDebug(isEnabled);
             try {
               localStorage.setItem("admin_show_strategy_r_debug", String(isEnabled));
             } catch {}
           }
-        });
-    }
+        }
+      )
+      .subscribe();
 
     return () => {
       window.removeEventListener("storage", onStorageChange);
+      supabase.removeChannel(globalChannel);
     };
-  }, [isAdmin]);
+  }, []);
 
   const effectiveStrategy = config.strategy === "strategy_q" 
     ? (sessionState.strategyQActiveSub || "strategy_a")
@@ -1516,8 +1539,8 @@ export function TradingPanel({
         </div>
       )}
 
-      {/* Strategy R monitoring panel — hidden by default for IP protection, revealed only by Admin toggle */}
-      {config.strategy === "strategy_r" && isAdmin && showStrategyRDebug && (
+      {/* Strategy R monitoring panel — hidden globally by default, revealed when Admin turns master switch ON */}
+      {config.strategy === "strategy_r" && showStrategyRDebug && (
         <div className="bg-gradient-to-br from-violet-500/15 via-card to-fuchsia-500/15 border border-violet-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
           
