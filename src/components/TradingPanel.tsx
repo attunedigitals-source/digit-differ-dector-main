@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet } from "lucide-react";
+import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet, ShieldAlert } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking } from "@/hooks/useAutoTrader";
 import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
@@ -115,6 +115,15 @@ export function TradingPanel({
   const [localTargetProfit, setLocalTargetProfit] = useState(config.targetProfit?.toString() || "");
   const [autoGenMode, setAutoGenMode] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
+
+  const isAdmin = profile?.role === "admin" || profile?.role === "sub-admin";
+  const [showStrategyRDebug, setShowStrategyRDebug] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("admin_show_strategy_r_debug") === "true";
+    } catch {
+      return false;
+    }
+  });
 
   const effectiveStrategy = config.strategy === "strategy_q" 
     ? (sessionState.strategyQActiveSub || "strategy_a")
@@ -1441,8 +1450,39 @@ export function TradingPanel({
         </div>
       )}
 
-      {/* Strategy R monitoring panel — revealed for user monitoring */}
-      {config.strategy === "strategy_r" && (
+      {/* Admin Debug Toggle for Strategy R (IP Protection) */}
+      {isAdmin && config.strategy === "strategy_r" && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="flex flex-col">
+              <span className="font-bold text-amber-300 text-[11px]">Admin Control: Strategy R Scanner Interface</span>
+              <span className="text-muted-foreground text-[9px]">Toggle internal scanner & candidates UI for troubleshooting/updates</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+              showStrategyRDebug 
+                ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" 
+                : "border-amber-500/40 text-amber-400 bg-amber-500/10"
+            }`}>
+              {showStrategyRDebug ? "VISIBLE" : "HIDDEN (DEFAULT)"}
+            </span>
+            <Switch
+              checked={showStrategyRDebug}
+              onCheckedChange={(checked) => {
+                setShowStrategyRDebug(checked);
+                try {
+                  localStorage.setItem("admin_show_strategy_r_debug", String(checked));
+                } catch {}
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Strategy R monitoring panel — hidden by default for IP protection, revealed only by Admin toggle */}
+      {config.strategy === "strategy_r" && isAdmin && showStrategyRDebug && (
         <div className="bg-gradient-to-br from-violet-500/15 via-card to-fuchsia-500/15 border border-violet-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
           
