@@ -60,7 +60,8 @@ export default function AdminDashboard() {
         supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('payments').select('amount, created_at').eq('status', 'approved').order('created_at', { ascending: false }).limit(100),
         supabase.from('system_settings').select('value').eq('key', 'enable_client_logs').single(),
-        supabase.from('system_settings').select('value').eq('key', 'default_trial_duration').single()
+        supabase.from('system_settings').select('value').eq('key', 'default_trial_duration').single(),
+        supabase.from('system_settings').select('value').eq('key', 'enable_strategy_r_debug').single()
       ]);
 
       const capturedLeadsList = await getCapturedLeads();
@@ -74,7 +75,8 @@ export default function AdminDashboard() {
         connectedDerivLeadsCount: capturedLeadsList.filter(l => Boolean(l.derivLoginId)).length,
         recentRevenue: recentRevenue || [],
         enableClientLogs: logSetting?.value === true || logSetting?.value === 'true',
-        defaultTrialDuration: trialSetting?.value ? String(trialSetting.value) : '7'
+        defaultTrialDuration: trialSetting?.value ? String(trialSetting.value) : '7',
+        enableStrategyRDebug: strategyRDebugSetting?.value === true || strategyRDebugSetting?.value === 'true'
       };
     }
   });
@@ -97,6 +99,25 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
       toast.success("Client console logs preference updated");
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to update settings: ${err.message}`);
+    }
+  });
+
+  const updateStrategyRDebugMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      try {
+        localStorage.setItem('admin_show_strategy_r_debug', String(enabled));
+      } catch {}
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({ key: 'enable_strategy_r_debug', value: enabled }, { onConflict: 'key' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+      toast.success("Strategy R debug scanner interface preference updated");
     },
     onError: (err: any) => {
       toast.error(`Failed to update settings: ${err.message}`);
@@ -238,6 +259,21 @@ export default function AdminDashboard() {
                   Save
                 </Button>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-background/50 rounded-xl border border-border/50">
+              <div className="space-y-0.5">
+                <Label htmlFor="strategy-r-debug" className="text-base font-bold">Strategy R Scanner & Candidates Interface</Label>
+                <p className="text-sm text-muted-foreground">
+                  IP Protection Switch: When disabled (default), the Strategy R 0/1 volatility match monitors and 1000-digit recovery candidate scanners are hidden on trading accounts. When enabled, it is visible for troubleshooting.
+                </p>
+              </div>
+              <Switch 
+                id="strategy-r-debug" 
+                checked={stats?.enableStrategyRDebug ?? false}
+                onCheckedChange={(checked) => updateStrategyRDebugMutation.mutate(checked)}
+                disabled={updateStrategyRDebugMutation.isPending}
+              />
             </div>
           </CardContent>
         </Card>

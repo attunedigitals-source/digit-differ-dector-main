@@ -10,6 +10,7 @@ import { type VolatilityTracking } from "@/hooks/useAutoTrader";
 import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const getFibonacci = (k: number): bigint => {
@@ -124,6 +125,25 @@ export function TradingPanel({
       return false;
     }
   });
+
+  useEffect(() => {
+    if (isAdmin) {
+      supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'enable_strategy_r_debug')
+        .single()
+        .then(({ data }) => {
+          if (data && data.value !== undefined) {
+            const isEnabled = data.value === true || data.value === 'true';
+            setShowStrategyRDebug(isEnabled);
+            try {
+              localStorage.setItem("admin_show_strategy_r_debug", String(isEnabled));
+            } catch {}
+          }
+        });
+    }
+  }, [isAdmin]);
 
   const effectiveStrategy = config.strategy === "strategy_q" 
     ? (sessionState.strategyQActiveSub || "strategy_a")
@@ -1475,6 +1495,10 @@ export function TradingPanel({
                 try {
                   localStorage.setItem("admin_show_strategy_r_debug", String(checked));
                 } catch {}
+                supabase
+                  .from('system_settings')
+                  .upsert({ key: 'enable_strategy_r_debug', value: checked }, { onConflict: 'key' })
+                  .then();
               }}
             />
           </div>
