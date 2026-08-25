@@ -59,9 +59,9 @@ export default function AdminDashboard() {
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('subscription_status', 'free').neq('email', ADMIN_EMAIL),
         supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('payments').select('amount, created_at').eq('status', 'approved').order('created_at', { ascending: false }).limit(100),
-        supabase.from('system_settings').select('value').eq('key', 'enable_client_logs').single(),
-        supabase.from('system_settings').select('value').eq('key', 'default_trial_duration').single(),
-        supabase.from('system_settings').select('value').eq('key', 'enable_strategy_r_debug').single()
+        supabase.from('system_settings').select('value').eq('key', 'enable_client_logs').maybeSingle(),
+        supabase.from('system_settings').select('value').eq('key', 'default_trial_duration').maybeSingle(),
+        supabase.from('system_settings').select('value').eq('key', 'enable_strategy_r_debug').maybeSingle()
       ]);
 
       const capturedLeadsList = await getCapturedLeads();
@@ -82,12 +82,25 @@ export default function AdminDashboard() {
   });
 
   const [trialInput, setTrialInput] = useState("");
+  const [strategyRDebugState, setStrategyRDebugState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('admin_show_strategy_r_debug') === 'true';
+    } catch {
+      return false;
+    }
+  });
   
   useEffect(() => {
     if (stats?.defaultTrialDuration) {
       setTrialInput(stats.defaultTrialDuration);
     }
   }, [stats?.defaultTrialDuration]);
+
+  useEffect(() => {
+    if (stats?.enableStrategyRDebug !== undefined) {
+      setStrategyRDebugState(stats.enableStrategyRDebug);
+    }
+  }, [stats?.enableStrategyRDebug]);
 
   const updateLogsMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
@@ -109,11 +122,14 @@ export default function AdminDashboard() {
     mutationFn: async (enabled: boolean) => {
       try {
         localStorage.setItem('admin_show_strategy_r_debug', String(enabled));
+        window.dispatchEvent(new Event('storage'));
       } catch {}
       const { error } = await supabase
         .from('system_settings')
         .upsert({ key: 'enable_strategy_r_debug', value: enabled }, { onConflict: 'key' });
-      if (error) throw error;
+      if (error) {
+        console.warn("Could not sync to system_settings DB table:", error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
@@ -270,9 +286,15 @@ export default function AdminDashboard() {
               </div>
               <Switch 
                 id="strategy-r-debug" 
-                checked={stats?.enableStrategyRDebug ?? false}
-                onCheckedChange={(checked) => updateStrategyRDebugMutation.mutate(checked)}
-                disabled={updateStrategyRDebugMutation.isPending}
+                checked={strategyRDebugState}
+                onCheckedChange={(checked) => {
+                  setStrategyRDebugState(checked);
+                  try {
+                    localStorage.setItem('admin_show_strategy_r_debug', String(checked));
+                    window.dispatchEvent(new Event('storage'));
+                  } catch {}
+                  updateStrategyRDebugMutation.mutate(checked);
+                }}
               />
             </div>
           </CardContent>

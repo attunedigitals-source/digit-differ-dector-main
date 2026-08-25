@@ -127,12 +127,18 @@ export function TradingPanel({
   });
 
   useEffect(() => {
+    const onStorageChange = () => {
+      const isSet = localStorage.getItem("admin_show_strategy_r_debug") === "true";
+      setShowStrategyRDebug(isSet);
+    };
+    window.addEventListener("storage", onStorageChange);
+
     if (isAdmin) {
       supabase
         .from('system_settings')
         .select('value')
         .eq('key', 'enable_strategy_r_debug')
-        .single()
+        .maybeSingle()
         .then(({ data }) => {
           if (data && data.value !== undefined) {
             const isEnabled = data.value === true || data.value === 'true';
@@ -143,6 +149,10 @@ export function TradingPanel({
           }
         });
     }
+
+    return () => {
+      window.removeEventListener("storage", onStorageChange);
+    };
   }, [isAdmin]);
 
   const effectiveStrategy = config.strategy === "strategy_q" 
@@ -1494,6 +1504,7 @@ export function TradingPanel({
                 setShowStrategyRDebug(checked);
                 try {
                   localStorage.setItem("admin_show_strategy_r_debug", String(checked));
+                  window.dispatchEvent(new Event('storage'));
                 } catch {}
                 supabase
                   .from('system_settings')
