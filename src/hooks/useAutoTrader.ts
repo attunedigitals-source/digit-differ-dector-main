@@ -1090,7 +1090,6 @@ export function useAutoTrader(
       let nextNoneStickyCount: number | undefined = state.strategyLNoneStickyCount;
       let nextRMode: "win_sticky" | "none_sticky" | "loss_sticky" | undefined = state.strategyRMode;
       let nextRModeCount: number | undefined = state.strategyRModeCount;
-      let nextRRecoveryPair: "EVEN_ODD" | "PUTE_CALLE" | undefined = state.strategyRRecoveryPair;
 
       if (activeStrategy === "strategy_h") {
         let k = state.fibonacciIndex ?? -1;
@@ -1542,126 +1541,154 @@ export function useAutoTrader(
             trade = tradeDir;
             chosenGroup = getCategoryGroup(trade);
             nextStep = 0;
-            nextRRecoveryPair = undefined;
           } else {
-            // LOSS state: Recovery Trade Selection
-            // Persist recovery pair selection for the duration of this recovery trade step
-            if (!nextRRecoveryPair) {
-              nextRRecoveryPair = Math.random() < 0.5 ? "EVEN_ODD" : "PUTE_CALLE";
+            // LOSS state: Dynamic Real-Time Recovery Trade Selection (Option 3)
+            // Simultaneously scan all 10 volatility indices for BOTH Even/Odd and Pute/Calle criteria
+            const allRVolatilitySymbols = [
+              "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+              "R_10", "R_25", "R_50", "R_75", "R_100",
+            ];
+
+            interface StrategyRRecoveryCandidate {
+              symbol: string;
+              pairType: "EVEN_ODD" | "PUTE_CALLE";
+              targetContract: TradeCategory;
+              normalizedEdge: number;
+              rawMetric: string;
             }
-            const selectedPair = nextRRecoveryPair;
 
-            if (selectedPair === "EVEN_ODD") {
-              const allRVolatilitySymbols = [
-                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
-                "R_10", "R_25", "R_50", "R_75", "R_100",
-              ];
+            const evaluatedCandidates: StrategyRRecoveryCandidate[] = [];
 
-              // Evaluate all 10 volatilities against Criteria A, B, C, D, E and F
-              const evaluatedCandidates: StrategyREvenOddEvaluation[] = [];
-              for (const sym of allRVolatilitySymbols) {
-                const tracking = volatilityTracking[sym];
-                if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
-                  continue;
-                }
-                const symbolState = getSymbolState(sym);
-                if (symbolState && symbolState.digits && symbolState.digits.length >= 30) {
-                  const evalResult = evaluateStrategyREvenOddCandidate(sym, symbolState.digits);
-                  if (evalResult) {
-                    evaluatedCandidates.push(evalResult);
-                  }
-                }
+            for (const sym of allRVolatilitySymbols) {
+              const tracking = volatilityTracking[sym];
+              if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
+                continue;
+              }
+              const symbolState = getSymbolState(sym);
+              if (!symbolState || !symbolState.digits || symbolState.digits.length < 30) {
+                continue;
               }
 
-              let selectedEval: StrategyREvenOddEvaluation | undefined;
-
-              if (evaluatedCandidates.length === 1) {
-                // Criterion D: If only one volatility meets Criterion A-C, trade is taken on it in its direction
-                selectedEval = evaluatedCandidates[0];
-                console.log(`[Strategy R Criterion D] Single qualifying volatility found: ${selectedEval.symbol} (Contract: ${selectedEval.targetContract}, Avg Top %: ${selectedEval.averageTopPercentage}%)`);
-              } else if (evaluatedCandidates.length > 1) {
-                // Criterion E: If more than one volatility meets Criterion A-C, select the volatility with highest average ((1st Top % + 2nd Top %)/2)
-                evaluatedCandidates.sort((a, b) => b.averageTopPercentage - a.averageTopPercentage);
-                const maxAvg = evaluatedCandidates[0].averageTopPercentage;
-                const topTied = evaluatedCandidates.filter(c => Math.abs(c.averageTopPercentage - maxAvg) < 0.001);
-                selectedEval = topTied[Math.floor(Math.random() * topTied.length)];
-                console.log(`[Strategy R Criterion E] ${evaluatedCandidates.length} qualifying volatilities found. Selected highest average: ${selectedEval.symbol} (Contract: ${selectedEval.targetContract}, Avg Top %: ${selectedEval.averageTopPercentage}%)`);
+              // 1. Evaluate Even/Odd candidate criteria (A-C)
+              const evenOddEval = evaluateStrategyREvenOddCandidate(sym, symbolState.digits);
+              if (evenOddEval) {
+                // Baseline: 10.0% expected per digit. Normalized Edge: (avgTop% - 10.0) / 10.0
+                const normalizedEdge = (evenOddEval.averageTopPercentage - 10.0) / 10.0;
+                evaluatedCandidates.push({
+                  symbol: sym,
+                  pairType: "EVEN_ODD",
+                  targetContract: evenOddEval.targetContract,
+                  normalizedEdge,
+                  rawMetric: `Avg Top: ${evenOddEval.averageTopPercentage}% (D1: ${evenOddEval.d1} @ ${evenOddEval.p1}%, D2: ${evenOddEval.d2} @ ${evenOddEval.p2}%)`,
+                });
               }
 
-              if (selectedEval) {
-                symbol = selectedEval.symbol;
-                trade = selectedEval.targetContract;
-                chosenGroup = getCategoryGroup(trade);
-                nextStep = currentMartingaleStep + 1;
-                stepIndexRef.current += 1;
-              } else {
-                const selectedSymbol = select_random_active_symbol();
-                symbol = selectedSymbol ? selectedSymbol.symbol : "1HZ10V";
-                trade = Math.random() < 0.5 ? "even" : "odd";
-                chosenGroup = getCategoryGroup(trade);
-                nextStep = currentMartingaleStep + 1;
-                stepIndexRef.current += 1;
-
-                console.log(`[Strategy R EVEN/ODD Fallback] Selected: ${symbol} (Contract: ${trade})`);
+              // 2. Evaluate Pute/Calle candidate criteria (B-C)
+              const puteCalleEval = evaluateStrategyRPuteCalleCandidate(sym, symbolState.digits, symbolState.prices);
+              if (puteCalleEval) {
+                // Baseline: 50.0% directional movement. Normalized Edge: (momentum% - 50.0) / 50.0
+                const normalizedEdge = (puteCalleEval.momentumStrength - 50.0) / 50.0;
+                evaluatedCandidates.push({
+                  symbol: sym,
+                  pairType: "PUTE_CALLE",
+                  targetContract: puteCalleEval.targetContract,
+                  normalizedEdge,
+                  rawMetric: `Momentum: ${puteCalleEval.momentumStrength}% (${puteCalleEval.trend})`,
+                });
               }
+            }
+
+            let selectedCandidate: StrategyRRecoveryCandidate | undefined;
+
+            if (evaluatedCandidates.length === 1) {
+              selectedCandidate = evaluatedCandidates[0];
+              console.log(`[Strategy R Recovery] Single qualifying candidate: ${selectedCandidate.symbol} (${selectedCandidate.pairType} -> ${selectedCandidate.targetContract}, Normalized Edge: +${(selectedCandidate.normalizedEdge * 100).toFixed(1)}%, ${selectedCandidate.rawMetric})`);
+            } else if (evaluatedCandidates.length > 1) {
+              evaluatedCandidates.sort((a, b) => b.normalizedEdge - a.normalizedEdge);
+              const maxEdge = evaluatedCandidates[0].normalizedEdge;
+              const topTied = evaluatedCandidates.filter(c => Math.abs(c.normalizedEdge - maxEdge) < 0.001);
+              selectedCandidate = topTied[Math.floor(Math.random() * topTied.length)];
+              console.log(`[Strategy R Recovery] ${evaluatedCandidates.length} qualifying candidate(s) found across both pairs. Selected highest normalized edge: ${selectedCandidate.symbol} (${selectedCandidate.pairType} -> ${selectedCandidate.targetContract}, Normalized Edge: +${(selectedCandidate.normalizedEdge * 100).toFixed(1)}%, ${selectedCandidate.rawMetric})`);
+            }
+
+            if (selectedCandidate) {
+              symbol = selectedCandidate.symbol;
+              trade = selectedCandidate.targetContract;
+              chosenGroup = getCategoryGroup(trade);
+              nextStep = currentMartingaleStep + 1;
+              stepIndexRef.current += 1;
             } else {
-              // PUTE or CALLE recovery trade - Evaluate via evaluateStrategyRPuteCalleCandidate (Criteria A-E)
-              const allRVolatilitySymbols = [
-                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
-                "R_10", "R_25", "R_50", "R_75", "R_100",
-              ];
+              // Deterministic Fallback: scan all active volatilities for strongest raw directional or parity deviation
+              let bestFallbackSymbol = "1HZ10V";
+              let bestFallbackTrade: TradeCategory = "rise";
+              let bestFallbackScore = -1;
+              let bestFallbackDesc = "";
 
-              const evaluatedPuteCalleCandidates: StrategyRPuteCalleEvaluation[] = [];
               for (const sym of allRVolatilitySymbols) {
                 const tracking = volatilityTracking[sym];
-                if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
-                  continue;
-                }
+                if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) continue;
                 const symbolState = getSymbolState(sym);
-                if (symbolState && symbolState.digits && symbolState.digits.length >= 30) {
-                  const evalResult = evaluateStrategyRPuteCalleCandidate(sym, symbolState.digits, symbolState.prices);
-                  if (evalResult) {
-                    evaluatedPuteCalleCandidates.push(evalResult);
+                if (!symbolState || !symbolState.digits || symbolState.digits.length < 10) continue;
+
+                // Check raw momentum
+                let momStrength = 50;
+                let momTrade: TradeCategory = "rise";
+                if (symbolState.prices && symbolState.prices.length >= 10) {
+                  const window = symbolState.prices.slice(-30);
+                  let up = 0, down = 0;
+                  for (let i = 1; i < window.length; i++) {
+                    if (window[i] > window[i - 1]) up++;
+                    else if (window[i] < window[i - 1]) down++;
+                  }
+                  const nonFlat = Math.max(1, up + down);
+                  if (up >= down) {
+                    momTrade = "rise";
+                    momStrength = (up / nonFlat) * 100;
+                  } else {
+                    momTrade = "fall";
+                    momStrength = (down / nonFlat) * 100;
+                  }
+                } else {
+                  const window = symbolState.digits.slice(-30);
+                  const high = window.filter(d => d >= 5).length;
+                  const low = window.filter(d => d <= 4).length;
+                  if (high >= low) {
+                    momTrade = "rise";
+                    momStrength = (high / window.length) * 100;
+                  } else {
+                    momTrade = "fall";
+                    momStrength = (low / window.length) * 100;
                   }
                 }
-              }
+                const momDev = Math.abs(momStrength - 50.0);
 
-              let selectedPuteCalleEval: StrategyRPuteCalleEvaluation | undefined;
+                // Check raw even/odd deviation
+                const sample = symbolState.digits.slice(-1000);
+                const evens = sample.filter(d => d % 2 === 0).length;
+                const evenPct = (evens / sample.length) * 100;
+                const eoDev = Math.abs(evenPct - 50.0);
+                const eoTrade: TradeCategory = evenPct >= 50.0 ? "even" : "odd";
 
-              if (evaluatedPuteCalleCandidates.length === 1) {
-                // Criterion D: Single qualifying volatility
-                selectedPuteCalleEval = evaluatedPuteCalleCandidates[0];
-                console.log(`[Strategy R PUTE/CALLE Criterion D] Single qualifying volatility found: ${selectedPuteCalleEval.symbol} (Contract: ${selectedPuteCalleEval.targetContract === "rise" ? "PUTE" : "CALLE"}, Momentum: ${selectedPuteCalleEval.momentumStrength}%)`);
-              } else if (evaluatedPuteCalleCandidates.length > 1) {
-                // Criterion E: Select volatility with highest momentum strength
-                evaluatedPuteCalleCandidates.sort((a, b) => b.momentumStrength - a.momentumStrength);
-                const maxMom = evaluatedPuteCalleCandidates[0].momentumStrength;
-                const topTied = evaluatedPuteCalleCandidates.filter(c => Math.abs(c.momentumStrength - maxMom) < 0.001);
-                selectedPuteCalleEval = topTied[Math.floor(Math.random() * topTied.length)];
-                console.log(`[Strategy R PUTE/CALLE Criterion E] ${evaluatedPuteCalleCandidates.length} qualifying volatilities found. Selected highest momentum: ${selectedPuteCalleEval.symbol} (Contract: ${selectedPuteCalleEval.targetContract === "rise" ? "PUTE" : "CALLE"}, Momentum: ${selectedPuteCalleEval.momentumStrength}%)`);
-              }
-
-              if (selectedPuteCalleEval) {
-                symbol = selectedPuteCalleEval.symbol;
-                trade = selectedPuteCalleEval.targetContract;
-                chosenGroup = getCategoryGroup(trade);
-                nextStep = currentMartingaleStep + 1;
-                stepIndexRef.current += 1;
-              } else {
-                let puteCallePool: TradeCategory[] = ["rise", "fall"];
-                if (state.currentCategory && (state.currentCategory === "rise" || state.currentCategory === "fall")) {
-                  puteCallePool = puteCallePool.filter(c => c !== state.currentCategory);
+                if (momDev >= eoDev && momDev > bestFallbackScore) {
+                  bestFallbackScore = momDev;
+                  bestFallbackSymbol = sym;
+                  bestFallbackTrade = momTrade;
+                  bestFallbackDesc = `Raw Momentum (${momTrade} @ ${momStrength.toFixed(1)}%)`;
+                } else if (eoDev > momDev && eoDev > bestFallbackScore) {
+                  bestFallbackScore = eoDev;
+                  bestFallbackSymbol = sym;
+                  bestFallbackTrade = eoTrade;
+                  bestFallbackDesc = `Raw Parity Skew (${eoTrade} @ ${evenPct.toFixed(1)}%)`;
                 }
-                const candidateTradeDir = puteCallePool[Math.floor(Math.random() * puteCallePool.length)];
-                const selectedSymbol = select_random_active_symbol();
-                symbol = selectedSymbol ? selectedSymbol.symbol : "1HZ10V";
-                trade = candidateTradeDir;
-                chosenGroup = getCategoryGroup(trade);
-                nextStep = currentMartingaleStep + 1;
-                stepIndexRef.current += 1;
-
-                console.log(`[Strategy R PUTE/CALLE Fallback] Selected: ${symbol} (Contract: ${trade === "rise" ? "PUTE" : "CALLE"})`);
               }
+
+              symbol = bestFallbackSymbol;
+              trade = bestFallbackTrade;
+              chosenGroup = getCategoryGroup(trade);
+              nextStep = currentMartingaleStep + 1;
+              stepIndexRef.current += 1;
+
+              console.log(`[Strategy R Recovery Fallback] No strict criteria met. Selected best raw deviation: ${symbol} (${trade}, ${bestFallbackDesc})`);
             }
           }
         } else {
@@ -2023,7 +2050,6 @@ export function useAutoTrader(
         strategyRAccumulatedLoss: nextRAccumLoss,
         strategyRMode: nextRMode,
         strategyRModeCount: nextRModeCount,
-        strategyRRecoveryPair: undefined,
         strategyQActiveSub: nextQActiveSub,
         strategyQRemainingRuns: nextQRemainingRuns,
         strategyQLastSub: nextQLastSub,
