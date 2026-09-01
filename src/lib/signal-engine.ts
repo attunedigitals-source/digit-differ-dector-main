@@ -150,14 +150,15 @@ export interface StrategyREvenOddEvaluation {
 
 export function evaluateStrategyREvenOddCandidate(
   symbol: string,
-  digits: number[]
+  digits: number[],
+  sampleSize: number = 100
 ): StrategyREvenOddEvaluation | null {
   if (!digits || digits.length < 30) {
     return null;
   }
 
-  // Use up to last 1000 digits
-  const sample = digits.slice(-1000);
+  // Use up to last sampleSize digits (default 100 for responsive clustering)
+  const sample = digits.slice(-sampleSize);
   const total = sample.length;
   if (total === 0) return null;
 
@@ -193,13 +194,13 @@ export function evaluateStrategyREvenOddCandidate(
   const pattern: "EVEN_EVEN" | "ODD_ODD" = isD1Even ? "EVEN_EVEN" : "ODD_ODD";
   const targetContract: "even" | "odd" = isD1Even ? "even" : "odd";
 
-  // Criterion B: P1 >= 10.5% AND P2 >= 10.5%
-  if (d1Info.percentage < 10.5 || d2Info.percentage < 10.5) {
+  // Criterion B: P1 >= 11.0% AND P2 >= 11.0%
+  if (d1Info.percentage < 11.0 || d2Info.percentage < 11.0) {
     return null;
   }
 
-  // Criterion C: P3 <= 10.0%
-  if (d3Info.percentage > 10.0) {
+  // Criterion C: P3 <= 11.0% (ensures D1 & D2 stand out above the 3rd rank)
+  if (d3Info.percentage > 11.0) {
     return null;
   }
 
@@ -290,8 +291,8 @@ export function evaluateStrategyRPuteCalleCandidate(
       momentumStrength = Number(((downCount / nonFlat) * 100).toFixed(2));
     }
 
-    // Criterion B: Momentum Strength >= 52.5%
-    if (momentumStrength < 52.5) {
+    // Criterion B: Momentum Strength >= 55.0%
+    if (momentumStrength < 55.0) {
       return null;
     }
 
@@ -315,7 +316,7 @@ export function evaluateStrategyRPuteCalleCandidate(
       momentumStrength = Number(((lowDigits / window.length) * 100).toFixed(2));
     }
 
-    if (momentumStrength < 52.5) {
+    if (momentumStrength < 55.0) {
       return null;
     }
   }

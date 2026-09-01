@@ -1720,7 +1720,7 @@ export function TradingPanel({
                 <div className="bg-muted/40 p-2.5 rounded-md border border-cyan-500/30 space-y-2">
                   <div className="flex items-center justify-between text-[9px]">
                     <span className="font-bold text-cyan-300 flex items-center gap-1.5">
-                      <Wand2 className="w-3.5 h-3.5 text-cyan-400" /> EVEN/ODD 1000-Digit Recovery Scanner
+                      <Wand2 className="w-3.5 h-3.5 text-cyan-400" /> EVEN/ODD 100-Digit Recovery Scanner
                     </span>
                     <Badge variant="outline" className={`text-[8px] font-mono font-bold px-1.5 py-0.5 ${
                       validatedList.length > 0

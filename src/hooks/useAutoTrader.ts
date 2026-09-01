@@ -1662,8 +1662,8 @@ export function useAutoTrader(
                 }
                 const momDev = Math.abs(momStrength - 50.0);
 
-                // Check raw even/odd deviation
-                const sample = symbolState.digits.slice(-1000);
+                // Check raw even/odd deviation on the same 100-digit window
+                const sample = symbolState.digits.slice(-100);
                 const evens = sample.filter(d => d % 2 === 0).length;
                 const evenPct = (evens / sample.length) * 100;
                 const eoDev = Math.abs(evenPct - 50.0);
