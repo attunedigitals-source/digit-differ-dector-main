@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { DerivAccount } from "@/hooks/useDerivWebSocket";
+import type { DerivAccount, ConnectionHealth } from "@/hooks/useDerivWebSocket";
 import { toast } from "sonner";
 import { useAuth } from "./useAuth";
+
+export interface ConnectionQuarantine {
+  active: boolean;
+  reason: string;
+  resumeAt?: number;
+  failuresCount?: number;
+}
 import { type SymbolState, generateSignal, evaluateStrategyREvenOddCandidate, evaluateStrategyRPuteCalleCandidate, getSymbolDefaultPipSize, extractLastDigit, type StrategyREvenOddEvaluation, type StrategyRPuteCalleEvaluation } from "@/lib/signal-engine";
 import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails, getPermutationIndex, getRandomSequenceWithPrefix, isPrefixBlacklisted } from "../lib/arrangement-brain";
 
@@ -310,7 +317,8 @@ export function useAutoTrader(
   wsRef: React.RefObject<WebSocket | null>,
   accountInfo: DerivAccount | null,
   connected: boolean,
-  getSymbolState: (symbol: string) => SymbolState | undefined
+  getSymbolState: (symbol: string) => SymbolState | undefined,
+  getConnectionHealth?: () => ConnectionHealth
 ) {
   const { user } = useAuth();
   const [tradeLog, setTradeLog] = useState<TradeRecord[]>(() => {
@@ -648,6 +656,101 @@ export function useAutoTrader(
     return true;
   }, [wsRef]);
 
+  const consecutiveConnectionFailsRef = useRef<number>(0);
+  const [connectionQuarantine, setConnectionQuarantine] = useState<ConnectionQuarantine>(() => {
+    const saved = localStorage.getItem('connectionQuarantine');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.active && parsed.resumeAt && Date.now() < parsed.resumeAt) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("Error loading connectionQuarantine from localStorage", e);
+      }
+    }
+    return { active: false, reason: "" };
+  });
+  const connectionQuarantineRef = useRef(connectionQuarantine);
+  useEffect(() => {
+    connectionQuarantineRef.current = connectionQuarantine;
+    if (connectionQuarantine.active) {
+      localStorage.setItem('connectionQuarantine', JSON.stringify(connectionQuarantine));
+    } else {
+      localStorage.removeItem('connectionQuarantine');
+    }
+  }, [connectionQuarantine]);
+
+  const handle_network_failure = useCallback((
+    reqId: string,
+    reason: string,
+    details?: { symbol: string; stake: number; supabaseId?: string }
+  ) => {
+    isExecutingRef.current = false;
+    consecutiveConnectionFailsRef.current += 1;
+    const currentFails = consecutiveConnectionFailsRef.current;
+
+    console.warn(`[AutoTrader Connection Guard] Network failure on trade (req_id: ${reqId}, reason: ${reason}). Consecutive count: ${currentFails}`);
+
+    const timeout = proposalTimeouts.current.get(reqId);
+    if (timeout) {
+      clearTimeout(timeout);
+      proposalTimeouts.current.delete(reqId);
+    }
+    pendingProposals.current.delete(reqId);
+    pendingBuys.current.delete(reqId);
+
+    // Update tradeLog: mark pending record as CANCELLED (no phantom loss!)
+    setTradeLog(prev => prev.map(t => {
+      if (t.id === `pending-${reqId}` || t.id.includes(reqId)) {
+        return {
+          ...t,
+          status: "CANCELLED",
+          next_action: "CONNECTION_DROPPED_SAFE_ROLLBACK",
+          profit: 0,
+        };
+      }
+      return t;
+    }));
+
+    if (details?.supabaseId) {
+      supabase.from("trades").update({
+        result: "cancelled",
+        profit: 0,
+        exit_tick: `Network Failure / Timeout: ${reason}`,
+      }).eq("id", details.supabaseId).then();
+    }
+
+    // Rollback session state: keep current martingale step and stake (do NOT escalate stake on connection drop!)
+    setSessionState(prev => ({
+      ...prev,
+      status: prev.martingaleStep > 0 ? "LOSS" : "IDLE",
+      nextAction: "WAIT_CONNECTION_STABILIZATION",
+    }));
+
+    if (currentFails >= 2) {
+      // 2 consecutive connection failures: Engage Circuit Breaker Quarantine!
+      const quarantineUntil = Date.now() + 60000;
+      const qState: ConnectionQuarantine = {
+        active: true,
+        reason: `Deriv connection lost on ${currentFails} consecutive trades (${reason}). Circuit breaker engaged to protect balance from update disconnects.`,
+        resumeAt: quarantineUntil,
+        failuresCount: currentFails,
+      };
+      setConnectionQuarantine(qState);
+      connectionQuarantineRef.current = qState;
+      setTicksToWait(60);
+      toast.error(`⚠️ Connection Circuit Breaker: 2 consecutive trades dropped due to Deriv connection instability. Auto-trading paused for 60s stabilization.`, {
+        duration: 12000,
+      });
+      console.error(`[AutoTrader Circuit Breaker] Quarantine triggered! Consecutive failures: ${currentFails}. Pausing for 60s.`);
+    } else {
+      toast.warning(`Connection drop detected (${reason}). Trade safely cancelled without Martingale penalty. (Consecutive failures: ${currentFails}/2)`, {
+        duration: 6000,
+      });
+    }
+  }, []);
+
   const handleResultRef = useRef<((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => void) | null>(null);
 
   // Watchdog: monitor and resolve stuck execution
@@ -669,14 +772,8 @@ export function useAutoTrader(
           pendingBuys.current.size === 0 && 
           openContracts.current.size === 0 && 
           now - executionStartedAtRef.current > 45000) {
-        console.warn("[AutoTrader] Watchdog triggered: Resolving stuck execution lock via handle_result");
-        const sym = sessionStateRef.current.currentSymbol || "R_100";
-        const currentStake = sessionStateRef.current.currentStake || 0.35;
-        if (handleResultRef.current) {
-          handleResultRef.current(false, sym, -currentStake);
-        } else {
-          isExecutingRef.current = false;
-        }
+        console.warn("[AutoTrader] Watchdog triggered: Releasing stuck execution lock safely without phantom loss");
+        isExecutingRef.current = false;
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -2120,17 +2217,18 @@ export function useAutoTrader(
         timestamp: new Date().toISOString()
       }, null, 2));
 
-      // Fix 2: Per-proposal 15s timeout — if Deriv never responds, resolve loss via handle_result
+      // Per-proposal 15s timeout: if Deriv never responds, cancel safely via handle_network_failure
       const proposalTimeout = setTimeout(() => {
         if (pendingProposals.current.has(String(reqId))) {
-          console.warn(`[AutoTrader] Proposal ${reqId} timed out — resolving loss via handle_result`);
+          console.warn(`[AutoTrader Connection Guard] Proposal ${reqId} timed out (15s without Deriv response) — rolling back safely without Martingale penalty`);
           const pendingEntry = pendingProposals.current.get(String(reqId));
-          pendingProposals.current.delete(String(reqId));
-          proposalTimeouts.current.delete(String(reqId));
-
           const sym = pendingEntry?.symbol || sessionStateRef.current.currentSymbol || "R_100";
           const currentStake = pendingEntry?.stake || sessionStateRef.current.currentStake || 0.35;
-          handle_result(false, sym, -currentStake, pendingEntry?.supabaseId);
+          handle_network_failure(String(reqId), "Proposal 15s timeout (Deriv server unresponsive / connection lost)", {
+            symbol: sym,
+            stake: currentStake,
+            supabaseId: pendingEntry?.supabaseId,
+          });
         }
       }, 15000);
       proposalTimeouts.current.set(String(reqId), proposalTimeout);
@@ -3012,6 +3110,8 @@ export function useAutoTrader(
           const isWin = (poc.profit ?? 0) > 0 || status === "won";
           const profit = Number(poc.profit) || 0;
           const openC = openContracts.current.get(contractId);
+          // Reset consecutive network failure counter on successful trade run
+          consecutiveConnectionFailsRef.current = 0;
           handle_result(isWin, openC?.symbol || poc.underlying || poc.symbol || "", profit, openC?.supabaseId);
         }
         
@@ -3032,9 +3132,8 @@ export function useAutoTrader(
       const reqId = String(data.req_id);
       console.error(`[AutoTrader] API Error (req_id: ${reqId}):`, data.error);
 
-      // Reset execution lock & record loss if this error belongs to a pending trade attempt
+      // Handle trade proposal/buy error
       if (pendingProposals.current.has(reqId) || Array.from(pendingBuys.current.keys()).includes(reqId)) {
-        toast.error(`Trade error: ${data.error.message}`);
         const pendingEntry = pendingProposals.current.get(reqId);
         pendingProposals.current.delete(reqId);
         const buyReq = Array.from(pendingBuys.current.keys()).find(k => k === reqId);
@@ -3046,16 +3145,21 @@ export function useAutoTrader(
 
         const sym = pendingEntry?.symbol || buyData?.symbol || sessionStateRef.current.currentSymbol || "R_100";
         const currentStake = pendingEntry?.stake || sessionStateRef.current.currentStake || 0.35;
-        handle_result(false, sym, -currentStake, pendingEntry?.supabaseId || buyData?.supabaseId);
+        const supabaseId = pendingEntry?.supabaseId || buyData?.supabaseId;
+
+        // Trade failed at proposal/buy before a contract was purchased: route to handle_network_failure
+        handle_network_failure(reqId, data.error.message || data.error.code || "API Error", {
+          symbol: sym,
+          stake: currentStake,
+          supabaseId,
+        });
       }
 
-      // If it's a contract status error and we have it in openContracts, clear it & resolve loss via handle_result
+      // If it's a contract status error and we have it in openContracts, clear it safely without phantom loss
       if (data.msg_type === "proposal_open_contract" && data.error.code === "ContractNotFound") {
-        console.warn("[AutoTrader] Contract not found on Deriv. Resolving stale contract reference via handle_result.");
+        console.warn("[AutoTrader] Contract not found on Deriv. Clearing stale contract reference.");
         openContracts.current.clear();
-        const sym = sessionStateRef.current.currentSymbol || "R_100";
-        const currentStake = sessionStateRef.current.currentStake || 0.35;
-        handle_result(false, sym, -currentStake);
+        isExecutingRef.current = false;
       }
     }
   }, [config.enabled, wsRef, handle_result, execute_trade]);
@@ -3330,6 +3434,43 @@ export function useAutoTrader(
     if (!config.enabled || !connected) return;
 
     const runTradingLoop = () => {
+      // 1. Connection Circuit Breaker Quarantine Check
+      if (connectionQuarantineRef.current.active) {
+        const resumeAt = connectionQuarantineRef.current.resumeAt || 0;
+        const now = Date.now();
+        if (now < resumeAt) {
+          // Still in quarantine cooldown period
+          return;
+        }
+
+        // Quarantine cooldown elapsed — verify connection health gate before lifting
+        const health = getConnectionHealth ? getConnectionHealth() : {
+          connected,
+          connectedDurationMs: 10000,
+          ticksSinceConnect: 10,
+          isStable: connected
+        };
+
+        if (health.isStable) {
+          console.log("[AutoTrader Circuit Breaker] Health gate passed: connection verified stable. Lifting quarantine.");
+          setConnectionQuarantine({ active: false, reason: "" });
+          connectionQuarantineRef.current = { active: false, reason: "" };
+          consecutiveConnectionFailsRef.current = 0;
+          toast.success("✅ Deriv connection verified stable. Resuming auto-trading safely.", { duration: 5000 });
+        } else {
+          console.warn("[AutoTrader Circuit Breaker] Quarantine elapsed but connection stream not yet stable. Waiting for stable tick feed...");
+          return;
+        }
+      }
+
+      // 2. Reconnection Warm-Up Gate: Avoid blasting trade on second zero of reconnecting
+      if (getConnectionHealth) {
+        const health = getConnectionHealth();
+        if (!health.connected || health.connectedDurationMs < 6000 || health.ticksSinceConnect < 3) {
+          return;
+        }
+      }
+
       const state = sessionStateRef.current;
       const shouldTrade = 
         (state.status === "IDLE") || 
@@ -3779,5 +3920,6 @@ export function useAutoTrader(
     activateWindDown,
     volatilityTracking,
     clearBlacklist,
+    connectionQuarantine,
   };
 }

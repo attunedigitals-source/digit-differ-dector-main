@@ -129,11 +129,23 @@ async function fetchWebSocketUrl(accessToken: string, accountId: string, appId: 
   throw new Error("OTP response did not include an authenticated WebSocket URL");
 }
 
+export interface ConnectionHealth {
+  connected: boolean;
+  connectedDurationMs: number;
+  ticksSinceConnect: number;
+  lastMessageAgeMs: number;
+  lastDisconnectAt: number;
+  isStable: boolean;
+}
+
 export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid = false, isAdmin = false, profileLoading = false }: DerivWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const statesRef = useRef<Map<string, SymbolState>>(new Map());
   const pendingRequestsRef = useRef<Map<string, (data: JsonObject) => void>>(new Map());
   const [connected, setConnected] = useState(false);
+  const lastConnectedAt = useRef<number>(0);
+  const lastDisconnectAt = useRef<number>(0);
+  const ticksSinceConnect = useRef<number>(0);
   const [signals, setSignals] = useState<SignalWithStatus[]>([]);
   const [results, setResults] = useState<SignalResult[]>([]);
   const [tickCounts, setTickCounts] = useState<Record<string, number>>({});
@@ -204,6 +216,8 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
       const ws = new WebSocket(PUBLIC_WS_URL);
       wsRef.current = ws;
       ws.onopen = () => {
+        lastConnectedAt.current = Date.now();
+        ticksSinceConnect.current = 0;
         setConnected(true);
         subscribeTicksV4(ws);
       };
@@ -215,6 +229,8 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
         if (data.msg_type === "history") handleHistoryMessage(data);
       };
       ws.onclose = () => {
+        lastDisconnectAt.current = Date.now();
+        ticksSinceConnect.current = 0;
         setConnected(false);
         if (!isManualDisconnectRef.current) {
           reconnectTimer.current = setTimeout(() => connectRef.current?.(), 3000);
@@ -239,6 +255,8 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
       wsRef.current = ws;
 
       const finishConnection = () => {
+        lastConnectedAt.current = Date.now();
+        ticksSinceConnect.current = 0;
         setConnected(true);
         console.log("[WebSocket] Options WebSocket connection established (authenticated)");
 
@@ -317,6 +335,8 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
       };
 
       ws.onclose = (event) => {
+        lastDisconnectAt.current = Date.now();
+        ticksSinceConnect.current = 0;
         setConnected(false);
         if (pingTimer.current) clearInterval(pingTimer.current);
         if (watchdogTimer.current) clearInterval(watchdogTimer.current);
@@ -387,6 +407,7 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
     state = addTick(state, digit, isNaN(numericPrice) ? undefined : numericPrice);
     statesRef.current.set(symbol, state);
 
+    ticksSinceConnect.current++;
     setTickCounts((prev) => ({ ...prev, [symbol]: state!.tickCount }));
     setLastDigits((prev) => ({ ...prev, [symbol]: digit }));
 
@@ -485,6 +506,20 @@ export function useDerivWebSocket({ appId, apiToken, accountId, userId, isPaid =
     wsRef,
     onSignalRef,
     onMessageRef,
+    getConnectionHealth: useCallback((): ConnectionHealth => {
+      const now = Date.now();
+      const connectedDurationMs = connected && lastConnectedAt.current > 0 ? (now - lastConnectedAt.current) : 0;
+      const ticks = ticksSinceConnect.current;
+      const lastMsgAge = now - lastMessageAt.current;
+      return {
+        connected,
+        connectedDurationMs,
+        ticksSinceConnect: ticks,
+        lastMessageAgeMs: lastMsgAge,
+        lastDisconnectAt: lastDisconnectAt.current,
+        isStable: connected && connectedDurationMs >= 8000 && ticks >= 5 && lastMsgAge < 6000
+      };
+    }, [connected]),
     getSymbolState: (symbol: string) => statesRef.current.get(symbol),
     getAllStates: () => statesRef.current,
     requestHistory: async (symbol: string, count: number = 1000) => {

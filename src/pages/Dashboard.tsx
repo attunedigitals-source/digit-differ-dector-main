@@ -81,7 +81,8 @@ export default function Dashboard() {
   const { 
     connected, connect, disconnect, signals, results,
     tickCounts, lastDigits, accounts, activeLoginId, switchAccount,
-    wsRef, onMessageRef, getAllStates, getSymbolState
+    wsRef, onMessageRef, getAllStates, getSymbolState,
+    getConnectionHealth
   } = useDerivWebSocket({
     accountId: activeOAuthAccount?.loginid,
     userId: user?.id,
@@ -105,8 +106,8 @@ export default function Dashboard() {
   const { 
     config, setConfig, tradeLog, setTradeLog, 
     dailyPL, sessionPL, resetSessionPL, dailyStats, resetTradeLog, sessionState, ticksToWait, handleTradeMessage, windDownMode, activateWindDown,
-    volatilityTracking, clearBlacklist
-  } = useAutoTrader(wsRef, activeAccount, connected, getSymbolState);
+    volatilityTracking, clearBlacklist, connectionQuarantine
+  } = useAutoTrader(wsRef, activeAccount, connected, getSymbolState, getConnectionHealth);
 
   // Wire auto-trader message handler
   useEffect(() => {
@@ -194,6 +195,7 @@ export default function Dashboard() {
               volatilityTracking={volatilityTracking}
               onClearBlacklist={clearBlacklist}
               getSymbolState={getSymbolState}
+              connectionQuarantine={connectionQuarantine}
             />
           </div>
 

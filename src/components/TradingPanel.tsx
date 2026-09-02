@@ -4,9 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet, ShieldAlert } from "lucide-react";
+import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet, ShieldAlert, AlertTriangle } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
-import { type VolatilityTracking } from "@/hooks/useAutoTrader";
+import { type VolatilityTracking, type ConnectionQuarantine } from "@/hooks/useAutoTrader";
 import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile } from "@/hooks/useAuth";
@@ -84,6 +84,7 @@ interface TradingPanelProps {
   volatilityTracking?: Record<string, VolatilityTracking>;
   onClearBlacklist?: () => void;
   getSymbolState?: (symbol: string) => SymbolState | undefined;
+  connectionQuarantine?: ConnectionQuarantine;
 }
 
 export function TradingPanel({
@@ -103,6 +104,7 @@ export function TradingPanel({
   volatilityTracking,
   onClearBlacklist,
   getSymbolState,
+  connectionQuarantine,
 }: TradingPanelProps) {
   const [localStake, setLocalStake] = useState(config.baseStake.toString());
   const [localStakeL, setLocalStakeL] = useState((config.strategyLBaseStake ?? config.baseStake).toString());
@@ -467,6 +469,22 @@ export function TradingPanel({
         <p className="text-xs text-destructive bg-destructive/10 p-2 rounded">
           Connect to Deriv first to enable automation.
         </p>
+      )}
+
+      {connectionQuarantine?.active && (
+        <div className="bg-amber-500/15 border border-amber-500/40 rounded-lg p-3 space-y-1.5 animate-pulse text-amber-300 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-bold">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            Connection Instability Protected (Deriv Updates)
+          </div>
+          <p className="text-[10px] leading-relaxed text-amber-200/90">
+            {connectionQuarantine.reason}
+          </p>
+          <div className="flex items-center justify-between text-[9px] font-mono pt-1 text-amber-400 border-t border-amber-500/20">
+            <span>Status: Quarantine Cooldown Active</span>
+            <span>Verifying live tick stream...</span>
+          </div>
+        </div>
       )}
 
       {/* 1. Init Balance Field */}

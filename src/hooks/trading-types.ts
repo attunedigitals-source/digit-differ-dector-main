@@ -7,7 +7,7 @@ export interface TradeRecord {
   stake: number;
   profit: number;
   martingale_step: number;
-  status: "WIN" | "LOSS" | "PENDING";
+  status: "WIN" | "LOSS" | "PENDING" | "CANCELLED";
   next_action: string;
   timestamp: Date;
 }
