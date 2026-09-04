@@ -9,7 +9,7 @@ import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking, type ConnectionQuarantine } from "@/hooks/useAutoTrader";
 import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
-import { UserProfile } from "@/hooks/useAuth";
+import { UserProfile, isEmailAdmin } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -125,7 +125,9 @@ export function TradingPanel({
   const [autoGenMode, setAutoGenMode] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
-  const isAdmin = profile?.role === "admin" || profile?.role === "sub-admin";
+  const isAdmin = profile?.role === "admin" || 
+                  profile?.role === "sub-admin" || 
+                  isEmailAdmin(profile?.email);
   const [showStrategyRDebug, setShowStrategyRDebug] = useState<boolean>(() => {
     try {
       return localStorage.getItem("admin_show_strategy_r_debug") === "true";
@@ -384,9 +386,12 @@ export function TradingPanel({
   const isStakeSValid = !isNaN(stakeSVal) && stakeSVal >= 0.35;
 
   const isTrialExpired = (() => {
-    if (!profile || profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
+    if (!profile) return false;
+    // Admins NEVER have an expiration date
+    if (isAdmin) return false;
+    if (profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
     const startTime = new Date(profile.trial_started_at).getTime();
-    const durationMs = profile.trial_duration_days * 24 * 60 * 60 * 1000;
+    const durationMs = (profile.trial_duration_days || 7) * 24 * 60 * 60 * 1000;
     return (startTime + durationMs) < new Date().getTime();
   })();
 

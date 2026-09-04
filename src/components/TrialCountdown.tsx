@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Timer, AlertCircle } from 'lucide-react';
-import { UserProfile } from '@/hooks/useAuth';
+import { Timer, AlertCircle, ShieldCheck } from 'lucide-react';
+import { UserProfile, isEmailAdmin } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
 interface TrialCountdownProps {
@@ -11,8 +11,12 @@ export const TrialCountdown: React.FC<TrialCountdownProps> = ({ profile }) => {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [isExpired, setIsExpired] = useState(false);
 
+  const isAdminUser = profile.role === 'admin' || 
+                      profile.role === 'sub-admin' || 
+                      isEmailAdmin(profile.email);
+
   useEffect(() => {
-    if (!profile.trial_started_at) return;
+    if (isAdminUser || !profile.trial_started_at) return;
 
     const calculateTimeLeft = () => {
       const startTime = new Date(profile.trial_started_at!).getTime();
@@ -39,7 +43,26 @@ export const TrialCountdown: React.FC<TrialCountdownProps> = ({ profile }) => {
     const timer = setInterval(calculateTimeLeft, 1000);
 
     return () => clearInterval(timer);
-  }, [profile.trial_started_at, profile.trial_duration_days]);
+  }, [profile.trial_started_at, profile.trial_duration_days, isAdminUser]);
+
+  // Admin users have permanent lifetime access
+  if (isAdminUser) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+        <div className="p-1 rounded-lg bg-emerald-500/20">
+          <ShieldCheck size={16} className="text-emerald-400" />
+        </div>
+        <div className="flex flex-col text-left">
+          <span className="text-[9px] uppercase tracking-wider font-bold opacity-80">
+            Account Status
+          </span>
+          <span className="text-xs font-mono font-bold text-emerald-400">
+            Admin Access (Lifetime)
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   if (!profile.trial_started_at || profile.subscription_status !== 'free') return null;
 

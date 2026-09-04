@@ -7,6 +7,15 @@ import { addContactToBrevo } from "@/lib/brevo";
 export type UserRole = 'user' | 'admin' | 'sub-admin';
 export type SubscriptionStatus = 'free' | 'pending' | 'active' | 'expired' | 'suspended';
 
+export const ADMIN_EMAILS = [
+  "amusco2@yahoo.com"
+];
+
+export const isEmailAdmin = (email?: string | null): boolean => {
+  if (!email) return false;
+  return ADMIN_EMAILS.some(e => e.toLowerCase() === email.trim().toLowerCase());
+};
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -49,13 +58,15 @@ export function useAuth() {
         console.warn("Profile missing for user, creating fallback profile...");
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         if (currentUser) {
+          const isCurrentAdmin = isEmailAdmin(currentUser.email);
           const { data: newProfile, error: insertError } = await supabase
             .from('profiles')
             .upsert({
               id: userId,
               email: currentUser.email,
-              role: 'user',
-              subscription_status: 'free',
+              role: isCurrentAdmin ? 'admin' : 'user',
+              subscription_status: isCurrentAdmin ? 'active' : 'free',
+              trial_started_at: null,
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Lagos'
             })
             .select()
@@ -69,8 +80,31 @@ export function useAuth() {
         }
       }
 
-      // Initialize trial if not started
-      if (!userProfile.trial_started_at && userProfile.subscription_status === 'free') {
+      // Check if user has admin privileges
+      const isUserAdmin = userProfile.role === 'admin' || 
+                          userProfile.role === 'sub-admin' || 
+                          isEmailAdmin(userProfile.email);
+
+      if (isUserAdmin) {
+        // Admins permanently have active subscription status and never expire
+        userProfile.role = userProfile.role === 'sub-admin' ? 'sub-admin' : 'admin';
+        userProfile.subscription_status = 'active';
+        userProfile.trial_started_at = null;
+
+        // Sync to Supabase if the existing DB record was free, user role, or had trial_started_at
+        if (data && (data.role !== userProfile.role || data.subscription_status !== 'active' || data.trial_started_at !== null)) {
+          supabase
+            .from('profiles')
+            .update({
+              role: userProfile.role,
+              subscription_status: 'active',
+              trial_started_at: null
+            })
+            .eq('id', userId)
+            .then();
+        }
+      } else if (!userProfile.trial_started_at && userProfile.subscription_status === 'free') {
+        // Initialize trial if not started (Regular users only)
         console.log("Initializing demo trial for user...");
         
         // Fetch default duration from settings
@@ -281,8 +315,11 @@ export function useAuth() {
     });
   };
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'sub-admin';
-  const isPaid = profile?.subscription_status === 'active';
+  const isAdmin = profile?.role === 'admin' || 
+                  profile?.role === 'sub-admin' || 
+                  isEmailAdmin(profile?.email) || 
+                  isEmailAdmin(user?.email);
+  const isPaid = profile?.subscription_status === 'active' || isAdmin;
 
   return { 
     user, 
