@@ -304,6 +304,7 @@ export function TradingPanel({
     setLocalStakeO(newBaseStake.toString());
     setLocalStakeP(newBaseStake.toString());
     setLocalStakeR(newBaseStake.toString());
+    setLocalStakeS(newBaseStake.toString());
     setLocalAllowableLoss(newAllowLoss.toString());
     setLocalTargetProfit(newTargetProfit.toString());
 
@@ -737,52 +738,48 @@ export function TradingPanel({
         </p>
       </div>
 
-      {/* Admin Strategy Switcher (IP Protected, Admin Only) */}
-      {isAdmin && (
-        <div className="space-y-1.5 bg-primary/5 p-3 rounded-md border border-primary/20">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] uppercase tracking-wider text-primary font-bold flex items-center gap-1">
-              <Layers className="w-3 h-3" /> System Strategy (Admin Switcher)
-            </label>
-            <Badge variant="outline" className="text-[8px] border-primary/40 text-primary px-1 font-mono">ADMIN ONLY</Badge>
-          </div>
-          <Select
-            value={config.strategy}
-            disabled={config.enabled}
-            onValueChange={(value) =>
-              onConfigChange({
-                ...config,
-                strategy: value as AutoTraderConfig["strategy"],
-              })
-            }
-          >
-            <SelectTrigger className="bg-muted border-border font-mono text-xs h-8">
-              <SelectValue placeholder="Select active strategy" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="strategy_s">Strategy S (Graduated Over/Under Ladder)</SelectItem>
-              <SelectItem value="strategy_r">Strategy R (Special Markup Recovery)</SelectItem>
-              <SelectItem value="strategy_p">Strategy P</SelectItem>
-              <SelectItem value="strategy_o">Strategy O</SelectItem>
-              <SelectItem value="strategy_n">Strategy N</SelectItem>
-              <SelectItem value="strategy_m">Strategy M</SelectItem>
-              <SelectItem value="strategy_l">Strategy L</SelectItem>
-              <SelectItem value="strategy_k">Strategy K</SelectItem>
-              <SelectItem value="strategy_j">Strategy J</SelectItem>
-              <SelectItem value="strategy_i">Strategy I</SelectItem>
-              <SelectItem value="strategy_h">Strategy H</SelectItem>
-              <SelectItem value="strategy_a">Strategy A</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-[8px] text-muted-foreground">
-            Clients always run the configured strategy in background without UI distraction.
-          </p>
+      {/* Trading Strategy Selection */}
+      <div className="space-y-1.5 bg-primary/5 p-3 rounded-md border border-primary/20">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] uppercase tracking-wider text-primary font-bold flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5 text-primary" /> Trading Strategy
+          </label>
+          <Badge variant="outline" className="text-[8px] border-primary/40 text-primary px-1.5 font-mono">
+            {isAdmin ? "ADMIN / ACTIVE" : "ACTIVE"}
+          </Badge>
         </div>
-      )}
-
-      {/* Trading Strategy Selection — hidden from client UI to protect intellectual property */}
-
-      {/* Strategy R Stickiness Toggle — hidden from client UI */}
+        <Select
+          value={config.strategy}
+          disabled={config.enabled}
+          onValueChange={(value) =>
+            onConfigChange({
+              ...config,
+              strategy: value as AutoTraderConfig["strategy"],
+            })
+          }
+        >
+          <SelectTrigger className="bg-muted border-border font-mono text-xs h-8">
+            <SelectValue placeholder="Select active strategy" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="strategy_s">Strategy S (Graduated Over/Under Ladder)</SelectItem>
+            <SelectItem value="strategy_r">Strategy R (Special Markup Recovery)</SelectItem>
+            <SelectItem value="strategy_p">Strategy P</SelectItem>
+            <SelectItem value="strategy_o">Strategy O</SelectItem>
+            <SelectItem value="strategy_n">Strategy N</SelectItem>
+            <SelectItem value="strategy_m">Strategy M</SelectItem>
+            <SelectItem value="strategy_l">Strategy L</SelectItem>
+            <SelectItem value="strategy_k">Strategy K</SelectItem>
+            <SelectItem value="strategy_j">Strategy J</SelectItem>
+            <SelectItem value="strategy_i">Strategy I</SelectItem>
+            <SelectItem value="strategy_h">Strategy H</SelectItem>
+            <SelectItem value="strategy_a">Strategy A</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[8px] text-muted-foreground">
+          Choose trading strategy. Setting locks while AI-Automation loop is running.
+        </p>
+      </div>
 
       {/* Strategy A/B/C/D Visualizer Panel */}
       {(effectiveStrategy === "strategy_a" || effectiveStrategy === "strategy_b" || effectiveStrategy === "strategy_c" || effectiveStrategy === "strategy_d" || effectiveStrategy === "strategy_e" || effectiveStrategy === "strategy_f" || effectiveStrategy === "strategy_g" || effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") && (
