@@ -762,7 +762,7 @@ export function TradingPanel({
             <SelectValue placeholder="Select active strategy" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="strategy_s">Strategy S (Graduated Over/Under Ladder)</SelectItem>
+            <SelectItem value="strategy_s">Strategy S (Graduated Over/Under Ladder) (Default)</SelectItem>
             <SelectItem value="strategy_r">Strategy R (Special Markup Recovery)</SelectItem>
             <SelectItem value="strategy_p">Strategy P</SelectItem>
             <SelectItem value="strategy_o">Strategy O</SelectItem>

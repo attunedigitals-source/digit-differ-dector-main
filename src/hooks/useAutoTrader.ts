@@ -371,21 +371,35 @@ export function useAutoTrader(
   const [dailyStats, setDailyStats] = useState({ total_trades: 0, wins: 0 });
   const [ticksToWait, setTicksToWait] = useState(0);
   const [config, setConfig] = useState<AutoTraderConfig>(() => {
+    const defaultApplied = localStorage.getItem('strategy_s_default_applied');
     const saved = localStorage.getItem('autoTraderConfig');
     if (saved) {
       try {
-        return sanitizeConfig(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (!defaultApplied) {
+          parsed.strategy = "strategy_s";
+          localStorage.setItem('strategy_s_default_applied', 'true');
+          const sanitized = sanitizeConfig(parsed);
+          localStorage.setItem('autoTraderConfig', JSON.stringify(sanitized));
+          return sanitized;
+        }
+        return sanitizeConfig(parsed);
       } catch (e) {
         console.error("Error loading config from localStorage", e);
       }
     }
-    return sanitizeConfig({
+    if (!defaultApplied) {
+      localStorage.setItem('strategy_s_default_applied', 'true');
+    }
+    const defaultConfig = sanitizeConfig({
       enabled: false,
       baseStake: 0.35,
       maxMartingaleSteps: 12,
       cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
       strategy: "strategy_s",
     });
+    localStorage.setItem('autoTraderConfig', JSON.stringify(defaultConfig));
+    return defaultConfig;
   });
 
   const [sessionState, setSessionState] = useState(() => {
@@ -3701,13 +3715,19 @@ export function useAutoTrader(
         return;
       }
 
+      const defaultAppliedCloud = localStorage.getItem('strategy_s_default_applied_cloud');
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
-        const merged = { ...config, ...data.config };
+        let cloudConfig = data.config;
+        if (!defaultAppliedCloud && (cloudConfig.strategy === 'strategy_r' || cloudConfig.strategy === 'strategy_a' || !cloudConfig.strategy)) {
+          cloudConfig = { ...cloudConfig, strategy: 'strategy_s' };
+          localStorage.setItem('strategy_s_default_applied_cloud', 'true');
+        }
+        const merged = { ...config, ...cloudConfig };
         const sanitized = sanitizeConfig(merged);
         
         // If we sanitized it (changed something), save it back to ensure DB is clean
-        if (sanitized.baseStake !== merged.baseStake || sanitized.maxMartingaleSteps !== merged.maxMartingaleSteps) {
+        if (sanitized.baseStake !== merged.baseStake || sanitized.maxMartingaleSteps !== merged.maxMartingaleSteps || sanitized.strategy !== data.config.strategy) {
           console.log("[AutoTrader] Sanitized legacy config:", sanitized);
           // Don't wait for this
           supabase.from('user_configs').upsert({ user_id: user.id, config: sanitized });
