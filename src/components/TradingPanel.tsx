@@ -1666,12 +1666,12 @@ export function TradingPanel({
             <span className="text-[9px] text-muted-foreground uppercase tracking-wider block">Contract Candidates Pool (Current Step):</span>
             <div className={`grid ${config.strategy === "strategy_s" ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-3"} gap-2 py-1`}>
               {(config.strategy === "strategy_s" ? [
-                { code: "O1/U8", label: "Base (0.23)", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40", active: sessionState.martingaleStep === 0 || sessionState.status === "WIN" || sessionState.status === "IDLE" },
-                { code: "O1/U8", label: "Rec 1 (0.23)", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40", active: sessionState.martingaleStep === 1 && sessionState.status === "LOSS" },
-                { code: "O2/U7", label: "Rec 2 (0.40)", textClass: "text-cyan-400", bgClass: "bg-cyan-950/20", borderClass: "border-cyan-950/40", active: sessionState.martingaleStep === 2 && sessionState.status === "LOSS" },
-                { code: "O3/U6", label: "Rec 3 (0.63)", textClass: "text-amber-400", bgClass: "bg-amber-950/20", borderClass: "border-amber-950/40", active: sessionState.martingaleStep === 3 && sessionState.status === "LOSS" },
-                { code: "O4/U5", label: "Rec 4 (0.95)", textClass: "text-orange-400", bgClass: "bg-orange-950/20", borderClass: "border-orange-950/40", active: sessionState.martingaleStep === 4 && sessionState.status === "LOSS" },
-                { code: "E/O / P/C", label: "Rec 5+ (0.90)", textClass: "text-purple-400", bgClass: "bg-purple-950/20", borderClass: "border-purple-950/40", active: sessionState.martingaleStep >= 5 && sessionState.status === "LOSS" },
+                { code: "O1/U8", label: "Base (0.20)", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40", active: sessionState.martingaleStep === 0 || sessionState.status === "WIN" || sessionState.status === "IDLE" },
+                { code: "O1/U8", label: "Rec 1 (0.20)", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40", active: sessionState.martingaleStep === 1 && sessionState.status === "LOSS" },
+                { code: "O2/U7", label: "Rec 2 (0.36)", textClass: "text-cyan-400", bgClass: "bg-cyan-950/20", borderClass: "border-cyan-950/40", active: sessionState.martingaleStep === 2 && sessionState.status === "LOSS" },
+                { code: "O3/U6", label: "Rec 3 (0.55)", textClass: "text-amber-400", bgClass: "bg-amber-950/20", borderClass: "border-amber-950/40", active: sessionState.martingaleStep === 3 && sessionState.status === "LOSS" },
+                { code: "O4/U5", label: "Rec 4 (0.85)", textClass: "text-orange-400", bgClass: "bg-orange-950/20", borderClass: "border-orange-950/40", active: sessionState.martingaleStep === 4 && sessionState.status === "LOSS" },
+                { code: "E/O / P/C", label: "Rec 5+ (0.85)", textClass: "text-purple-400", bgClass: "bg-purple-950/20", borderClass: "border-purple-950/40", active: sessionState.martingaleStep >= 5 && sessionState.status === "LOSS" },
               ] : [
                 { code: "O1/U8", label: "Over 1/Under 8 (Step 0)", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40", active: sessionState.martingaleStep === 0 || sessionState.status === "WIN" || sessionState.status === "IDLE" },
                 { code: "O5/U4/SP", label: "Special Markup (Step 1)", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40", active: sessionState.martingaleStep === 1 && sessionState.status === "LOSS" },
@@ -2244,8 +2244,22 @@ export function TradingPanel({
                 </div>
                 <div className="flex items-center gap-2 text-right">
                   <div className="flex flex-col">
-                    <span className="font-bold">${trade.stake.toFixed(2)}</span>
-                    <span className="text-[8px] opacity-70">Step {trade.martingale_step}</span>
+                    <span className={`font-bold ${
+                      trade.status === "WIN" 
+                        ? "text-emerald-400" 
+                        : trade.status === "LOSS" 
+                        ? "text-rose-400" 
+                        : ""
+                    }`}>
+                      {trade.status === "WIN"
+                        ? `+$${(trade.profit !== undefined && trade.profit !== null && trade.profit > 0 ? trade.profit : trade.stake).toFixed(2)}`
+                        : trade.status === "LOSS"
+                        ? `-$${trade.stake.toFixed(2)}`
+                        : `$${trade.stake.toFixed(2)}`}
+                    </span>
+                    <span className="text-[8px] opacity-70">
+                      Stake: ${trade.stake.toFixed(2)} • Step {trade.martingale_step}
+                    </span>
                   </div>
                   <Badge variant={trade.status === "WIN" ? "default" : trade.status === "LOSS" ? "destructive" : "secondary"} className="text-[8px] px-1 h-4">
                     {trade.status}

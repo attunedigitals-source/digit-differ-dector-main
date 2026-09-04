@@ -37,15 +37,16 @@ Strategy S is an advanced evolution of Strategy R featuring a graduated Over/Und
    - Win Reset & Halving: On consecutive base wins, the stake is halved each win down to a floor limit of `1/4 * baseStake` (or minimum `$0.35`). Once the floor is hit, the stake resets back to `baseStake`.
 
 2. **Graduated Recovery Ladder (Steps 1 to 5+)**:
-   - **Step 1 (1st Recovery)**: **OVER 1 / UNDER 8** (Interest Rate Divisor: `0.23`).
-   - **Step 2 (2nd Recovery)**: **OVER 2 / UNDER 7** (Interest Rate Divisor: `0.40`).
-   - **Step 3 (3rd Recovery)**: **OVER 3 / UNDER 6** (Interest Rate Divisor: `0.63`).
-   - **Step 4 (4th Recovery)**: **OVER 4 / UNDER 5** (Interest Rate Divisor: `0.95`).
-   - **Step 5+ (5th Recovery and above)**: **PUTE/CALLE** (`rise` / `fall`) or **EVEN/ODD** (`even` / `odd`) (Interest Rate Divisor: `0.90`) using the multi-candidate statistical trend-momentum and parity scanners from Strategy R.
+   - **Step 1 (1st Recovery)**: **OVER 1 / UNDER 8** (Calibrated Divisor: `0.20`, Deriv net return ~20-23%).
+   - **Step 2 (2nd Recovery)**: **OVER 2 / UNDER 7** (Calibrated Divisor: `0.36`, Deriv net return ~36-40%).
+   - **Step 3 (3rd Recovery)**: **OVER 3 / UNDER 6** (Calibrated Divisor: `0.55`, Deriv net return ~55-60%).
+   - **Step 4 (4th Recovery)**: **OVER 4 / UNDER 5** (Calibrated Divisor: `0.85`, Deriv net return ~85-92%).
+   - **Step 5+ (5th Recovery and above)**: **PUTE/CALLE** (`rise` / `fall`) or **EVEN/ODD** (`even` / `odd`) (Calibrated Divisor: `0.85`, Deriv net return ~85-92%) using the multi-candidate statistical trend-momentum and parity scanners from Strategy R.
 
 3. **Loss-Recovery Staking Formula**:
-   Every recovery trade is sized so that a winning trade completely recoups all cumulative sequence losses plus guarantees a target profit equal to the base profit of the sequence:
-   $$\text{Stake} = \frac{\text{Accumulated Sequence Loss} + (0.23 \times \text{Sequence Base Stake})}{\text{Tier Interest Divisor}}$$
+   Every recovery trade is sized so that a winning trade completely recoups all cumulative sequence losses plus guarantees a target profit equal to the base profit of the sequence, calibrated to account for broker house edge:
+   $$\text{Stake} = \frac{\text{Accumulated Sequence Loss} + (0.23 \times \text{Sequence Base Stake})}{\text{Calibrated Tier Divisor}}$$
+   - Using calibrated divisors (`0.20, 0.36, 0.55, 0.85, 0.85`) ensures that even with broker house margin, every win generates more net profit than the accumulated losses, ensuring a positive net balance.
    - If calculated stake is below `$0.35`, the minimum `$0.35` stake is applied.
    - On a recovery **Win**: All sequence losses are eliminated, target profit is secured, and the system resets immediately to base stake.
 

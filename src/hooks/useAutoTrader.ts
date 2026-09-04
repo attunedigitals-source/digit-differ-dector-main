@@ -2303,33 +2303,34 @@ export function useAutoTrader(
               if (nextStake < 0.35) nextStake = 0.35;
             }
           } else if (activeStrategy === "strategy_s") {
-            // Strategy S Graduated Staking Logic based on table interest rates:
-            // Step 1: OVER1/UNDER8 -> interest 0.23
-            // Step 2: OVER2/UNDER7 -> interest 0.40
-            // Step 3: OVER3/UNDER6 -> interest 0.63
-            // Step 4: OVER4/UNDER5 -> interest 0.95
-            // Step 5+: EVEN/ODD or PUTE/CALLE -> interest 0.90
+            // Strategy S Graduated Staking Logic based on Deriv's actual net market returns:
+            // Accounting for broker house margin so every recovery win fully recoups cumulative losses + profit.
+            // Step 1: OVER1/UNDER8 -> Deriv net return ~20-23% -> calibrated divisor 0.20
+            // Step 2: OVER2/UNDER7 -> Deriv net return ~36-40% -> calibrated divisor 0.36
+            // Step 3: OVER3/UNDER6 -> Deriv net return ~55-60% -> calibrated divisor 0.55
+            // Step 4: OVER4/UNDER5 -> Deriv net return ~85-92% -> calibrated divisor 0.85
+            // Step 5+: EVEN/ODD or PUTE/CALLE -> Deriv net return ~85-92% -> calibrated divisor 0.85
             const seqBase = nextSSeqBase ?? baseStakeToUse;
             const accum = nextSAccumLoss ?? seqBase;
 
-            let divisor = 0.90;
+            let divisor = 0.85;
             if (nextStep === 1 || trade === "over1" || trade === "under8") {
-              divisor = 0.23;
+              divisor = 0.20;
             } else if (nextStep === 2 || trade === "over2" || trade === "under7") {
-              divisor = 0.40;
+              divisor = 0.36;
             } else if (nextStep === 3 || trade === "over3" || trade === "under6") {
-              divisor = 0.63;
+              divisor = 0.55;
             } else if (nextStep === 4 || trade === "over4" || trade === "under5") {
-              divisor = 0.95;
+              divisor = 0.85;
             } else {
-              divisor = 0.90;
+              divisor = 0.85;
             }
 
             const targetProfit = 0.23 * seqBase;
             const calculatedStake = (accum + targetProfit) / divisor;
             nextStake = Number(calculatedStake.toFixed(2));
             if (nextStake < 0.35) nextStake = 0.35;
-            console.log(`[Strategy S Staking] Step ${nextStep}, Contract [${trade}], Divisor/Interest: ${divisor}, Target Profit: ${targetProfit.toFixed(2)}, Accum Loss: ${accum.toFixed(2)} -> Calculated Stake: ${nextStake}`);
+            console.log(`[Strategy S Staking] Step ${nextStep}, Contract [${trade}], Calibrated Divisor: ${divisor}, Target Profit: $${targetProfit.toFixed(2)}, Accum Loss: $${accum.toFixed(2)} -> Stake: $${nextStake}`);
           } else {
             // Strategy R Staking Logic
             if (nextStep === 1) {
@@ -2548,6 +2549,14 @@ export function useAutoTrader(
             if (!error && data) {
               const entry = pendingProposals.current.get(String(reqId));
               if (entry) entry.supabaseId = data.id;
+              // Also sync with openContracts if already purchased
+              for (const [cId, openC] of openContracts.current.entries()) {
+                if (!openC.supabaseId && openC.symbol === symbol && Math.abs(openC.stake - nextStake) < 0.01) {
+                  openC.supabaseId = data.id;
+                  supabase.from("trades").update({ contract_id: cId }).eq("id", data.id).then();
+                  break;
+                }
+              }
             }
           }
         } catch (err) {
