@@ -131,9 +131,9 @@ export default function AdminDashboard() {
         console.warn("Could not sync to system_settings DB table:", error);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
-      toast.success("Strategy R debug scanner interface preference updated");
+      toast.success(`Trading Strategy & Scanner interface preference set to ${variables ? 'ON (VISIBLE)' : 'OFF (HIDDEN)'} globally`);
     },
     onError: (err: any) => {
       toast.error(`Failed to update settings: ${err.message}`);
@@ -279,9 +279,9 @@ export default function AdminDashboard() {
 
             <div className="flex items-center justify-between p-4 bg-background/50 rounded-xl border border-border/50">
               <div className="space-y-0.5">
-                <Label htmlFor="strategy-r-debug" className="text-base font-bold">Strategy R & S Scanner & Candidates Interface</Label>
+                <Label htmlFor="strategy-r-debug" className="text-base font-bold">Strategy R & S Scanner & Trading Strategy Interface</Label>
                 <p className="text-sm text-muted-foreground">
-                  IP Protection Switch: When disabled (default), the Strategy R & S 0/1 volatility match monitors and graduated recovery candidate scanners are hidden on trading accounts. When enabled, it is visible for troubleshooting.
+                  Master Global Switch: When disabled, the Trading Strategy selection block and internal Strategy R & S scanner/candidate interfaces are hidden globally for all clients. When enabled, they are visible globally.
                 </p>
               </div>
               <Switch 

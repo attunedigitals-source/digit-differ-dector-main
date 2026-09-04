@@ -738,51 +738,53 @@ export function TradingPanel({
         </p>
       </div>
 
-      {/* Trading Strategy Selection */}
-      <div className="space-y-1.5 bg-primary/5 p-3 rounded-md border border-primary/20">
-        <div className="flex items-center justify-between">
-          <label className="text-[10px] uppercase tracking-wider text-primary font-bold flex items-center gap-1">
-            <Layers className="w-3.5 h-3.5 text-primary" /> Trading Strategy
-          </label>
-          <Badge variant="outline" className="text-[8px] border-primary/40 text-primary px-1.5 font-mono">
-            {isAdmin ? "ADMIN / ACTIVE" : "ACTIVE"}
-          </Badge>
+      {/* Trading Strategy Selection — controlled globally by Admin Master Switch */}
+      {showStrategyRDebug && (
+        <div className="space-y-1.5 bg-primary/5 p-3 rounded-md border border-primary/20">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] uppercase tracking-wider text-primary font-bold flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-primary" /> Trading Strategy
+            </label>
+            <Badge variant="outline" className="text-[8px] border-primary/40 text-primary px-1.5 font-mono">
+              {isAdmin ? "ADMIN / ACTIVE" : "ACTIVE"}
+            </Badge>
+          </div>
+          <Select
+            value={config.strategy}
+            disabled={config.enabled}
+            onValueChange={(value) =>
+              onConfigChange({
+                ...config,
+                strategy: value as AutoTraderConfig["strategy"],
+              })
+            }
+          >
+            <SelectTrigger className="bg-muted border-border font-mono text-xs h-8">
+              <SelectValue placeholder="Select active strategy" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="strategy_s">Strategy S (Graduated Over/Under Ladder) (Default)</SelectItem>
+              <SelectItem value="strategy_r">Strategy R (Special Markup Recovery)</SelectItem>
+              <SelectItem value="strategy_p">Strategy P</SelectItem>
+              <SelectItem value="strategy_o">Strategy O</SelectItem>
+              <SelectItem value="strategy_n">Strategy N</SelectItem>
+              <SelectItem value="strategy_m">Strategy M</SelectItem>
+              <SelectItem value="strategy_l">Strategy L</SelectItem>
+              <SelectItem value="strategy_k">Strategy K</SelectItem>
+              <SelectItem value="strategy_j">Strategy J</SelectItem>
+              <SelectItem value="strategy_i">Strategy I</SelectItem>
+              <SelectItem value="strategy_h">Strategy H</SelectItem>
+              <SelectItem value="strategy_a">Strategy A</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[8px] text-muted-foreground">
+            Choose trading strategy. Setting locks while AI-Automation loop is running.
+          </p>
         </div>
-        <Select
-          value={config.strategy}
-          disabled={config.enabled}
-          onValueChange={(value) =>
-            onConfigChange({
-              ...config,
-              strategy: value as AutoTraderConfig["strategy"],
-            })
-          }
-        >
-          <SelectTrigger className="bg-muted border-border font-mono text-xs h-8">
-            <SelectValue placeholder="Select active strategy" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="strategy_s">Strategy S (Graduated Over/Under Ladder) (Default)</SelectItem>
-            <SelectItem value="strategy_r">Strategy R (Special Markup Recovery)</SelectItem>
-            <SelectItem value="strategy_p">Strategy P</SelectItem>
-            <SelectItem value="strategy_o">Strategy O</SelectItem>
-            <SelectItem value="strategy_n">Strategy N</SelectItem>
-            <SelectItem value="strategy_m">Strategy M</SelectItem>
-            <SelectItem value="strategy_l">Strategy L</SelectItem>
-            <SelectItem value="strategy_k">Strategy K</SelectItem>
-            <SelectItem value="strategy_j">Strategy J</SelectItem>
-            <SelectItem value="strategy_i">Strategy I</SelectItem>
-            <SelectItem value="strategy_h">Strategy H</SelectItem>
-            <SelectItem value="strategy_a">Strategy A</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-[8px] text-muted-foreground">
-          Choose trading strategy. Setting locks while AI-Automation loop is running.
-        </p>
-      </div>
+      )}
 
       {/* Strategy A/B/C/D Visualizer Panel */}
-      {(effectiveStrategy === "strategy_a" || effectiveStrategy === "strategy_b" || effectiveStrategy === "strategy_c" || effectiveStrategy === "strategy_d" || effectiveStrategy === "strategy_e" || effectiveStrategy === "strategy_f" || effectiveStrategy === "strategy_g" || effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") && (
+      {showStrategyRDebug && (effectiveStrategy === "strategy_a" || effectiveStrategy === "strategy_b" || effectiveStrategy === "strategy_c" || effectiveStrategy === "strategy_d" || effectiveStrategy === "strategy_e" || effectiveStrategy === "strategy_f" || effectiveStrategy === "strategy_g" || effectiveStrategy === "strategy_k" || effectiveStrategy === "strategy_m") && (
         <div className="bg-gradient-to-br from-primary/10 via-card to-background border border-primary/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
           
@@ -1586,15 +1588,15 @@ export function TradingPanel({
       )}
 
       {/* Admin Debug Toggle for Strategy R & Strategy S (IP Protection) */}
-      {isAdmin && (config.strategy === "strategy_r" || config.strategy === "strategy_s") && (
+      {isAdmin && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="flex flex-col">
               <span className="font-bold text-amber-300 text-[11px]">
-                Admin Control: {config.strategy === "strategy_s" ? "Strategy S" : "Strategy R"} Scanner Interface
+                Admin Control: Trading Strategy & Scanner Interface
               </span>
-              <span className="text-muted-foreground text-[9px]">Toggle internal scanner & candidates UI for troubleshooting/updates</span>
+              <span className="text-muted-foreground text-[9px]">Toggle Trading Strategy block and scanner UI globally for all clients</span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1603,7 +1605,7 @@ export function TradingPanel({
                 ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" 
                 : "border-amber-500/40 text-amber-400 bg-amber-500/10"
             }`}>
-              {showStrategyRDebug ? "VISIBLE" : "HIDDEN (DEFAULT)"}
+              {showStrategyRDebug ? "VISIBLE GLOBALLY" : "HIDDEN GLOBALLY"}
             </span>
             <Switch
               checked={showStrategyRDebug}
