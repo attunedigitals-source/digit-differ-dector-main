@@ -28,7 +28,31 @@ For Strategy R, base trades use Over 1 / Under 8 contracts. During Martingale re
    - **Criteria B & C**: Evaluates digit percentages P1, P2 (>=10.5%) and P3 (<=10.0%).
    - **Criterion D**: If only one volatility meets Criteria A-C, trade is executed on that volatility in the direction of the criterion.
    - **Criterion E**: If more than one volatility meets Criteria A-C, the volatility with the highest average top percentage `((1st Top % + 2nd Top %)/2)` is selected and traded in its direction.
-4. **State Persistence & Independent Decision**: The bot holds the chosen recovery pair (`strategyRRecoveryPair`) while waiting for execution without flipping between pairs. If a recovery trade loses, the bot re-evaluates the 50/50 pair choice independently for the next recovery step.
+### Strategy S (Graduated Over/Under Recovery Ladder)
+Strategy S is an advanced evolution of Strategy R featuring a graduated Over/Under recovery ladder where probability of win and payout interest rates transition progressively across recovery tiers before utilizing high-edge statistical recovery at tier 5+:
+
+1. **Base Trade (Step 0)**:
+   - Contract: **OVER 1** (Barrier 1) or **UNDER 8** (Barrier 8).
+   - Volatility Selection: Scans all 10 Volatilities (1HZ10V - 100V, R_10 - 100) for last digits equal to **0 or 1**.
+   - Win Reset & Halving: On consecutive base wins, the stake is halved each win down to a floor limit of `1/4 * baseStake` (or minimum `$0.35`). Once the floor is hit, the stake resets back to `baseStake`.
+
+2. **Graduated Recovery Ladder (Steps 1 to 5+)**:
+   - **Step 1 (1st Recovery)**: **OVER 1 / UNDER 8** (Interest Rate Divisor: `0.23`).
+   - **Step 2 (2nd Recovery)**: **OVER 2 / UNDER 7** (Interest Rate Divisor: `0.40`).
+   - **Step 3 (3rd Recovery)**: **OVER 3 / UNDER 6** (Interest Rate Divisor: `0.63`).
+   - **Step 4 (4th Recovery)**: **OVER 4 / UNDER 5** (Interest Rate Divisor: `0.95`).
+   - **Step 5+ (5th Recovery and above)**: **PUTE/CALLE** (`rise` / `fall`) or **EVEN/ODD** (`even` / `odd`) (Interest Rate Divisor: `0.90`) using the multi-candidate statistical trend-momentum and parity scanners from Strategy R.
+
+3. **Loss-Recovery Staking Formula**:
+   Every recovery trade is sized so that a winning trade completely recoups all cumulative sequence losses plus guarantees a target profit equal to the base profit of the sequence:
+   $$\text{Stake} = \frac{\text{Accumulated Sequence Loss} + (0.23 \times \text{Sequence Base Stake})}{\text{Tier Interest Divisor}}$$
+   - If calculated stake is below `$0.35`, the minimum `$0.35` stake is applied.
+   - On a recovery **Win**: All sequence losses are eliminated, target profit is secured, and the system resets immediately to base stake.
+
+4. **Dynamic Cooldown Pacing**:
+   Shares the scaled loss delay with Strategy R:
+   - Initial / After Win: 5 to 8 ticks.
+   - Per consecutive loss: `(5 + 5 * N)` to `(8 + 5 * N)` ticks.
 
 ---
 

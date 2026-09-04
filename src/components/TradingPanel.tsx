@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet, ShieldAlert, AlertTriangle, Layers } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking, type ConnectionQuarantine } from "@/hooks/useAutoTrader";
 import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
@@ -70,6 +70,11 @@ interface TradingPanelProps {
     strategyQLastSub?: "strategy_a" | "strategy_b" | "strategy_c" | "strategy_d";
     strategyRSequenceBaseStake?: number;
     strategyRAccumulatedLoss?: number;
+    strategySMode?: "win_sticky" | "none_sticky" | "loss_sticky";
+    strategySModeCount?: number;
+    strategySSequenceBaseStake?: number;
+    strategySAccumulatedLoss?: number;
+    strategySConsecutiveLosses?: number;
   };
   ticksToWait: number;
   tradeLog: TradeRecord[];
@@ -112,6 +117,7 @@ export function TradingPanel({
   const [localStakeO, setLocalStakeO] = useState((config.strategyOBaseStake ?? config.baseStake).toString());
   const [localStakeP, setLocalStakeP] = useState((config.strategyPBaseStake ?? config.baseStake).toString());
   const [localStakeR, setLocalStakeR] = useState((config.strategyRBaseStake ?? config.baseStake).toString());
+  const [localStakeS, setLocalStakeS] = useState((config.strategySBaseStake ?? config.baseStake).toString());
   const [localSteps, setLocalSteps] = useState(config.maxMartingaleSteps.toString());
   const [localInitBalance, setLocalInitBalance] = useState(config.initialBalance?.toString() || "");
   const [localAllowableLoss, setLocalAllowableLoss] = useState(config.allowableLoss?.toString() || "");
@@ -223,6 +229,10 @@ export function TradingPanel({
   }, [config.strategyRBaseStake, config.baseStake]);
 
   useEffect(() => {
+    setLocalStakeS((config.strategySBaseStake ?? config.baseStake).toString());
+  }, [config.strategySBaseStake, config.baseStake]);
+
+  useEffect(() => {
     setLocalSteps(config.maxMartingaleSteps.toString());
   }, [config.maxMartingaleSteps]);
 
@@ -304,6 +314,7 @@ export function TradingPanel({
       strategyOBaseStake: newBaseStake,
       strategyPBaseStake: newBaseStake,
       strategyRBaseStake: newBaseStake,
+      strategySBaseStake: newBaseStake,
       allowableLoss: newAllowLoss,
       targetProfit: newTargetProfit,
     });
@@ -345,6 +356,11 @@ export function TradingPanel({
     onConfigChange({ ...config, strategyRBaseStake: isNaN(val) ? 0.35 : val });
   };
 
+  const handleStakeSBlur = () => {
+    const val = parseFloat(localStakeS);
+    onConfigChange({ ...config, strategySBaseStake: isNaN(val) ? 0.35 : val });
+  };
+
   const handleStepsBlur = () => {
     const val = parseInt(localSteps);
     onConfigChange({ ...config, maxMartingaleSteps: isNaN(val) ? 12 : val });
@@ -359,11 +375,13 @@ export function TradingPanel({
   const stakeOVal = parseFloat(localStakeO);
   const stakePVal = parseFloat(localStakeP);
   const stakeRVal = parseFloat(localStakeR);
+  const stakeSVal = parseFloat(localStakeS);
   const isStakeLValid = !isNaN(stakeLVal) && stakeLVal >= 0.35;
   const isStakeMValid = !isNaN(stakeMVal) && stakeMVal >= 0.35;
   const isStakeOValid = !isNaN(stakeOVal) && stakeOVal >= 0.35;
   const isStakePValid = !isNaN(stakePVal) && stakePVal >= 0.35;
   const isStakeRValid = !isNaN(stakeRVal) && stakeRVal >= 0.35;
+  const isStakeSValid = !isNaN(stakeSVal) && stakeSVal >= 0.35;
 
   const isTrialExpired = (() => {
     if (!profile || profile.subscription_status !== 'free' || !profile.trial_started_at) return false;
@@ -377,6 +395,7 @@ export function TradingPanel({
                    (config.strategy !== "strategy_o" || isStakeOValid) &&
                    (config.strategy !== "strategy_p" || isStakePValid) &&
                    (config.strategy !== "strategy_r" || isStakeRValid) &&
+                   (config.strategy !== "strategy_s" || isStakeSValid) &&
                    !isTrialExpired;
   const formatCooldown = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -626,18 +645,18 @@ export function TradingPanel({
               min={0.35}
               step={0.1}
               disabled={config.enabled || autoGenMode}
-              value={config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))}
-              onChange={(e) => config.strategy === "strategy_o" ? setLocalStakeO(e.target.value) : (config.strategy === "strategy_p" ? setLocalStakeP(e.target.value) : (config.strategy === "strategy_r" ? setLocalStakeR(e.target.value) : setLocalStake(e.target.value)))}
-              onBlur={config.strategy === "strategy_o" ? handleStakeOBlur : (config.strategy === "strategy_p" ? handleStakePBlur : (config.strategy === "strategy_r" ? handleStakeRBlur : handleStakeBlur))}
+              value={config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : (config.strategy === "strategy_s" ? localStakeS : localStake)))}
+              onChange={(e) => config.strategy === "strategy_o" ? setLocalStakeO(e.target.value) : (config.strategy === "strategy_p" ? setLocalStakeP(e.target.value) : (config.strategy === "strategy_r" ? setLocalStakeR(e.target.value) : (config.strategy === "strategy_s" ? setLocalStakeS(e.target.value) : setLocalStake(e.target.value))))}
+              onBlur={config.strategy === "strategy_o" ? handleStakeOBlur : (config.strategy === "strategy_p" ? handleStakePBlur : (config.strategy === "strategy_r" ? handleStakeRBlur : (config.strategy === "strategy_s" ? handleStakeSBlur : handleStakeBlur)))}
               className={`bg-muted border-border font-mono text-sm h-8 ${
-                !(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
-                (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" 
+                !(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : (config.strategy === "strategy_s" ? isStakeSValid : isStakeValid)))) && 
+                (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : (config.strategy === "strategy_s" ? localStakeS : localStake)))) !== "" 
                   ? "border-destructive text-destructive" 
                   : ""
               } ${autoGenMode ? "opacity-70 cursor-not-allowed" : ""}`}
             />
-            {!(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : isStakeValid))) && 
-             (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : localStake))) !== "" && (
+            {!(config.strategy === "strategy_o" ? isStakeOValid : (config.strategy === "strategy_p" ? isStakePValid : (config.strategy === "strategy_r" ? isStakeRValid : (config.strategy === "strategy_s" ? isStakeSValid : isStakeValid)))) && 
+             (config.strategy === "strategy_o" ? localStakeO : (config.strategy === "strategy_p" ? localStakeP : (config.strategy === "strategy_r" ? localStakeR : (config.strategy === "strategy_s" ? localStakeS : localStake)))) !== "" && (
               <p className="text-[9px] text-destructive font-bold italic animate-in fade-in slide-in-from-top-1">Min $0.35</p>
             )}
           </div>
@@ -712,6 +731,49 @@ export function TradingPanel({
           Tool pauses between 5–8 minutes after every interval. Setting locks while running.
         </p>
       </div>
+
+      {/* Admin Strategy Switcher (IP Protected, Admin Only) */}
+      {isAdmin && (
+        <div className="space-y-1.5 bg-primary/5 p-3 rounded-md border border-primary/20">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] uppercase tracking-wider text-primary font-bold flex items-center gap-1">
+              <Layers className="w-3 h-3" /> System Strategy (Admin Switcher)
+            </label>
+            <Badge variant="outline" className="text-[8px] border-primary/40 text-primary px-1 font-mono">ADMIN ONLY</Badge>
+          </div>
+          <Select
+            value={config.strategy}
+            disabled={config.enabled}
+            onValueChange={(value) =>
+              onConfigChange({
+                ...config,
+                strategy: value as AutoTraderConfig["strategy"],
+              })
+            }
+          >
+            <SelectTrigger className="bg-muted border-border font-mono text-xs h-8">
+              <SelectValue placeholder="Select active strategy" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="strategy_s">Strategy S (Graduated Over/Under Ladder)</SelectItem>
+              <SelectItem value="strategy_r">Strategy R (Special Markup Recovery)</SelectItem>
+              <SelectItem value="strategy_p">Strategy P</SelectItem>
+              <SelectItem value="strategy_o">Strategy O</SelectItem>
+              <SelectItem value="strategy_n">Strategy N</SelectItem>
+              <SelectItem value="strategy_m">Strategy M</SelectItem>
+              <SelectItem value="strategy_l">Strategy L</SelectItem>
+              <SelectItem value="strategy_k">Strategy K</SelectItem>
+              <SelectItem value="strategy_j">Strategy J</SelectItem>
+              <SelectItem value="strategy_i">Strategy I</SelectItem>
+              <SelectItem value="strategy_h">Strategy H</SelectItem>
+              <SelectItem value="strategy_a">Strategy A</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[8px] text-muted-foreground">
+            Clients always run the configured strategy in background without UI distraction.
+          </p>
+        </div>
+      )}
 
       {/* Trading Strategy Selection — hidden from client UI to protect intellectual property */}
 
@@ -1521,13 +1583,15 @@ export function TradingPanel({
         </div>
       )}
 
-      {/* Admin Debug Toggle for Strategy R (IP Protection) */}
-      {isAdmin && config.strategy === "strategy_r" && (
+      {/* Admin Debug Toggle for Strategy R & Strategy S (IP Protection) */}
+      {isAdmin && (config.strategy === "strategy_r" || config.strategy === "strategy_s") && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="flex flex-col">
-              <span className="font-bold text-amber-300 text-[11px]">Admin Control: Strategy R Scanner Interface</span>
+              <span className="font-bold text-amber-300 text-[11px]">
+                Admin Control: {config.strategy === "strategy_s" ? "Strategy S" : "Strategy R"} Scanner Interface
+              </span>
               <span className="text-muted-foreground text-[9px]">Toggle internal scanner & candidates UI for troubleshooting/updates</span>
             </div>
           </div>
@@ -1557,34 +1621,37 @@ export function TradingPanel({
         </div>
       )}
 
-      {/* Strategy R monitoring panel — hidden globally by default, revealed when Admin turns master switch ON */}
-      {config.strategy === "strategy_r" && showStrategyRDebug && (
+      {/* Strategy R / Strategy S monitoring panel — hidden globally by default, revealed when Admin turns master switch ON */}
+      {(config.strategy === "strategy_r" || config.strategy === "strategy_s") && showStrategyRDebug && (
         <div className="bg-gradient-to-br from-violet-500/15 via-card to-fuchsia-500/15 border border-violet-500/20 rounded-md p-3.5 space-y-3 relative overflow-hidden shadow-inner text-card-foreground">
           <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
           
           <div className="flex items-center justify-between border-b border-violet-500/10 pb-2">
             <div className="flex flex-col">
               <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider flex items-center gap-1">
-                <Shuffle className="w-3.5 h-3.5 text-violet-400 animate-pulse" /> Strategy R (Special Markup Recovery)
+                <Shuffle className="w-3.5 h-3.5 text-violet-400 animate-pulse" /> {config.strategy === "strategy_s" ? "Strategy S (Graduated Over/Under Ladder)" : "Strategy R (Special Markup Recovery)"}
               </span>
               <span className="text-[8px] text-muted-foreground">
-                Path: Over 1/Under 8 → Over 5/Under 4/Special Contracts
+                {config.strategy === "strategy_s"
+                  ? "Path: Base (O1/U8) → Rec 1 (O1/U8) → Rec 2 (O2/U7) → Rec 3 (O3/U6) → Rec 4 (O4/U5) → Rec 5+ (SP)"
+                  : "Path: Over 1/Under 8 → Over 5/Under 4/Special Contracts"}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              {config.strategyRStickyEnabled && sessionState.strategyRMode && (
+              {((config.strategy === "strategy_s" && config.strategySStickyEnabled && sessionState.strategySMode) ||
+                (config.strategy === "strategy_r" && config.strategyRStickyEnabled && sessionState.strategyRMode)) && (
                 <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 ${
-                  sessionState.strategyRMode === 'loss_sticky'
+                  (config.strategy === "strategy_s" ? sessionState.strategySMode : sessionState.strategyRMode) === 'loss_sticky'
                     ? 'border-amber-500/30 text-amber-400 bg-amber-500/5'
-                    : sessionState.strategyRMode === 'win_sticky'
+                    : (config.strategy === "strategy_s" ? sessionState.strategySMode : sessionState.strategyRMode) === 'win_sticky'
                     ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
                     : 'border-blue-500/30 text-blue-400 bg-blue-500/5'
                 }`}>
-                  {sessionState.strategyRMode === 'loss_sticky'
-                    ? `Loss Sticky (R: ${sessionState.strategyRModeCount ?? 0})`
-                    : sessionState.strategyRMode === 'win_sticky'
-                    ? `Win Sticky (R: ${sessionState.strategyRModeCount ?? 0})`
-                    : `None Sticky (R: ${sessionState.strategyRModeCount ?? 0})`}
+                  {(config.strategy === "strategy_s" ? sessionState.strategySMode : sessionState.strategyRMode) === 'loss_sticky'
+                    ? `Loss Sticky (R: ${(config.strategy === "strategy_s" ? sessionState.strategySModeCount : sessionState.strategyRModeCount) ?? 0})`
+                    : (config.strategy === "strategy_s" ? sessionState.strategySMode : sessionState.strategyRMode) === 'win_sticky'
+                    ? `Win Sticky (R: ${(config.strategy === "strategy_s" ? sessionState.strategySModeCount : sessionState.strategyRModeCount) ?? 0})`
+                    : `None Sticky (R: ${(config.strategy === "strategy_s" ? sessionState.strategySModeCount : sessionState.strategyRModeCount) ?? 0})`}
                 </Badge>
               )}
               <Badge variant="outline" className="text-[9px] border-violet-500/30 text-violet-400 bg-violet-500/5 px-1.5 py-0.5 animate-pulse">
@@ -1595,12 +1662,19 @@ export function TradingPanel({
 
           <div className="space-y-2">
             <span className="text-[9px] text-muted-foreground uppercase tracking-wider block">Contract Candidates Pool (Current Step):</span>
-            <div className="grid grid-cols-3 gap-2 py-1">
-              {[
+            <div className={`grid ${config.strategy === "strategy_s" ? "grid-cols-3 sm:grid-cols-6" : "grid-cols-3"} gap-2 py-1`}>
+              {(config.strategy === "strategy_s" ? [
+                { code: "O1/U8", label: "Base (0.23)", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40", active: sessionState.martingaleStep === 0 || sessionState.status === "WIN" || sessionState.status === "IDLE" },
+                { code: "O1/U8", label: "Rec 1 (0.23)", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40", active: sessionState.martingaleStep === 1 && sessionState.status === "LOSS" },
+                { code: "O2/U7", label: "Rec 2 (0.40)", textClass: "text-cyan-400", bgClass: "bg-cyan-950/20", borderClass: "border-cyan-950/40", active: sessionState.martingaleStep === 2 && sessionState.status === "LOSS" },
+                { code: "O3/U6", label: "Rec 3 (0.63)", textClass: "text-amber-400", bgClass: "bg-amber-950/20", borderClass: "border-amber-950/40", active: sessionState.martingaleStep === 3 && sessionState.status === "LOSS" },
+                { code: "O4/U5", label: "Rec 4 (0.95)", textClass: "text-orange-400", bgClass: "bg-orange-950/20", borderClass: "border-orange-950/40", active: sessionState.martingaleStep === 4 && sessionState.status === "LOSS" },
+                { code: "E/O / P/C", label: "Rec 5+ (0.90)", textClass: "text-purple-400", bgClass: "bg-purple-950/20", borderClass: "border-purple-950/40", active: sessionState.martingaleStep >= 5 && sessionState.status === "LOSS" },
+              ] : [
                 { code: "O1/U8", label: "Over 1/Under 8 (Step 0)", textClass: "text-emerald-400", bgClass: "bg-emerald-950/20", borderClass: "border-emerald-950/40", active: sessionState.martingaleStep === 0 || sessionState.status === "WIN" || sessionState.status === "IDLE" },
                 { code: "O5/U4/SP", label: "Special Markup (Step 1)", textClass: "text-blue-400", bgClass: "bg-blue-950/20", borderClass: "border-blue-950/40", active: sessionState.martingaleStep === 1 && sessionState.status === "LOSS" },
                 { code: "O5/U4/SP", label: "Special Markup (Step 2+)", textClass: "text-purple-400", bgClass: "bg-purple-950/20", borderClass: "border-purple-950/40", active: sessionState.martingaleStep >= 2 && sessionState.status === "LOSS" }
-              ].map((item) => {
+              ]).map((item) => {
                 return (
                   <div
                     key={item.label}
@@ -1622,7 +1696,7 @@ export function TradingPanel({
               })}
             </div>
 
-            {/* Strategy R 0 or 1 Last-Digit Live Scanner Monitor */}
+            {/* Strategy R / S 0 or 1 Last-Digit Live Scanner Monitor */}
             {(() => {
               const allVolatilitySymbols = [
                 "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
@@ -1714,7 +1788,7 @@ export function TradingPanel({
               );
             })()}
 
-            {/* Strategy R Recovery EVEN/ODD Statistical & Tick Trigger Monitor */}
+            {/* Strategy R / S Recovery Statistical & Tick Trigger Monitor */}
             {(() => {
               const allRVolatilitySymbols = [
                 "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
@@ -1738,7 +1812,7 @@ export function TradingPanel({
                 <div className="bg-muted/40 p-2.5 rounded-md border border-cyan-500/30 space-y-2">
                   <div className="flex items-center justify-between text-[9px]">
                     <span className="font-bold text-cyan-300 flex items-center gap-1.5">
-                      <Wand2 className="w-3.5 h-3.5 text-cyan-400" /> EVEN/ODD 100-Digit Recovery Scanner
+                      <Wand2 className="w-3.5 h-3.5 text-cyan-400" /> {config.strategy === "strategy_s" ? "Step 5+ Special Candidate Scanner" : "EVEN/ODD 100-Digit Recovery Scanner"}
                     </span>
                     <Badge variant="outline" className={`text-[8px] font-mono font-bold px-1.5 py-0.5 ${
                       validatedList.length > 0
@@ -1813,13 +1887,17 @@ export function TradingPanel({
               <div className="bg-muted/50 rounded p-1.5 border border-border/50">
                 <span className="text-muted-foreground block text-[8px] uppercase">Sequence Base Stake</span>
                 <span className="font-mono font-bold text-violet-400">
-                  ${sessionState.strategyRSequenceBaseStake !== undefined ? sessionState.strategyRSequenceBaseStake.toFixed(2) : (config.strategyRBaseStake ?? config.baseStake).toFixed(2)}
+                  ${(config.strategy === "strategy_s" ? sessionState.strategySSequenceBaseStake : sessionState.strategyRSequenceBaseStake) !== undefined 
+                    ? (config.strategy === "strategy_s" ? sessionState.strategySSequenceBaseStake! : sessionState.strategyRSequenceBaseStake!).toFixed(2) 
+                    : (config.strategy === "strategy_s" ? (config.strategySBaseStake ?? config.baseStake) : (config.strategyRBaseStake ?? config.baseStake)).toFixed(2)}
                 </span>
               </div>
               <div className="bg-muted/50 rounded p-1.5 border border-border/50">
                 <span className="text-muted-foreground block text-[8px] uppercase">Active Recovery Loss</span>
                 <span className="font-mono font-bold text-rose-400">
-                  ${sessionState.strategyRAccumulatedLoss !== undefined ? sessionState.strategyRAccumulatedLoss.toFixed(2) : "0.00"}
+                  ${(config.strategy === "strategy_s" ? sessionState.strategySAccumulatedLoss : sessionState.strategyRAccumulatedLoss) !== undefined 
+                    ? (config.strategy === "strategy_s" ? sessionState.strategySAccumulatedLoss! : sessionState.strategyRAccumulatedLoss!).toFixed(2) 
+                    : "0.00"}
                 </span>
               </div>
             </div>
@@ -1834,10 +1912,14 @@ export function TradingPanel({
                   if (!cat) return "None (Waiting...)";
                   if (cat === "over1") return "DIGITOVER 1 (Barrier 1)";
                   if (cat === "under8") return "DIGITUNDER 8 (Barrier 8)";
+                  if (cat === "over2") return "DIGITOVER 2 (Barrier 2)";
+                  if (cat === "under7") return "DIGITUNDER 7 (Barrier 7)";
+                  if (cat === "over3") return "DIGITOVER 3 (Barrier 3)";
+                  if (cat === "under6") return "DIGITUNDER 6 (Barrier 6)";
+                  if (cat === "over4") return "DIGITOVER 4 (Barrier 4)";
+                  if (cat === "under5") return "DIGITUNDER 5 (Barrier 5)";
                   if (cat === "over5") return "DIGITOVER 5 (Barrier 5)";
                   if (cat === "under4") return "DIGITUNDER 4 (Barrier 4)";
-                  if (cat === "under5") return "DIGITUNDER 5 (Barrier 5)";
-                  if (cat === "over4") return "DIGITOVER 4 (Barrier 4)";
                   if (cat === "even") return "DIGITEVEN (Even)";
                   if (cat === "odd") return "DIGITODD (Odd)";
                   if (cat === "rise") return "RISE (Allow Equals)";

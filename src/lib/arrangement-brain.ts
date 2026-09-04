@@ -130,12 +130,22 @@ export function directionToDetails(direction: string): {
       return { type: "DIGITUNDER", barrier: 5 };
     case "O5":
       return { type: "DIGITOVER", barrier: 5 };
+    case "O1":
+      return { type: "DIGITOVER", barrier: 1 };
+    case "U8":
+      return { type: "DIGITUNDER", barrier: 8 };
+    case "O2":
+      return { type: "DIGITOVER", barrier: 2 };
+    case "U7":
+      return { type: "DIGITUNDER", barrier: 7 };
+    case "O3":
+      return { type: "DIGITOVER", barrier: 3 };
+    case "U6":
+      return { type: "DIGITUNDER", barrier: 6 };
     case "EV":
-    case "Even":
-    case "E":
       return { type: "DIGITEVEN", barrier: undefined };
-    case "OD":
     case "Odd":
+    case "OD":
     case "O":
       return { type: "DIGITODD", barrier: undefined };
     case "RISE":
