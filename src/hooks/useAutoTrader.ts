@@ -4022,20 +4022,92 @@ export function useAutoTrader(
   }, [config.baseStake, config.enabled]);
 
   const prevConnectedRef = useRef(connected);
-  const prevLoginidRef = useRef(accountInfo?.loginid);
+  const prevLoginidRef = useRef<string | undefined>(undefined);
 
+  // 1. Safe account switch: do NOT wipe on WebSocket reconnect
   useEffect(() => {
-    const connTransitioned = !prevConnectedRef.current && connected;
-    const accountChanged = prevLoginidRef.current !== accountInfo?.loginid;
+    // Only detect an actual switch between two different valid accounts (e.g. Real <-> Demo)
+    const isActualAccountSwitch = 
+      Boolean(prevLoginidRef.current) && 
+      Boolean(accountInfo?.loginid) && 
+      prevLoginidRef.current !== accountInfo?.loginid;
 
-    if ((connTransitioned || accountChanged) && connected && accountInfo?.loginid) {
-      console.log("[AutoTrader] New connection/account detected. Resetting session state and trade history.");
-      resetTradeLog();
+    if (isActualAccountSwitch && accountInfo?.loginid && user?.id) {
+      console.log(`[AutoTrader] Account switched from ${prevLoginidRef.current} to ${accountInfo.loginid}. Fetching trade history for new account.`);
+      supabase
+        .from('trades')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('deriv_loginid', accountInfo.loginid)
+        .order('timestamp', { ascending: false })
+        .limit(100)
+        .then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            const hydrated: TradeRecord[] = data.map((t: any) => ({
+              id: t.id || Math.random().toString(36).substring(2, 11),
+              symbol: t.symbol,
+              contract: t.contract || (t.barrier === 8 || t.barrier === 7 || t.barrier === 6 || t.barrier === 5 ? "DIGITUNDER" : "DIGITOVER"),
+              barrier: t.barrier ?? 1,
+              stake: Number(t.stake || 0),
+              profit: Number(t.profit_loss || 0),
+              martingale_step: 0,
+              status: t.result === "won" ? "WIN" : (t.result === "lost" ? "LOSS" : "PENDING"),
+              next_action: "",
+              timestamp: new Date(t.timestamp)
+            }));
+            setTradeLog(hydrated);
+            try {
+              localStorage.setItem('tradeLog', JSON.stringify(hydrated));
+            } catch {}
+          } else {
+            setTradeLog([]);
+            try {
+              localStorage.setItem('tradeLog', JSON.stringify([]));
+            } catch {}
+          }
+        });
     }
 
+    if (accountInfo?.loginid) {
+      prevLoginidRef.current = accountInfo.loginid;
+    }
     prevConnectedRef.current = connected;
-    prevLoginidRef.current = accountInfo?.loginid;
-  }, [connected, accountInfo?.loginid, resetTradeLog]);
+  }, [connected, accountInfo?.loginid, user?.id]);
+
+  // 2. Hydrate trade history from Supabase if localStorage tradeLog is empty on initial load/mount
+  useEffect(() => {
+    if (!user?.id || !accountInfo?.loginid) return;
+    if (tradeLog.length > 0) return;
+
+    supabase
+      .from('trades')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('deriv_loginid', accountInfo.loginid)
+      .order('timestamp', { ascending: false })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          console.log(`[AutoTrader] Hydrated ${data.length} historical trades from Supabase for ${accountInfo.loginid}`);
+          const hydrated: TradeRecord[] = data.map((t: any) => ({
+            id: t.id || Math.random().toString(36).substring(2, 11),
+            symbol: t.symbol,
+            contract: t.contract || (t.barrier === 8 || t.barrier === 7 || t.barrier === 6 || t.barrier === 5 ? "DIGITUNDER" : "DIGITOVER"),
+            barrier: t.barrier ?? 1,
+            stake: Number(t.stake || 0),
+            profit: Number(t.profit_loss || 0),
+            martingale_step: 0,
+            status: t.result === "won" ? "WIN" : (t.result === "lost" ? "LOSS" : "PENDING"),
+            next_action: "",
+            timestamp: new Date(t.timestamp)
+          }));
+          setTradeLog(hydrated);
+          try {
+            localStorage.setItem('tradeLog', JSON.stringify(hydrated));
+          } catch {}
+        }
+      });
+  }, [user?.id, accountInfo?.loginid, tradeLog.length]);
 
   const sanitizeConfigWithToasts = useCallback((cfg: AutoTraderConfig): AutoTraderConfig => {
     let corrected = { ...cfg };
