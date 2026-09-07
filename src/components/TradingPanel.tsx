@@ -1720,10 +1720,10 @@ export function TradingPanel({
                 <div className="bg-muted/40 p-2.5 rounded-md border border-violet-500/30 space-y-2 relative">
                   <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
                     <span className="text-[10px] font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Target className="w-3.5 h-3.5 text-violet-400 animate-pulse" /> WIN / Idle 0 or 1 Volatility Scanner
+                      <Target className="w-3.5 h-3.5 text-violet-400 animate-pulse" /> {config.strategy === "strategy_s" ? "Step 0 (Base) & Step 1 (Recovery 1) 0 or 1 Volatility Scanner" : "WIN / Idle 0 or 1 Volatility Scanner"}
                     </span>
                     <Badge variant="outline" className="text-[8px] font-mono font-bold px-1.5 py-0.5 border-violet-500/30 text-violet-300 bg-violet-500/10">
-                      LIVE TICKS
+                      {config.strategy === "strategy_s" ? "STEP 0 & RECOVERY 1" : "LIVE TICKS"}
                     </Badge>
                   </div>
 

@@ -1385,7 +1385,13 @@ export function useAutoTrader(
         const currentStratMode = activeStrategy === "strategy_s" ? state.strategySMode : state.strategyRMode;
         const currentStratModeCount = activeStrategy === "strategy_s" ? state.strategySModeCount : state.strategyRModeCount;
 
-        if (state.status === "WIN" || state.status === "IDLE") {
+        // Step 0 (WIN / IDLE) or Strategy S Recovery 1 (Step 1 after 1 loss):
+        // Uses the exact same 0 or 1 Volatility Filter trading selection parameters
+        const isStep0OrSRecovery1 = 
+          (state.status === "WIN" || state.status === "IDLE") ||
+          (activeStrategy === "strategy_s" && state.status === "LOSS" && state.martingaleStep === 0);
+
+        if (isStep0OrSRecovery1) {
           const allRVolatilitySymbols = [
             "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
             "R_10", "R_25", "R_50", "R_75", "R_100",
@@ -1413,13 +1419,13 @@ export function useAutoTrader(
             chosenSymbol = candidate01Symbols[Math.floor(Math.random() * candidate01Symbols.length)];
             const chosenState = getSymbolState(chosenSymbol);
             const chosenLastDigit = chosenState?.digits?.[chosenState.digits.length - 1];
-            console.log(`[Strategy ${stratLabel} Volatility 0/1 Filter] Fresh 0/1 candidates: [${candidate01Symbols.join(", ")}]. Selected: ${chosenSymbol} (Last Digit: ${chosenLastDigit})`);
+            console.log(`[Strategy ${stratLabel} Volatility 0/1 Filter] (${state.status === "LOSS" ? "Recovery 1" : "Step 0"}) Fresh 0/1 candidates: [${candidate01Symbols.join(", ")}]. Selected: ${chosenSymbol} (Last Digit: ${chosenLastDigit})`);
           } else {
             // Fallback: select any fresh active volatility symbol so trade is never stuck
             const selectedSymbol = select_random_active_symbol();
             if (selectedSymbol) {
               chosenSymbol = selectedSymbol.symbol;
-              console.log(`[Strategy ${stratLabel} Volatility Fallback] No 0/1 candidate available. Selected active symbol: ${chosenSymbol}`);
+              console.log(`[Strategy ${stratLabel} Volatility Fallback] (${state.status === "LOSS" ? "Recovery 1" : "Step 0"}) No 0/1 candidate available. Selected active symbol: ${chosenSymbol}`);
             }
           }
 
@@ -1903,11 +1909,11 @@ export function useAutoTrader(
             stepIndexRef.current += 1;
 
             if (recoveryStep === 1) {
-              // 1. The first recovery trade: OVER1 / UNDER8
+              // 1. The first recovery trade: OVER1 / UNDER8 (uses same trading selection parameter as Step 0)
               pool = ["over1", "under8"];
               trade = pool[Math.floor(Math.random() * pool.length)];
               chosenGroup = getCategoryGroup(trade);
-              console.log(`[Strategy S Recovery 1] Step: 1, Contract: ${trade} (OVER1/UNDER8, Interest: 0.23)`);
+              console.log(`[Strategy S Recovery 1] Step: 1, Contract: ${trade} (OVER1/UNDER8, Divisor: 0.20 - Same selection parameter as Step 0)`);
             } else if (recoveryStep === 2) {
               // 2. The second recovery trade: OVER2 / UNDER7
               pool = ["over2", "under7"];
