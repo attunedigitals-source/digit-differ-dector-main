@@ -10,7 +10,7 @@ export interface ConnectionQuarantine {
   resumeAt?: number;
   failuresCount?: number;
 }
-import { type SymbolState, generateSignal, evaluateStrategyREvenOddCandidate, evaluateStrategyRPuteCalleCandidate, getSymbolDefaultPipSize, extractLastDigit, type StrategyREvenOddEvaluation, type StrategyRPuteCalleEvaluation } from "@/lib/signal-engine";
+import { type SymbolState, generateSignal, evaluateStrategyREvenOddCandidate, evaluateStrategyRPuteCalleCandidate, evaluateStrategySStep2Candidate, getSymbolDefaultPipSize, extractLastDigit, type StrategyREvenOddEvaluation, type StrategyRPuteCalleEvaluation, type StrategySStep2Evaluation } from "@/lib/signal-engine";
 import { getNextArrangement, lcgPermute, getNthPermutation, directionToDetails, getPermutationIndex, getRandomSequenceWithPrefix, isPrefixBlacklisted } from "../lib/arrangement-brain";
 
 import { type TradeRecord, type AutoTraderConfig } from "./trading-types";
@@ -1916,10 +1916,57 @@ export function useAutoTrader(
               console.log(`[Strategy S Recovery 1] Step: 1, Contract: ${trade} (OVER1/UNDER8, Divisor: 0.20 - Same selection parameter as Step 0)`);
             } else if (recoveryStep === 2) {
               // 2. The second recovery trade: OVER2 / UNDER7
-              pool = ["over2", "under7"];
-              trade = pool[Math.floor(Math.random() * pool.length)];
-              chosenGroup = getCategoryGroup(trade);
-              console.log(`[Strategy S Recovery 2] Step: 2, Contract: ${trade} (OVER2/UNDER7, Interest: 0.40)`);
+              // Method 1: Danger Zone Depletion Scanner across all 10 synthetic volatility symbols
+              const allSStep2Symbols = [
+                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+                "R_10", "R_25", "R_50", "R_75", "R_100",
+              ];
+
+              const evaluatedStep2Candidates: StrategySStep2Evaluation[] = [];
+
+              for (const sym of allSStep2Symbols) {
+                const tracking = volatilityTracking[sym];
+                if (tracking && tracking.suspendedUntil && Date.now() < tracking.suspendedUntil) {
+                  continue;
+                }
+                const symbolState = getSymbolState(sym);
+                if (!symbolState || !symbolState.digits || symbolState.digits.length < 15) {
+                  continue;
+                }
+                if (symbolState.updatedAt && (Date.now() - symbolState.updatedAt > MAX_TICK_AGE_MS)) {
+                  continue;
+                }
+
+                const candidate = evaluateStrategySStep2Candidate(sym, symbolState.digits);
+                if (candidate) {
+                  evaluatedStep2Candidates.push(candidate);
+                }
+              }
+
+              let selectedStep2Candidate: StrategySStep2Evaluation | undefined;
+
+              if (evaluatedStep2Candidates.length === 1) {
+                selectedStep2Candidate = evaluatedStep2Candidates[0];
+                console.log(`[Strategy S Recovery 2 - Danger Zone Depletion] Single qualifying candidate: ${selectedStep2Candidate.symbol} (${selectedStep2Candidate.targetContract.toUpperCase()}, ${selectedStep2Candidate.rawMetric})`);
+              } else if (evaluatedStep2Candidates.length > 1) {
+                evaluatedStep2Candidates.sort((a, b) => b.safetyCushion - a.safetyCushion);
+                const maxSafety = evaluatedStep2Candidates[0].safetyCushion;
+                const topTied = evaluatedStep2Candidates.filter(c => Math.abs(c.safetyCushion - maxSafety) < 0.001);
+                selectedStep2Candidate = topTied[Math.floor(Math.random() * topTied.length)];
+                console.log(`[Strategy S Recovery 2 - Danger Zone Depletion] ${evaluatedStep2Candidates.length} candidate(s) evaluated. Selected highest safety cushion: ${selectedStep2Candidate.symbol} (${selectedStep2Candidate.targetContract.toUpperCase()}, ${selectedStep2Candidate.rawMetric})`);
+              }
+
+              if (selectedStep2Candidate) {
+                symbol = selectedStep2Candidate.symbol;
+                trade = selectedStep2Candidate.targetContract;
+                chosenGroup = getCategoryGroup(trade);
+              } else {
+                // Fallback: pick from pool using current symbol
+                pool = ["over2", "under7"];
+                trade = pool[Math.floor(Math.random() * pool.length)];
+                chosenGroup = getCategoryGroup(trade);
+                console.log(`[Strategy S Recovery 2 Fallback] No candidate available. Selected: ${symbol} (${trade})`);
+              }
             } else if (recoveryStep === 3) {
               // 3. The third recovery trade: OVER3 / UNDER6
               pool = ["over3", "under6"];

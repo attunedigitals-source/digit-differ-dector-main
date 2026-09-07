@@ -4,10 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet, ShieldAlert, AlertTriangle, Layers } from "lucide-react";
+import { Bot, DollarSign, Shuffle, Clock, Target, Flag, AlertCircle, Download, Wand2, Pencil, Wallet, ShieldAlert, AlertTriangle, Layers, ShieldCheck } from "lucide-react";
 import { type TradeRecord, type AutoTraderConfig } from "@/hooks/trading-types";
 import { type VolatilityTracking, type ConnectionQuarantine } from "@/hooks/useAutoTrader";
-import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation } from "@/lib/signal-engine";
+import { type SymbolState, evaluateStrategyREvenOddCandidate, type StrategyREvenOddEvaluation, evaluateStrategySStep2Candidate, type StrategySStep2Evaluation } from "@/lib/signal-engine";
 import { DERIV_SYMBOLS, getSymbolName } from "@/lib/deriv-symbols";
 import { UserProfile, isEmailAdmin } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -1782,6 +1782,115 @@ export function TradingPanel({
                             </span>
                             {item.isMatch && (
                               <span className="text-[7px] text-emerald-300 font-bold mt-0.5">🎯 MATCH</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Strategy S Step 2 (Recovery 2) Danger Zone Depletion Scanner */}
+            {config.strategy === "strategy_s" && (() => {
+              const allSVolatilitySymbols = [
+                "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V",
+                "R_10", "R_25", "R_50", "R_75", "R_100",
+              ];
+
+              const evaluatedList: StrategySStep2Evaluation[] = [];
+              for (const sym of allSVolatilitySymbols) {
+                const st = getSymbolState ? getSymbolState(sym) : undefined;
+                if (st && st.digits && st.digits.length >= 15) {
+                  const evalRes = evaluateStrategySStep2Candidate(sym, st.digits);
+                  if (evalRes) {
+                    evaluatedList.push(evalRes);
+                  }
+                }
+              }
+
+              evaluatedList.sort((a, b) => b.safetyCushion - a.safetyCushion);
+              const topCandidate = evaluatedList.length > 0 ? evaluatedList[0] : undefined;
+
+              return (
+                <div className="bg-muted/40 p-2.5 rounded-md border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-1.5 text-[9px]">
+                    <span className="font-bold text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Step 2 (Recovery 2) Danger Zone Depletion Scanner
+                    </span>
+                    <Badge variant="outline" className={`text-[8px] font-mono font-bold px-1.5 py-0.5 ${
+                      topCandidate && topCandidate.safetyCushion > 0
+                        ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10 animate-pulse"
+                        : "border-amber-500/40 text-amber-300 bg-amber-500/10"
+                    }`}>
+                      {topCandidate && topCandidate.safetyCushion > 0
+                        ? `TOP: ${topCandidate.symbol} (${topCandidate.targetContract.toUpperCase()} +${topCandidate.safetyCushion.toFixed(1)}%)`
+                        : "SCANNING DANGER ZONES"}
+                    </Badge>
+                  </div>
+
+                  {/* Top Candidate Banner */}
+                  {topCandidate ? (
+                    <div className="bg-emerald-950/30 border border-emerald-500/40 rounded p-2 text-[8.5px] font-mono space-y-1">
+                      <div className="flex items-center justify-between text-emerald-300 font-bold">
+                        <span className="flex items-center gap-1">
+                          🎯 Leading Candidate: <span className="text-emerald-400 text-[9.5px]">{topCandidate.symbol}</span>
+                        </span>
+                        <Badge variant="outline" className="text-emerald-300 border-emerald-500/40 bg-emerald-500/15 text-[8px]">
+                          {topCandidate.targetContract.toUpperCase()} (BARRIER {topCandidate.targetContract === "over2" ? "2" : "7"})
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-emerald-200/90 text-[8px] pt-0.5 border-t border-emerald-500/20">
+                        <div>
+                          Suppressed Danger: <span className="font-bold text-amber-300">Zone [{topCandidate.dangerZone}]</span> at <span className="font-bold">{topCandidate.dangerFreq.toFixed(1)}%</span> (Base: 30%)
+                        </div>
+                        <div className="text-right">
+                          Safety Margin: <span className="font-bold text-emerald-400">+{topCandidate.safetyCushion.toFixed(1)}% cushion</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded p-2 text-[8.5px] text-amber-300 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Accumulating tick history for Danger Zone Depletion analysis...</span>
+                    </div>
+                  )}
+
+                  {/* Grid of all 10 symbols */}
+                  <div>
+                    <span className="text-[8px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">
+                      All 10 Volatilities Danger Zone Status (Last 40 Ticks):
+                    </span>
+                    <div className="grid grid-cols-5 gap-1.5 text-[8px]">
+                      {allSVolatilitySymbols.map(sym => {
+                        const cand = evaluatedList.find(c => c.symbol === sym);
+                        const isTop = topCandidate && topCandidate.symbol === sym;
+                        return (
+                          <div
+                            key={sym}
+                            className={`p-1.5 rounded border flex flex-col items-center justify-center transition-all ${
+                              isTop
+                                ? "bg-emerald-950/40 border-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.2)] ring-1 ring-emerald-400"
+                                : cand && cand.safetyCushion > 0
+                                ? "bg-muted/40 border-emerald-500/20"
+                                : "bg-muted/20 border-border/40 opacity-70"
+                            }`}
+                          >
+                            <span className="font-bold text-[8px] text-foreground">{sym}</span>
+                            {cand ? (
+                              <>
+                                <span className="font-mono text-[8px] font-bold text-amber-300 mt-0.5">
+                                  {cand.targetContract === "over2" ? "O2" : "U7"} ({cand.targetContract === "over2" ? "[0-2]" : "[7-9]"})
+                                </span>
+                                <span className={`font-mono text-[7.5px] font-bold ${
+                                  cand.safetyCushion > 0 ? "text-emerald-400" : "text-muted-foreground"
+                                }`}>
+                                  {cand.safetyCushion > 0 ? `+${cand.safetyCushion.toFixed(0)}% safe` : `${cand.safetyCushion.toFixed(0)}%`}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="font-mono text-[7.5px] text-muted-foreground mt-0.5">Wait...</span>
                             )}
                           </div>
                         );
