@@ -315,7 +315,7 @@ const sanitizeConfig = (incoming: Partial<AutoTraderConfig> | null | undefined):
   ];
   const chosenStrategy = (incoming?.strategy && validStrategies.includes(incoming.strategy))
     ? incoming.strategy
-    : "strategy_t";
+    : "strategy_s";
 
   return {
     enabled: Boolean(incoming?.enabled),
@@ -382,14 +382,14 @@ export function useAutoTrader(
   const [dailyStats, setDailyStats] = useState({ total_trades: 0, wins: 0 });
   const [ticksToWait, setTicksToWait] = useState(0);
   const [config, setConfig] = useState<AutoTraderConfig>(() => {
-    const defaultApplied = localStorage.getItem('strategy_t_default_applied');
+    const defaultApplied = localStorage.getItem('strategy_s_global_default_applied');
     const saved = localStorage.getItem('autoTraderConfig');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (!defaultApplied) {
-          parsed.strategy = "strategy_t";
-          localStorage.setItem('strategy_t_default_applied', 'true');
+          parsed.strategy = "strategy_s";
+          localStorage.setItem('strategy_s_global_default_applied', 'true');
           const sanitized = sanitizeConfig(parsed);
           localStorage.setItem('autoTraderConfig', JSON.stringify(sanitized));
           return sanitized;
@@ -400,14 +400,14 @@ export function useAutoTrader(
       }
     }
     if (!defaultApplied) {
-      localStorage.setItem('strategy_t_default_applied', 'true');
+      localStorage.setItem('strategy_s_global_default_applied', 'true');
     }
     const defaultConfig = sanitizeConfig({
       enabled: false,
       baseStake: 0.35,
       maxMartingaleSteps: 12,
       cooldownIntervalMinutes: DEFAULT_COOLDOWN_INTERVAL_MINUTES,
-      strategy: "strategy_t",
+      strategy: "strategy_s",
     });
     localStorage.setItem('autoTraderConfig', JSON.stringify(defaultConfig));
     return defaultConfig;
@@ -4139,13 +4139,13 @@ export function useAutoTrader(
         return;
       }
 
-      const defaultAppliedCloud = localStorage.getItem('strategy_t_default_applied_cloud');
+      const defaultAppliedCloud = localStorage.getItem('strategy_s_global_default_applied_cloud');
       const { data } = await supabase.from('user_configs').select('config').eq('user_id', user.id).maybeSingle();
       if (data?.config) {
         let cloudConfig = data.config;
-        if (!defaultAppliedCloud && (cloudConfig.strategy === 'strategy_r' || cloudConfig.strategy === 'strategy_s' || cloudConfig.strategy === 'strategy_a' || !cloudConfig.strategy)) {
-          cloudConfig = { ...cloudConfig, strategy: 'strategy_t' };
-          localStorage.setItem('strategy_t_default_applied_cloud', 'true');
+        if (!defaultAppliedCloud && (cloudConfig.strategy === 'strategy_t' || cloudConfig.strategy === 'strategy_r' || cloudConfig.strategy === 'strategy_a' || !cloudConfig.strategy)) {
+          cloudConfig = { ...cloudConfig, strategy: 'strategy_s' };
+          localStorage.setItem('strategy_s_global_default_applied_cloud', 'true');
         }
         const merged = { ...config, ...cloudConfig };
         const sanitized = sanitizeConfig(merged);
