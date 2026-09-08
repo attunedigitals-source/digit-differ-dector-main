@@ -352,12 +352,16 @@ export function useAutoTrader(
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Safety check for missing IDs or dates
-        return parsed.map((t: any) => ({
-          ...t,
-          id: t.id || Math.random().toString(36).substring(2, 11),
-          timestamp: new Date(t.timestamp || Date.now())
-        }));
+        if (Array.isArray(parsed)) {
+          // Safety check: purge any stale pending entries from prior sessions so they never linger
+          return parsed
+            .filter((t: any) => t && !String(t.id).startsWith("pending-") && t.status !== "PENDING")
+            .map((t: any) => ({
+              ...t,
+              id: t.id || Math.random().toString(36).substring(2, 11),
+              timestamp: new Date(t.timestamp || Date.now())
+            }));
+        }
       } catch (e) {
         console.error("Error loading tradeLog from localStorage", e);
       }
@@ -648,7 +652,7 @@ export function useAutoTrader(
       currentSymbol: savedSymbol || "",
       currentContract: "DIGITOVER" as "DIGITOVER" | "DIGITUNDER" | "DIGITEVEN" | "DIGITODD" | "CALLE" | "PUTE",
       currentBarrier: 5,
-      status: (savedStatus as any) || "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
+      status: (savedStatus === "PENDING" ? "IDLE" : (savedStatus as any)) || "IDLE" as "IDLE" | "WIN" | "LOSS" | "SKIP" | "PENDING",
       nextAction: "IDLE_RDY",
       currentCategory: savedCategory,
       
@@ -840,7 +844,7 @@ export function useAutoTrader(
     }
   }, []);
 
-  const handleResultRef = useRef<((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => void) | null>(null);
+  const handleResultRef = useRef<((isWin: boolean, symbol: string, profit: number, supabaseId?: string, contractId?: string) => void) | null>(null);
 
   // Watchdog: monitor and resolve stuck execution
   useEffect(() => {
@@ -2929,45 +2933,13 @@ export function useAutoTrader(
         }
       }, 15000);
       proposalTimeouts.current.set(String(reqId), proposalTimeout);
-
-      // Fix 1 (cont): Background Supabase write — failure does NOT affect trading
-      (async () => {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data, error } = await supabase.from("trades").insert({
-              user_id: user.id,
-              deriv_loginid: accountInfo?.loginid || "unknown",
-              symbol: symbol,
-              stake: nextStake,
-              barrier: barrier,
-              result: "pending",
-              timestamp: new Date().toISOString()
-            }).select("id").single();
-            if (!error && data) {
-              const entry = pendingProposals.current.get(String(reqId));
-              if (entry) entry.supabaseId = data.id;
-              // Also sync with openContracts if already purchased
-              for (const [cId, openC] of openContracts.current.entries()) {
-                if (!openC.supabaseId && openC.symbol === symbol && Math.abs(openC.stake - nextStake) < 0.01) {
-                  openC.supabaseId = data.id;
-                  supabase.from("trades").update({ contract_id: cId }).eq("id", data.id).then();
-                  break;
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.warn("[AutoTrader] Background Supabase insert failed:", err);
-        }
-      })();
     } finally {
       // We DO NOT reset isExecutingRef here.
       // It is reset in handle_result (normal flow) or the proposal timeout / watchdog (failure flow).
     }
   }, [config, wsRef, accountInfo, select_random_active_symbol]);
 
-  const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string) => {
+  const handle_result = useCallback((isWin: boolean, symbol: string, profit: number, supabaseId?: string, contractId?: string) => {
     handleResultRef.current = handle_result;
     const state = sessionStateRef.current;
     
@@ -3174,8 +3146,8 @@ export function useAutoTrader(
       timestamp: new Date(),
     };
     setTradeLog(prev => {
-      // Remove all pending entries safely
-      const filtered = prev.filter(t => t && t.id && !t.id.startsWith("pending-"));
+      // Remove all pending entries safely (both temporary pending-* IDs and any stuck status: "PENDING")
+      const filtered = prev.filter(t => t && t.id && !t.id.startsWith("pending-") && t.status !== "PENDING");
       return [newRecord, ...filtered].slice(0, 2000);
     });
 
@@ -3207,11 +3179,39 @@ export function useAutoTrader(
       setMartingaleCycles(0);
     }
 
-    if (supabaseId) {
-      supabase.from("trades").update({ result: isWin ? "won" : "lost", profit_loss: profit }).eq("id", supabaseId).then(({ error }) => {
-        if (error) console.error("Error updating trade result in Supabase:", error);
-      });
-    }
+    // Record finalized trade outcome directly in Supabase
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          if (supabaseId) {
+            supabase.from("trades").update({
+              result: isWin ? "won" : "lost",
+              profit_loss: profit,
+              contract_id: contractId || null
+            }).eq("id", supabaseId).then(({ error }) => {
+              if (error) console.error("Error updating trade result in Supabase:", error);
+            });
+          } else {
+            supabase.from("trades").insert({
+              user_id: user.id,
+              deriv_loginid: accountInfo?.loginid || "unknown",
+              symbol: symbol,
+              stake: state.currentStake,
+              barrier: state.currentBarrier,
+              contract_id: contractId || null,
+              result: isWin ? "won" : "lost",
+              profit_loss: profit,
+              timestamp: new Date().toISOString()
+            }).then(({ error }) => {
+              if (error) console.error("[AutoTrader] Supabase insert settled trade error:", error);
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("[AutoTrader] Supabase trade logging error:", err);
+      }
+    })();
 
     if (windDownMode && isWin) {
       nextAction = "WD_CMP";
@@ -3826,7 +3826,7 @@ export function useAutoTrader(
           const openC = openContracts.current.get(contractId);
           // Reset consecutive network failure counter on successful trade run
           consecutiveConnectionFailsRef.current = 0;
-          handle_result(isWin, openC?.symbol || poc.underlying || poc.symbol || "", profit, openC?.supabaseId);
+          handle_result(isWin, openC?.symbol || poc.underlying || poc.symbol || "", profit, openC?.supabaseId, contractId);
         }
         
         // Always remove from openContracts if finished to stop watchdog polling
@@ -3926,15 +3926,30 @@ export function useAutoTrader(
           .from("trades")
           .select("*")
           .eq("user_id", user.id)
-          .eq("result", "pending")
-          .not("contract_id", "is", null);
+          .eq("result", "pending");
 
         if (error) throw error;
         if (!pendingTrades || pendingTrades.length === 0) return;
 
-        console.log(`[AutoTrader] Recovery: Found ${pendingTrades.length} pending trades. Resolving...`);
+        console.log(`[AutoTrader] Recovery: Found ${pendingTrades.length} pending trades in database.`);
         
-        pendingTrades.forEach(trade => {
+        // Auto-heal stale pending trades (>30s old or missing contract_id) to cancelled
+        const now = Date.now();
+        const staleIds = pendingTrades
+          .filter(trade => !trade.contract_id || (trade.timestamp && now - new Date(trade.timestamp).getTime() > 30000))
+          .map(trade => trade.id);
+
+        if (staleIds.length > 0) {
+          console.log(`[AutoTrader] Auto-healing ${staleIds.length} stale pending trades to cancelled`);
+          supabase
+            .from("trades")
+            .update({ result: "cancelled" })
+            .in("id", staleIds)
+            .then();
+        }
+
+        const activePending = pendingTrades.filter(trade => trade.contract_id && !staleIds.includes(trade.id));
+        activePending.forEach(trade => {
           if (trade.contract_id) {
             // Populate openContracts so handle_result can find it
             openContracts.current.set(trade.contract_id, {
@@ -4457,18 +4472,20 @@ export function useAutoTrader(
         .limit(100)
         .then(({ data, error }) => {
           if (!error && data && data.length > 0) {
-            const hydrated: TradeRecord[] = data.map((t: any) => ({
-              id: t.id || Math.random().toString(36).substring(2, 11),
-              symbol: t.symbol,
-              contract: t.contract || (t.barrier === 8 || t.barrier === 7 || t.barrier === 6 || t.barrier === 5 ? "DIGITUNDER" : "DIGITOVER"),
-              barrier: t.barrier ?? 1,
-              stake: Number(t.stake || 0),
-              profit: Number(t.profit_loss || 0),
-              martingale_step: 0,
-              status: t.result === "won" ? "WIN" : (t.result === "lost" ? "LOSS" : "PENDING"),
-              next_action: "",
-              timestamp: new Date(t.timestamp)
-            }));
+            const hydrated: TradeRecord[] = data
+              .filter((t: any) => t && t.result !== "pending")
+              .map((t: any) => ({
+                id: t.id || Math.random().toString(36).substring(2, 11),
+                symbol: t.symbol,
+                contract: t.contract || (t.barrier === 8 || t.barrier === 7 || t.barrier === 6 || t.barrier === 5 ? "DIGITUNDER" : "DIGITOVER"),
+                barrier: t.barrier ?? 1,
+                stake: Number(t.stake || 0),
+                profit: Number(t.profit_loss || 0),
+                martingale_step: 0,
+                status: t.result === "won" ? "WIN" : (t.result === "lost" ? "LOSS" : "CANCELLED"),
+                next_action: "",
+                timestamp: new Date(t.timestamp)
+              }));
             setTradeLog(hydrated);
             try {
               localStorage.setItem('tradeLog', JSON.stringify(hydrated));
@@ -4503,18 +4520,20 @@ export function useAutoTrader(
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
           console.log(`[AutoTrader] Hydrated ${data.length} historical trades from Supabase for ${accountInfo.loginid}`);
-          const hydrated: TradeRecord[] = data.map((t: any) => ({
-            id: t.id || Math.random().toString(36).substring(2, 11),
-            symbol: t.symbol,
-            contract: t.contract || (t.barrier === 8 || t.barrier === 7 || t.barrier === 6 || t.barrier === 5 ? "DIGITUNDER" : "DIGITOVER"),
-            barrier: t.barrier ?? 1,
-            stake: Number(t.stake || 0),
-            profit: Number(t.profit_loss || 0),
-            martingale_step: 0,
-            status: t.result === "won" ? "WIN" : (t.result === "lost" ? "LOSS" : "PENDING"),
-            next_action: "",
-            timestamp: new Date(t.timestamp)
-          }));
+          const hydrated: TradeRecord[] = data
+            .filter((t: any) => t && t.result !== "pending")
+            .map((t: any) => ({
+              id: t.id || Math.random().toString(36).substring(2, 11),
+              symbol: t.symbol,
+              contract: t.contract || (t.barrier === 8 || t.barrier === 7 || t.barrier === 6 || t.barrier === 5 ? "DIGITUNDER" : "DIGITOVER"),
+              barrier: t.barrier ?? 1,
+              stake: Number(t.stake || 0),
+              profit: Number(t.profit_loss || 0),
+              martingale_step: 0,
+              status: t.result === "won" ? "WIN" : (t.result === "lost" ? "LOSS" : "CANCELLED"),
+              next_action: "",
+              timestamp: new Date(t.timestamp)
+            }));
           setTradeLog(hydrated);
           try {
             localStorage.setItem('tradeLog', JSON.stringify(hydrated));
