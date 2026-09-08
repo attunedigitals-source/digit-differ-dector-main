@@ -405,3 +405,74 @@ export function evaluateStrategySStep2Candidate(
   }
 }
 
+export interface StrategySStep3Evaluation {
+  symbol: string;
+  targetContract: "over3" | "under6";
+  dangerZone: string;
+  dangerFreq: number;
+  baselineFreq: number;
+  safetyCushion: number;
+  sampleSize: number;
+  isValidated: boolean;
+  rawMetric: string;
+}
+
+/**
+ * Evaluates Strategy S Step 3 (Recovery 3) / Strategy T Step 4 (Recovery 4) candidates using Method 1: Danger Zone Depletion Scanner.
+ * Evaluates recent digits (default 40 ticks, min 15) to detect whether Low Danger Zone [0,1,2,3] (for OVER 3)
+ * or High Danger Zone [6,7,8,9] (for UNDER 6) has the greatest statistical suppression below the 40.0% uniform baseline.
+ */
+export function evaluateStrategySStep3Candidate(
+  symbol: string,
+  digits: number[],
+  sampleSize: number = 40
+): StrategySStep3Evaluation | null {
+  if (!digits || digits.length < 15) {
+    return null;
+  }
+
+  const sample = digits.slice(-sampleSize);
+  const total = sample.length;
+  if (total === 0) return null;
+
+  // Zone L: [0, 1, 2, 3] (Loss zone for OVER 3)
+  // Zone H: [6, 7, 8, 9] (Loss zone for UNDER 6)
+  const countL = sample.filter(d => d >= 0 && d <= 3).length;
+  const countH = sample.filter(d => d >= 6 && d <= 9).length;
+
+  const freqL = Number(((countL / total) * 100).toFixed(2));
+  const freqH = Number(((countH / total) * 100).toFixed(2));
+
+  // Baseline probability for any 4 digits out of 10 in uniform distribution is 40.0%
+  const baselineFreq = 40.0;
+  const safetyL = Number((baselineFreq - freqL).toFixed(2));
+  const safetyH = Number((baselineFreq - freqH).toFixed(2));
+
+  if (safetyL >= safetyH) {
+    return {
+      symbol,
+      targetContract: "over3",
+      dangerZone: "0,1,2,3",
+      dangerFreq: freqL,
+      baselineFreq,
+      safetyCushion: safetyL,
+      sampleSize: total,
+      isValidated: safetyL > 0,
+      rawMetric: `Zone [0,1,2,3] at ${freqL}% (${countL}/${total}) -> Safety: +${safetyL}%`,
+    };
+  } else {
+    return {
+      symbol,
+      targetContract: "under6",
+      dangerZone: "6,7,8,9",
+      dangerFreq: freqH,
+      baselineFreq,
+      safetyCushion: safetyH,
+      sampleSize: total,
+      isValidated: safetyH > 0,
+      rawMetric: `Zone [6,7,8,9] at ${freqH}% (${countH}/${total}) -> Safety: +${safetyH}%`,
+    };
+  }
+}
+
+
